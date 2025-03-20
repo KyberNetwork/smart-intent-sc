@@ -14,9 +14,9 @@ number_underscore = 'thousands'
 sort_imports = true
 
 [rpc_endpoints]
-sepolia = "${RPC_SEPOLIA}"
+mainnet = "${ETH_NODE_URL}"
 
 [etherscan]
-sepolia = { key = "${ETHERSCAN_SEPOLIA_KEY}" }
+mainnet = { key = "${ETHERSCAN_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
