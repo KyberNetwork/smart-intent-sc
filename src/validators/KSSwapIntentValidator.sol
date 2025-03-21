@@ -6,8 +6,6 @@ import '../interfaces/IKSSwapRouter.sol';
 
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
-import 'forge-std/console.sol';
-
 contract KSSwapIntentValidator is IKSSessionIntentValidator {
   error InvalidActionSelector();
 
@@ -45,9 +43,6 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     } else {
       revert InvalidActionSelector();
     }
-
-    console.log('srcToken', swapDesc.srcToken);
-    console.log('dstToken', swapDesc.dstToken);
 
     uint256 minRate;
     SwapValidationData memory validationData =

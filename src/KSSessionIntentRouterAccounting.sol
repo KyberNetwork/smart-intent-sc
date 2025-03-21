@@ -34,6 +34,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
     }
   }
 
+  /// @notice Set the tokens' allowances for the intent
   function _approveTokens(bytes32 intentHash, TokenData calldata tokenData) internal {
     for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
       ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];
@@ -52,6 +53,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
     }
   }
 
+  /// @notice Transfer the tokens to this contract and update the allowances
   function _spendTokens(
     bytes32 intentHash,
     address mainWallet,
@@ -109,6 +111,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
     }
   }
 
+  /// @notice Refund the tokens to the main wallet
   function _refundTokens(address mainWallet, TokenData calldata tokenData) internal {
     for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
       ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];

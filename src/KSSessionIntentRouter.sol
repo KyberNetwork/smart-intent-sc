@@ -25,15 +25,18 @@ contract KSSessionIntentRouter is
     address[] memory initialGuardians
   ) KSSessionIntentRouterAccounting(initialOwner, initialOperators, initialGuardians) {}
 
+  /// @inheritdoc IKSSessionIntentRouter
   function delegate(IntentData calldata intentData) public {
     require(intentData.coreData.mainWallet == _msgSender(), NotMainWallet());
     _delegate(intentData, 0);
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function revoke(bytes32 intentHash) public {
     intents[intentHash].mainWallet = DEAD_ADDRESS;
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function execute(
     bytes32 intentHash,
     bytes memory swSignature,
@@ -44,6 +47,7 @@ contract KSSessionIntentRouter is
     _execute(intentHash, swSignature, operator, opSignature, actionData);
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function executeWithSignedIntent(
     IntentData calldata intentData,
     bytes memory mwSignature,
