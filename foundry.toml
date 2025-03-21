@@ -13,6 +13,9 @@ quote_style = 'single'
 number_underscore = 'thousands'
 sort_imports = true
 
+[fuzz]
+runs = 10
+
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URL}"
 

@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+pragma solidity ^0.8.0;
+
+import './interfaces/IKSSessionIntentValidator.sol';
+
+import 'ks-growth-utils-sc/KSRescueV2.sol';
+
+import 'openzeppelin-contracts/interfaces/IERC1155Receiver.sol';
+import 'openzeppelin-contracts/interfaces/IERC721Receiver.sol';
+
+abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSRescueV2 {
+  using SafeERC20 for IERC20;
+
+  mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) internal erc1155Allowances;
+
+  mapping(bytes32 => mapping(address => uint256)) internal erc20Allowances;
+
+  mapping(bytes32 => mapping(address => mapping(uint256 => bool))) internal erc721Approvals;
+
+  constructor(
+    address initialOwner,
+    address[] memory initialOperators,
+    address[] memory initialGuardians
+  ) Ownable(initialOwner) {
+    for (uint256 i = 0; i < initialOperators.length; i++) {
+      operators[initialOperators[i]] = true;
+
+      emit UpdateOperator(initialOperators[i], true);
+    }
+    for (uint256 i = 0; i < initialGuardians.length; i++) {
+      guardians[initialGuardians[i]] = true;
+
+      emit UpdateGuardian(initialGuardians[i], true);
+    }
+  }
+
+  function _approveTokens(bytes32 intentHash, TokenData calldata tokenData) internal {
+    for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
+      ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];
+      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
+        erc1155Allowances[intentHash][erc1155Data.token][erc1155Data.tokenIds[j]] =
+          erc1155Data.amounts[j];
+      }
+    }
+    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
+      ERC20Data calldata erc20Data = tokenData.erc20Data[i];
+      erc20Allowances[intentHash][erc20Data.token] = erc20Data.amount;
+    }
+    for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
+      ERC721Data calldata erc721Data = tokenData.erc721Data[i];
+      erc721Approvals[intentHash][erc721Data.token][erc721Data.tokenId] = true;
+    }
+  }
+
+  function _spendTokens(
+    bytes32 intentHash,
+    address mainWallet,
+    address actionContract,
+    TokenData calldata tokenData
+  ) internal {
+    for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
+      ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];
+      IERC1155 token = IERC1155(erc1155Data.token);
+      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
+        uint256 allowance =
+          erc1155Allowances[intentHash][erc1155Data.token][erc1155Data.tokenIds[j]];
+        require(
+          allowance >= erc1155Data.amounts[j],
+          ERC1155InsufficientIntentAllowance(
+            intentHash,
+            erc1155Data.token,
+            erc1155Data.tokenIds[j],
+            allowance,
+            erc1155Data.amounts[j]
+          )
+        );
+        unchecked {
+          erc1155Allowances[intentHash][erc1155Data.token][erc1155Data.tokenIds[j]] =
+            allowance - erc1155Data.amounts[j];
+        }
+      }
+      token.safeBatchTransferFrom(
+        mainWallet, address(this), erc1155Data.tokenIds, erc1155Data.amounts, ''
+      );
+      token.setApprovalForAll(actionContract, true);
+    }
+    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
+      ERC20Data calldata erc20Data = tokenData.erc20Data[i];
+      uint256 allowance = erc20Allowances[intentHash][erc20Data.token];
+      require(
+        allowance >= erc20Data.amount,
+        ERC20InsufficientIntentAllowance(intentHash, erc20Data.token, allowance, erc20Data.amount)
+      );
+      unchecked {
+        erc20Allowances[intentHash][erc20Data.token] = allowance - erc20Data.amount;
+      }
+      IERC20(erc20Data.token).safeTransferFrom(mainWallet, address(this), erc20Data.amount);
+      _safeApproveInf(erc20Data.token, actionContract);
+    }
+    for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
+      ERC721Data calldata erc721Data = tokenData.erc721Data[i];
+      IERC721 token = IERC721(erc721Data.token);
+      require(
+        erc721Approvals[intentHash][erc721Data.token][erc721Data.tokenId],
+        ERC721InsufficientIntentApproval(intentHash, address(token), erc721Data.tokenId)
+      );
+      token.safeTransferFrom(mainWallet, address(this), erc721Data.tokenId);
+      token.approve(actionContract, erc721Data.tokenId);
+    }
+  }
+
+  function _refundTokens(address mainWallet, TokenData calldata tokenData) internal {
+    for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
+      ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];
+      IERC1155 token = IERC1155(erc1155Data.token);
+      address[] memory owners = new address[](erc1155Data.tokenIds.length);
+      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
+        owners[j] = address(this);
+      }
+      uint256[] memory balances = token.balanceOfBatch(owners, erc1155Data.tokenIds);
+      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
+        if (balances[j] > 0) {
+          balances[j]--;
+        }
+        if (balances[j] < erc1155Data.minRefundAmounts[j]) {
+          balances[j] = 0;
+        }
+      }
+      token.safeBatchTransferFrom(address(this), mainWallet, erc1155Data.tokenIds, balances, '');
+    }
+    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
+      ERC20Data calldata erc20Data = tokenData.erc20Data[i];
+      IERC20 token = IERC20(erc20Data.token);
+      uint256 balance = token.balanceOf(address(this));
+      if (balance >= erc20Data.minRefundAmount + 1) {
+        token.safeTransfer(mainWallet, balance - 1);
+      }
+    }
+    for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
+      ERC721Data calldata erc721Data = tokenData.erc721Data[i];
+      IERC721 token = IERC721(erc721Data.token);
+      try token.safeTransferFrom(address(this), mainWallet, erc721Data.tokenId) {} catch {}
+    }
+  }
+
+  function onERC721Received(address, address, uint256, bytes calldata)
+    external
+    pure
+    returns (bytes4)
+  {
+    return IERC721Receiver.onERC721Received.selector;
+  }
+
+  function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+    external
+    pure
+    returns (bytes4)
+  {
+    return IERC1155Receiver.onERC1155Received.selector;
+  }
+
+  function onERC1155BatchReceived(
+    address,
+    address,
+    uint256[] calldata,
+    uint256[] calldata,
+    bytes calldata
+  ) external pure returns (bytes4) {
+    return IERC1155Receiver.onERC1155BatchReceived.selector;
+  }
+
+  function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
+    return interfaceId == type(IERC1155Receiver).interfaceId
+      || interfaceId == type(IERC721Receiver).interfaceId;
+  }
+
+  function _safeApproveInf(address token, address spender) internal {
+    if (IERC20(token).allowance(address(this), spender) == 0) {
+      IERC20(token).forceApprove(spender, type(uint256).max);
+    }
+  }
+}

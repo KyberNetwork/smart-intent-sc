@@ -18,6 +18,16 @@ interface IKSSessionIntentRouter {
 
   error InvalidOperatorSignature();
 
+  error ERC1155InsufficientIntentAllowance(
+    bytes32 intentHash, address token, uint256 tokenId, uint256 allowance, uint256 needed
+  );
+
+  error ERC20InsufficientIntentAllowance(
+    bytes32 intentHash, address token, uint256 allowance, uint256 needed
+  );
+
+  error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
+
   struct ERC20Data {
     address token;
     uint256 amount;

@@ -6,69 +6,45 @@ import './Base.t.sol';
 contract SwapTest is BaseTest {
   using SafeERC20 for IERC20;
 
-  /// forge-config: default.fuzz.runs = 2
-  function testSwapWithRandomCallerSuccess(bool withSignedIntent) public {
+  /// forge-config: default.fuzz.runs = 10
+  function testSwapSuccess(uint256 mode) public {
+    mode = bound(mode, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-    _setUpMainWallet(intentData, withSignedIntent);
+    _setUpMainWallet(intentData, false);
 
     IKSSessionIntentRouter.ActionData memory actionData =
       _getActionData(intentData.tokenData, swapCalldata);
 
-    bytes memory swSignature = _getSWSignature(actionData);
-    bytes memory opSignature = _getOPSignature(actionData);
     vm.warp(block.timestamp + 100);
-    vm.startPrank(randomCaller);
-    if (withSignedIntent) {
-      bytes memory mwSignature = _getMWSignature(intentData);
-      router.executeWithSignedIntent(
-        intentData, mwSignature, swSignature, operator, opSignature, actionData
-      );
-    } else {
-      router.execute(
-        router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
-      );
-    }
+    (address caller, bytes memory swSignature, bytes memory opSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    router.execute(
+      router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
+    );
   }
 
-  /// forge-config: default.fuzz.runs = 2
-  function testSwapWithOperatorSuccess(bool withSignedIntent) public {
+  /// forge-config: default.fuzz.runs = 10
+  function testSwapWithSignedIntentSuccess(uint256 mode) public {
+    mode = bound(mode, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-    _setUpMainWallet(intentData, withSignedIntent);
+    _setUpMainWallet(intentData, true);
 
     IKSSessionIntentRouter.ActionData memory actionData =
       _getActionData(intentData.tokenData, swapCalldata);
 
-    bytes memory swSignature = _getSWSignature(actionData);
     vm.warp(block.timestamp + 100);
-    vm.startPrank(operator);
-    if (withSignedIntent) {
-      bytes memory mwSignature = _getMWSignature(intentData);
-      router.executeWithSignedIntent(intentData, mwSignature, swSignature, operator, '', actionData);
-    } else {
-      router.execute(router.hashTypedIntentData(intentData), swSignature, operator, '', actionData);
-    }
-  }
+    (address caller, bytes memory swSignature, bytes memory opSignature) =
+      _getCallerAndSignatures(mode, actionData);
 
-  /// forge-config: default.fuzz.runs = 2
-  function testSwapWithSessionWalletSuccess(bool withSignedIntent) public {
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-    _setUpMainWallet(intentData, withSignedIntent);
-
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, swapCalldata);
-
-    bytes memory opSignature = _getOPSignature(actionData);
-    vm.warp(block.timestamp + 100);
-    vm.startPrank(sessionWallet);
-    if (withSignedIntent) {
-      bytes memory mwSignature = _getMWSignature(intentData);
-      router.executeWithSignedIntent(intentData, mwSignature, '', operator, opSignature, actionData);
-    } else {
-      router.execute(router.hashTypedIntentData(intentData), '', operator, opSignature, actionData);
-    }
+    bytes memory mwSignature = _getMWSignature(intentData);
+    vm.startPrank(caller);
+    router.executeWithSignedIntent(
+      intentData, mwSignature, swSignature, operator, opSignature, actionData
+    );
   }
 
   function _getIntentData()
