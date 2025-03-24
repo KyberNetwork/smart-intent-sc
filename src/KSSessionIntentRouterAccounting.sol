@@ -111,41 +111,6 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
     }
   }
 
-  /// @notice Refund the tokens to the main wallet
-  function _refundTokens(address mainWallet, TokenData calldata tokenData) internal {
-    for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
-      ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];
-      IERC1155 token = IERC1155(erc1155Data.token);
-      address[] memory owners = new address[](erc1155Data.tokenIds.length);
-      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
-        owners[j] = address(this);
-      }
-      uint256[] memory balances = token.balanceOfBatch(owners, erc1155Data.tokenIds);
-      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
-        if (balances[j] > 0) {
-          balances[j]--;
-        }
-        if (balances[j] < erc1155Data.minRefundAmounts[j]) {
-          balances[j] = 0;
-        }
-      }
-      token.safeBatchTransferFrom(address(this), mainWallet, erc1155Data.tokenIds, balances, '');
-    }
-    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
-      ERC20Data calldata erc20Data = tokenData.erc20Data[i];
-      IERC20 token = IERC20(erc20Data.token);
-      uint256 balance = token.balanceOf(address(this));
-      if (balance >= erc20Data.minRefundAmount + 1) {
-        token.safeTransfer(mainWallet, balance - 1);
-      }
-    }
-    for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
-      ERC721Data calldata erc721Data = tokenData.erc721Data[i];
-      IERC721 token = IERC721(erc721Data.token);
-      try token.safeTransferFrom(address(this), mainWallet, erc721Data.tokenId) {} catch {}
-    }
-  }
-
   function onERC721Received(address, address, uint256, bytes calldata)
     external
     pure

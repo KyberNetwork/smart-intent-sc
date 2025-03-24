@@ -43,12 +43,10 @@ interface IKSSessionIntentRouter {
    * @notice Data structure for ERC20 token
    * @param token The address of the ERC20 token
    * @param amount The amount of the ERC20 token
-   * @param minRefundAmount The minimum amount of the ERC20 token to refund
    */
   struct ERC20Data {
     address token;
     uint256 amount;
-    uint256 minRefundAmount;
   }
 
   /**
@@ -66,13 +64,11 @@ interface IKSSessionIntentRouter {
    * @param token The address of the ERC1155 token
    * @param tokenIds The IDs of the ERC1155 token
    * @param amounts The amounts of the ERC1155 token
-   * @param minRefundAmounts The minimum amounts of the ERC1155 token to refund
    */
   struct ERC1155Data {
     address token;
     uint256[] tokenIds;
     uint256[] amounts;
-    uint256[] minRefundAmounts;
   }
 
   /**

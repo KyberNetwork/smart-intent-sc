@@ -7,12 +7,12 @@ interface IKSSessionIntentValidator {
   /**
    * @notice Validates the intent before execution
    * @param coreData the core data of the intent
-   * @param actionCallData the call data of the action
+   * @param actionData the data of the action
    * @return beforeExecutionData the data to be used for validation after execution
    */
   function validateBeforeExecution(
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
-    bytes calldata actionCallData
+    IKSSessionIntentRouter.ActionData calldata actionData
   ) external view returns (bytes memory beforeExecutionData);
 
   /**

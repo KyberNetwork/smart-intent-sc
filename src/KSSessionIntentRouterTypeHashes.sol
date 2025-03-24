@@ -35,14 +35,13 @@ abstract contract KSSessionIntentRouterTypeHashes is
         ERC1155_DATA_TYPEHASH,
         data.token,
         keccak256(abi.encodePacked(data.tokenIds)),
-        keccak256(abi.encodePacked(data.amounts)),
-        keccak256(abi.encodePacked(data.minRefundAmounts))
+        keccak256(abi.encodePacked(data.amounts))
       )
     );
   }
 
   function _hashERC20Data(ERC20Data calldata data) internal view returns (bytes32) {
-    return keccak256(abi.encode(ERC20_DATA_TYPEHASH, data.token, data.amount, data.minRefundAmount));
+    return keccak256(abi.encode(ERC20_DATA_TYPEHASH, data.token, data.amount));
   }
 
   function _hashERC721Data(ERC721Data calldata data) internal view returns (bytes32) {
@@ -128,10 +127,10 @@ abstract contract KSSessionIntentRouterTypeHashes is
     )
   {
     bytes memory erc1155DataTypeString = abi.encodePacked(
-      'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts,uint256[] minRefundAmounts)'
+      'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)'
     );
     bytes memory erc20DataTypeString =
-      abi.encodePacked('ERC20Data(address token,uint256 amount,uint256 minRefundAmount)');
+      abi.encodePacked('ERC20Data(address token,uint256 amount)');
     bytes memory erc721DataTypeString =
       abi.encodePacked('ERC721Data(address token,uint256 tokenId)');
     bytes memory tokenDataTypeString = abi.encodePacked(

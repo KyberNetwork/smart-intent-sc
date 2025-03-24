@@ -6,7 +6,7 @@ import 'src/interfaces/IKSSessionIntentValidator.sol';
 contract MockIntentValidator is IKSSessionIntentValidator {
   function validateBeforeExecution(
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
-    bytes calldata actionCallData
+    IKSSessionIntentRouter.ActionData calldata actionData
   ) external view returns (bytes memory beforeExecutionData) {}
 
   function validateAfterExecution(

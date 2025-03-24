@@ -30,16 +30,17 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
-    bytes calldata actionCallData
+    IKSSessionIntentRouter.ActionData calldata actionData
   ) external view override returns (bytes memory beforeExecutionData) {
     IKSSwapRouter.SwapDescriptionV2 memory swapDesc;
     if (coreData.actionSelector == IKSSwapRouter.swap.selector) {
       IKSSwapRouter.SwapExecutionParams memory params =
-        abi.decode(actionCallData, (IKSSwapRouter.SwapExecutionParams));
+        abi.decode(actionData.actionCalldata, (IKSSwapRouter.SwapExecutionParams));
       swapDesc = params.desc;
     } else if (coreData.actionSelector == IKSSwapRouter.swapSimpleMode.selector) {
-      (, swapDesc,,) =
-        abi.decode(actionCallData, (address, IKSSwapRouter.SwapDescriptionV2, bytes, bytes));
+      (, swapDesc,,) = abi.decode(
+        actionData.actionCalldata, (address, IKSSwapRouter.SwapDescriptionV2, bytes, bytes)
+      );
     } else {
       revert InvalidActionSelector();
     }

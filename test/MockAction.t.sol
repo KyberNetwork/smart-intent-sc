@@ -238,7 +238,6 @@ contract MockActionTest is BaseTest {
     newTokenData.erc1155Data[0].token = address(erc1155Mock);
     newTokenData.erc1155Data[0].tokenIds = new uint256[](size);
     newTokenData.erc1155Data[0].amounts = new uint256[](size);
-    newTokenData.erc1155Data[0].minRefundAmounts = new uint256[](size);
     for (uint256 i = 0; i < size; i++) {
       newTokenData.erc1155Data[0].tokenIds[i] = i;
       newTokenData.erc1155Data[0].amounts[i] = bound(seed, 1, tokenData.erc1155Data[0].amounts[i]);
@@ -247,8 +246,7 @@ contract MockActionTest is BaseTest {
     newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
     newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
       token: address(erc20Mock),
-      amount: bound(seed, 1, tokenData.erc20Data[0].amount),
-      minRefundAmount: 0
+      amount: bound(seed, 1, tokenData.erc20Data[0].amount)
     });
 
     newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
@@ -280,7 +278,6 @@ contract MockActionTest is BaseTest {
     tokenData.erc1155Data[0].token = address(erc1155Mock);
     tokenData.erc1155Data[0].tokenIds = new uint256[](size);
     tokenData.erc1155Data[0].amounts = new uint256[](size);
-    tokenData.erc1155Data[0].minRefundAmounts = new uint256[](size);
     for (uint256 i = 0; i < size; i++) {
       tokenData.erc1155Data[0].tokenIds[i] = i;
       tokenData.erc1155Data[0].amounts[i] = bound(seed / (i + 1), 1, 1e18);
@@ -291,8 +288,7 @@ contract MockActionTest is BaseTest {
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
     tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
       token: address(erc20Mock),
-      amount: bound(seed, 1, 1e18),
-      minRefundAmount: 0
+      amount: bound(seed, 1, 1e18)
     });
     erc20Mock.mint(mainWallet, tokenData.erc20Data[0].amount);
     erc20Mock.approve(address(router), tokenData.erc20Data[0].amount);
