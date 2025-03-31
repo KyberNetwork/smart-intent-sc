@@ -50,7 +50,7 @@ contract DCATest is BaseTest {
       _setUpMainWallet(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata, deadline));
+        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory swSignature, bytes memory opSignature) =
@@ -61,8 +61,6 @@ contract DCATest is BaseTest {
         router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
       );
       vm.stopPrank();
-
-      spentAmount += amountIn;
     }
   }
 
@@ -80,7 +78,7 @@ contract DCATest is BaseTest {
       _setUpMainWallet(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata, deadline));
+        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory swSignature, bytes memory opSignature) =
@@ -97,26 +95,26 @@ contract DCATest is BaseTest {
 
       router.execute(intentHash, swSignature, operator, opSignature, actionData);
       vm.stopPrank();
-
-      spentAmount += amountIn;
     }
   }
 
   function test_timeBasedFailed_wrongAmountIn(uint256 mode) public {
     mode = bound(mode, 0, 2);
 
-    swapCalldata = _adjustAmountIn(swapCalldata, amountIn + 1e6);
-
     for (uint256 i; i < timestamps.length; i++) {
       executionTime = timestamps[i];
       deadline = timestamps[i] + 10;
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+      KSDCAIntentValidator.DCAValidationData memory validationData =
+        abi.decode(intentData.coreData.validationData, (KSDCAIntentValidator.DCAValidationData));
+      validationData.amountIn = amountIn - 1e6;
+      intentData.coreData.validationData = abi.encode(validationData);
 
       _setUpMainWallet(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata, deadline));
+        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory swSignature, bytes memory opSignature) =
@@ -127,14 +125,12 @@ contract DCATest is BaseTest {
 
       vm.expectRevert(
         abi.encodeWithSelector(
-          KSDCAIntentValidator.AboveInputAmount.selector, amountIn, amountIn + 1e6
+          KSDCAIntentValidator.AboveInputAmount.selector, amountIn - 1e6, amountIn
         )
       );
 
       router.execute(intentHash, swSignature, operator, opSignature, actionData);
       vm.stopPrank();
-
-      spentAmount += amountIn;
     }
   }
 
@@ -152,7 +148,7 @@ contract DCATest is BaseTest {
       _setUpMainWallet(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata, deadline));
+        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory swSignature, bytes memory opSignature) =
@@ -169,44 +165,6 @@ contract DCATest is BaseTest {
 
       router.execute(intentHash, swSignature, operator, opSignature, actionData);
       vm.stopPrank();
-
-      spentAmount += amountIn;
-    }
-  }
-
-  function test_timeBasedFailed_exceedInvestAmount(uint256 mode) public {
-    mode = bound(mode, 0, 2);
-
-    timestamps.push(timestamps[0] + 3 days); // exceed number of iterations
-
-    for (uint256 i; i < timestamps.length; i++) {
-      executionTime = timestamps[i];
-      deadline = timestamps[i] + 10;
-
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-      _setUpMainWallet(intentData, false);
-
-      IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata, deadline));
-
-      vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
-        _getCallerAndSignatures(mode, actionData);
-
-      vm.startPrank(caller);
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
-      if (i == timestamps.length - 1) {
-        vm.expectRevert(
-          abi.encodeWithSelector(KSDCAIntentValidator.ExceedInvestAmount.selector, 4e9, 3e9)
-        );
-      }
-
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
-      vm.stopPrank();
-
-      spentAmount += amountIn;
     }
   }
 
@@ -224,7 +182,7 @@ contract DCATest is BaseTest {
       _setUpMainWallet(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata, deadline));
+        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory swSignature, bytes memory opSignature) =
@@ -235,8 +193,6 @@ contract DCATest is BaseTest {
         router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
       );
       vm.stopPrank();
-
-      spentAmount += amountIn;
     }
   }
 
@@ -248,8 +204,6 @@ contract DCATest is BaseTest {
     KSDCAIntentValidator.DCAValidationData memory validationData;
     validationData.srcToken = tokenIn;
     validationData.dstToken = tokenOut;
-    validationData.investAmount = investAmount;
-    validationData.spentAmount = spentAmount;
     validationData.amountIn = amountIn;
     validationData.minAmountOut = minAmountOut;
     validationData.executionTime = executionTime;
@@ -322,11 +276,7 @@ contract DCATest is BaseTest {
     return abi.encode(params);
   }
 
-  function _adjustDeadline(bytes memory callData, uint32 deadline)
-    internal
-    pure
-    returns (bytes memory)
-  {
+  function _adjustDeadline(bytes memory callData) internal view returns (bytes memory) {
     IKSSwapRouter.SwapExecutionParams memory params =
       abi.decode(callData, (IKSSwapRouter.SwapExecutionParams));
 

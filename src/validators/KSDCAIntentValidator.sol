@@ -8,11 +8,9 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
 contract KSDCAIntentValidator is IKSSessionIntentValidator {
   error InvalidActionSelector();
-  error InvalidSwapPair();
   error InvalidExecutionTime(uint32 executionTime, uint32 currentTime);
   error AboveInputAmount(uint256 inputAmount, uint256 actualAmount);
   error BelowOutputAmount(uint256 outputAmount, uint256 actualAmount);
-  error ExceedInvestAmount(uint256 spentAmount, uint256 investAmount);
 
   uint256 public constant TIME_THRESHOLD = 60;
 
@@ -27,8 +25,6 @@ contract KSDCAIntentValidator is IKSSessionIntentValidator {
   struct DCAValidationData {
     address srcToken;
     address dstToken;
-    uint256 investAmount;
-    uint256 spentAmount;
     uint256 amountIn;
     uint256 minAmountOut;
     uint32 executionTime;
@@ -55,48 +51,58 @@ contract KSDCAIntentValidator is IKSSessionIntentValidator {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 
-    if(swapDesc.srcToken != validationData.srcToken || swapDesc.dstToken != validationData.dstToken) {
-      revert InvalidSwapPair();
-    }
-
-    if(validationData.executionTime != 0){ // ignore timestamp on price-based DCA
-      if(block.timestamp < validationData.executionTime - TIME_THRESHOLD || validationData.executionTime + TIME_THRESHOLD < block.timestamp) {
+    if (validationData.executionTime != 0) {
+      // ignore timestamp on price-based DCA
+      if (
+        block.timestamp < validationData.executionTime - TIME_THRESHOLD
+          || validationData.executionTime + TIME_THRESHOLD < block.timestamp
+      ) {
         revert InvalidExecutionTime(validationData.executionTime, uint32(block.timestamp));
       }
     }
 
-    if(swapDesc.amount > validationData.amountIn){
-      revert AboveInputAmount(validationData.amountIn, swapDesc.amount);
-    }
-    
-    if(validationData.spentAmount + validationData.amountIn > validationData.investAmount){
-      revert ExceedInvestAmount(validationData.spentAmount + validationData.amountIn, validationData.investAmount);  
-    }
+    uint256 srcBalanceBefore = IERC20(swapDesc.srcToken).balanceOf(coreData.mainWallet);
+    uint256 dstBalanceBefore = IERC20(swapDesc.dstToken).balanceOf(swapDesc.dstReceiver);
 
-    uint256 srcBalanceBefore = IERC20(swapDesc.srcToken).balanceOf(address(this));
-
-    return abi.encode(swapDesc.srcToken, swapDesc.dstToken, srcBalanceBefore, validationData.amountIn, validationData.minAmountOut);
+    return abi.encode(
+      swapDesc.srcToken,
+      swapDesc.dstToken,
+      srcBalanceBefore,
+      dstBalanceBefore,
+      validationData.amountIn,
+      validationData.minAmountOut,
+      swapDesc.dstReceiver
+    );
   }
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateAfterExecution(
-    IKSSessionIntentRouter.IntentCoreData calldata,
+    IKSSessionIntentRouter.IntentCoreData calldata coreData,
     bytes calldata beforeExecutionData,
     bytes calldata actionResult
   ) external view override {
-    (address srcToken,, uint256 srcBalanceBefore, uint256 inputAmount, uint256 outputAmount) =
-        abi.decode(beforeExecutionData, (address, address, uint256, uint256, uint256));
+    (
+      address srcToken,
+      address dstToken,
+      uint256 srcBalanceBefore,
+      uint256 dstBalanceBefore,
+      uint256 inputAmount,
+      uint256 outputAmount,
+      address dstReceiver
+    ) = abi.decode(
+      beforeExecutionData, (address, address, uint256, uint256, uint256, uint256, address)
+    );
 
     {
-      uint256 actualInputAmount = srcBalanceBefore - IERC20(srcToken).balanceOf(address(this));
+      uint256 actualInputAmount = srcBalanceBefore - IERC20(srcToken).balanceOf(coreData.mainWallet);
 
-      if(actualInputAmount > inputAmount){
+      if (actualInputAmount > inputAmount) {
         revert AboveInputAmount(inputAmount, actualInputAmount);
       }
     }
 
     {
-    (uint256 actualOutputAmount,) = abi.decode(actionResult, (uint256, uint256));
+      uint256 actualOutputAmount = IERC20(dstToken).balanceOf(dstReceiver) - dstBalanceBefore;
       if (actualOutputAmount < outputAmount) {
         revert BelowOutputAmount(outputAmount, actualOutputAmount);
       }
