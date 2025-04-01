@@ -1,33 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSessionIntentValidator.sol';
-import '../interfaces/IKSSwapRouter.sol';
-
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
-contract KSDCAIntentValidator is IKSSessionIntentValidator {
-  error InvalidActionSelector();
-  error InvalidExecutionTime(uint32 executionTime, uint32 currentTime);
-  error AboveInputAmount(uint256 inputAmount, uint256 actualAmount);
-  error BelowOutputAmount(uint256 outputAmount, uint256 actualAmount);
+import '../interfaces/IKSSessionIntentValidator.sol';
 
-  uint256 public constant TIME_THRESHOLD = 60;
+contract KSDCAIntentValidator is IKSSessionIntentValidator {
+  error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
+  error InvalidExecutionTime(uint256 startTime, uint256 endTime, uint256 currentTime);
+  error InvalidAmountIn(uint256 amountIn, uint256 actualAmountIn);
+  error InvalidAmountOut(uint256 minAmountOut, uint256 maxAmountOut, uint256 actualAmountOut);
 
   /**
    * @notice Data structure for dca validation
    * @param srcToken The source token
    * @param dstToken The destination token
-   * @param amountIn The amount of source token
-   * @param executionTime timestamp for execution
-   * @param minAmountOut The minimum amount of destination token to be received
+   * @param amountIn The amount of source token to be swapped, should be the same for all swaps
+   * @param amountOutLimits The minimum and maximum amount of destination token to be received, should be the same for all swaps (minAmountOut 128bits, maxAmountOut 128bits)
+   * @param executionParams The parameters for swaps validation (numSwaps 32bits, duration 32bits, startPeriod 32bits, firstTimestamp 32bits)
    */
   struct DCAValidationData {
     address srcToken;
     address dstToken;
     uint256 amountIn;
-    uint256 minAmountOut;
-    uint32 executionTime;
+    uint256 amountOutLimits;
+    uint256 executionParams;
   }
 
   /// @inheritdoc IKSSessionIntentValidator
@@ -35,77 +32,55 @@ contract KSDCAIntentValidator is IKSSessionIntentValidator {
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
   ) external view override returns (bytes memory beforeExecutionData) {
-    IKSSwapRouter.SwapDescriptionV2 memory swapDesc;
-    if (coreData.actionSelector == IKSSwapRouter.swap.selector) {
-      IKSSwapRouter.SwapExecutionParams memory params =
-        abi.decode(actionData.actionCalldata, (IKSSwapRouter.SwapExecutionParams));
-      swapDesc = params.desc;
-    } else if (coreData.actionSelector == IKSSwapRouter.swapSimpleMode.selector) {
-      (, swapDesc,,) = abi.decode(
-        actionData.actionCalldata, (address, IKSSwapRouter.SwapDescriptionV2, bytes, bytes)
-      );
-    } else {
-      revert InvalidActionSelector();
-    }
-
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 
-    if (validationData.executionTime != 0) {
-      // ignore timestamp on price-based DCA
-      if (
-        block.timestamp < validationData.executionTime - TIME_THRESHOLD
-          || validationData.executionTime + TIME_THRESHOLD < block.timestamp
-      ) {
-        revert InvalidExecutionTime(validationData.executionTime, uint32(block.timestamp));
+    uint256 swapNo = abi.decode(actionData.validatorData, (uint256));
+    uint32 numSwaps = uint32(validationData.executionParams >> 96);
+
+    if (swapNo >= numSwaps) {
+      revert ExceedNumSwaps(numSwaps, swapNo);
+    }
+
+    //validate execution time
+    if (uint96(validationData.executionParams) != 0) {
+      uint32 duration = uint32(validationData.executionParams >> 64);
+      uint32 startPeriod = uint32(validationData.executionParams >> 32);
+      uint32 firstTimestamp = uint32(validationData.executionParams);
+
+      uint256 startTime = firstTimestamp + duration * swapNo;
+      uint256 endTime = startTime + startPeriod;
+
+      if (block.timestamp < startTime || endTime < block.timestamp) {
+        revert InvalidExecutionTime(startTime, endTime, uint32(block.timestamp));
       }
     }
 
-    uint256 srcBalanceBefore = IERC20(swapDesc.srcToken).balanceOf(coreData.mainWallet);
-    uint256 dstBalanceBefore = IERC20(swapDesc.dstToken).balanceOf(swapDesc.dstReceiver);
+    //validate amountIn, currently only support 1 tokenIn
+    if (
+      actionData.tokenData.erc20Data.length != 1
+        || actionData.tokenData.erc20Data[0].amount != validationData.amountIn
+    ) {
+      revert InvalidAmountIn(validationData.amountIn, actionData.tokenData.erc20Data[0].amount);
+    }
 
-    return abi.encode(
-      swapDesc.srcToken,
-      swapDesc.dstToken,
-      srcBalanceBefore,
-      dstBalanceBefore,
-      validationData.amountIn,
-      validationData.minAmountOut,
-      swapDesc.dstReceiver
-    );
+    return abi.encode(validationData.amountOutLimits);
   }
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateAfterExecution(
-    IKSSessionIntentRouter.IntentCoreData calldata coreData,
+    IKSSessionIntentRouter.IntentCoreData calldata,
     bytes calldata beforeExecutionData,
     bytes calldata actionResult
-  ) external view override {
-    (
-      address srcToken,
-      address dstToken,
-      uint256 srcBalanceBefore,
-      uint256 dstBalanceBefore,
-      uint256 inputAmount,
-      uint256 outputAmount,
-      address dstReceiver
-    ) = abi.decode(
-      beforeExecutionData, (address, address, uint256, uint256, uint256, uint256, address)
-    );
+  ) external pure override {
+    uint256 amountOutLimits = abi.decode(beforeExecutionData, (uint256));
+    (uint256 amountOut,) = abi.decode(actionResult, (uint256, uint256));
 
-    {
-      uint256 actualInputAmount = srcBalanceBefore - IERC20(srcToken).balanceOf(coreData.mainWallet);
+    uint128 minAmountOut = uint128(amountOutLimits >> 128);
+    uint128 maxAmountOut = uint128(amountOutLimits);
 
-      if (actualInputAmount > inputAmount) {
-        revert AboveInputAmount(inputAmount, actualInputAmount);
-      }
-    }
-
-    {
-      uint256 actualOutputAmount = IERC20(dstToken).balanceOf(dstReceiver) - dstBalanceBefore;
-      if (actualOutputAmount < outputAmount) {
-        revert BelowOutputAmount(outputAmount, actualOutputAmount);
-      }
+    if (amountOut < minAmountOut || maxAmountOut < amountOut) {
+      revert InvalidAmountOut(minAmountOut, maxAmountOut, amountOut);
     }
   }
 }

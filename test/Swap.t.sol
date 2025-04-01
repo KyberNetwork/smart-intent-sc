@@ -73,8 +73,7 @@ contract SwapTest is BaseTest {
 
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] =
-      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn});
+    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn});
 
     intentData = IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData});
   }
@@ -99,6 +98,7 @@ contract SwapTest is BaseTest {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionCalldata: actionCalldata,
+      validatorData: '',
       deadline: block.timestamp + 1 days
     });
   }

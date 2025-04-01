@@ -124,9 +124,10 @@ interface IKSSessionIntentRouter {
   struct ActionData {
     TokenData tokenData;
     bytes actionCalldata;
+    bytes validatorData;
     uint256 deadline;
   }
-  
+
   /**
    * @notice Delegate the intent to the session wallet
    * @param intentData The data for the intent
