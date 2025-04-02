@@ -23,19 +23,6 @@ interface IKSSwapRouter {
     SwapDescriptionV2 desc; // swap desciption
     bytes clientData; // client data
   }
-  
-  struct Swap {
-    bytes data;
-    bytes32 selectorAndFlags; // [selector (32 bits) + flags (224 bits)]; selector is 4 most significant bytes; flags are stored in 4 least significant bytes.
-  }
-  struct SwapExecutorDescription {
-    Swap[][] swapSequences;
-    address tokenIn;
-    address tokenOut;
-    address to;
-    uint256 deadline;
-    bytes positiveSlippageData;
-  }
 
   event Swapped(
     address sender,

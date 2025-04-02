@@ -8,8 +8,10 @@ import '../interfaces/IKSSessionIntentValidator.sol';
 contract KSDCAIntentValidator is IKSSessionIntentValidator {
   error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
   error InvalidExecutionTime(uint256 startTime, uint256 endTime, uint256 currentTime);
+  error InvalidTokenIn(address tokenIn, address actualTokenIn);
   error InvalidAmountIn(uint256 amountIn, uint256 actualAmountIn);
   error InvalidAmountOut(uint256 minAmountOut, uint256 maxAmountOut, uint256 actualAmountOut);
+  error SwapAlreadyExecuted();
 
   /**
    * @notice Data structure for dca validation
@@ -25,13 +27,17 @@ contract KSDCAIntentValidator is IKSSessionIntentValidator {
     uint256 amountIn;
     uint256 amountOutLimits;
     uint256 executionParams;
+    address recipient;
   }
+
+  mapping(bytes32 => uint256) public lastestSwap;
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
+    bytes32 intentHash,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external view override returns (bytes memory beforeExecutionData) {
+  ) external override returns (bytes memory beforeExecutionData) {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 
@@ -59,25 +65,43 @@ contract KSDCAIntentValidator is IKSSessionIntentValidator {
     //validate amountIn, currently only support 1 tokenIn
     if (
       actionData.tokenData.erc20Data.length != 1
-        || actionData.tokenData.erc20Data[0].amount != validationData.amountIn
+        || actionData.tokenData.erc20Data[0].token != validationData.srcToken
     ) {
+      revert InvalidTokenIn(validationData.srcToken, actionData.tokenData.erc20Data[0].token);
+    }
+
+    if (actionData.tokenData.erc20Data[0].amount != validationData.amountIn) {
       revert InvalidAmountIn(validationData.amountIn, actionData.tokenData.erc20Data[0].amount);
     }
 
-    return abi.encode(validationData.amountOutLimits);
+    //validate this swap is not executed before
+    swapNo++; //swapNo starts from 0, lastestSwap starts from 1
+    if (swapNo <= lastestSwap[intentHash]) {
+      revert SwapAlreadyExecuted();
+    }
+    lastestSwap[intentHash] = swapNo;
+
+    uint256 balanceBefore = IERC20(validationData.dstToken).balanceOf(validationData.recipient);
+
+    return abi.encode(balanceBefore);
   }
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateAfterExecution(
-    IKSSessionIntentRouter.IntentCoreData calldata,
+    bytes32,
+    IKSSessionIntentRouter.IntentCoreData calldata coreData,
     bytes calldata beforeExecutionData,
-    bytes calldata actionResult
-  ) external pure override {
-    uint256 amountOutLimits = abi.decode(beforeExecutionData, (uint256));
-    (uint256 amountOut,) = abi.decode(actionResult, (uint256, uint256));
+    bytes calldata
+  ) external view override {
+    DCAValidationData memory validationData =
+      abi.decode(coreData.validationData, (DCAValidationData));
 
-    uint128 minAmountOut = uint128(amountOutLimits >> 128);
-    uint128 maxAmountOut = uint128(amountOutLimits);
+    uint128 minAmountOut = uint128(validationData.amountOutLimits >> 128);
+    uint128 maxAmountOut = uint128(validationData.amountOutLimits);
+
+    uint256 balanceBefore = abi.decode(beforeExecutionData, (uint256));
+    uint256 amountOut =
+      IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
 
     if (amountOut < minAmountOut || maxAmountOut < amountOut) {
       revert InvalidAmountOut(minAmountOut, maxAmountOut, amountOut);
