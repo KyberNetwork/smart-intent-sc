@@ -30,6 +30,7 @@ contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
     address recipient;
   }
 
+  address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
   mapping(bytes32 => uint256) public lastestSwap;
 
   /// @inheritdoc IKSSessionIntentValidator
@@ -81,7 +82,12 @@ contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
     }
     lastestSwap[intentHash] = swapNo;
 
-    uint256 balanceBefore = IERC20(validationData.dstToken).balanceOf(validationData.recipient);
+    uint256 balanceBefore;
+    if (validationData.dstToken == ETH_ADDRESS) {
+      balanceBefore = validationData.recipient.balance;
+    } else {
+      balanceBefore = IERC20(validationData.dstToken).balanceOf(validationData.recipient);
+    }
 
     return abi.encode(balanceBefore);
   }
@@ -100,8 +106,13 @@ contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
     uint128 maxAmountOut = uint128(validationData.amountOutLimits);
 
     uint256 balanceBefore = abi.decode(beforeExecutionData, (uint256));
-    uint256 amountOut =
-      IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
+    uint256 amountOut;
+    if (validationData.dstToken == ETH_ADDRESS) {
+      amountOut = validationData.recipient.balance - balanceBefore;
+    } else {
+      amountOut =
+        IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
+    }
 
     if (amountOut < minAmountOut || maxAmountOut < amountOut) {
       revert InvalidAmountOut(minAmountOut, maxAmountOut, amountOut);
