@@ -28,7 +28,7 @@ contract KSPriceBasedDCAIntentValidator is IKSSessionIntentValidator {
   }
 
   address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
-  mapping(bytes32 => uint256) public lastestSwap;
+  mapping(bytes32 => uint256) public latestSwap;
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
@@ -61,11 +61,11 @@ contract KSPriceBasedDCAIntentValidator is IKSSessionIntentValidator {
     }
 
     //validate this swap is not executed before
-    swapNo++; //swapNo starts from 0, lastestSwap starts from 1
-    if (swapNo <= lastestSwap[intentHash]) {
+    swapNo++; //swapNo starts from 0, latestSwap starts from 1
+    if (swapNo <= latestSwap[intentHash]) {
       revert SwapAlreadyExecuted();
     }
-    lastestSwap[intentHash] = swapNo;
+    latestSwap[intentHash] = swapNo;
 
     uint256 balanceBefore;
     if (validationData.dstToken == ETH_ADDRESS) {
