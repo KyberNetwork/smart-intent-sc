@@ -29,6 +29,7 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
+    bytes32,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
   ) external view override returns (bytes memory beforeExecutionData) {
@@ -68,6 +69,7 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateAfterExecution(
+    bytes32,
     IKSSessionIntentRouter.IntentCoreData calldata,
     bytes calldata beforeExecutionData,
     bytes calldata actionResult

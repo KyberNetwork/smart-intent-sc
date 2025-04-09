@@ -11,9 +11,10 @@ interface IKSSessionIntentValidator {
    * @return beforeExecutionData the data to be used for validation after execution
    */
   function validateBeforeExecution(
+    bytes32 intentHash,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external view returns (bytes memory beforeExecutionData);
+  ) external returns (bytes memory beforeExecutionData);
 
   /**
    * @notice Validates the intent after execution
@@ -22,8 +23,9 @@ interface IKSSessionIntentValidator {
    * @param actionResult the result of the action
    */
   function validateAfterExecution(
+    bytes32 intentHash,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     bytes calldata beforeExecutionData,
     bytes calldata actionResult
-  ) external view;
+  ) external;
 }

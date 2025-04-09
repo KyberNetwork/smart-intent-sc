@@ -101,14 +101,14 @@ contract KSSessionIntentRouter is
       );
     }
 
-    bytes memory beforeExecutionData =
-      IKSSessionIntentValidator(intent.validator).validateBeforeExecution(intent, actionData);
+    bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
+      .validateBeforeExecution(intentHash, intent, actionData);
     _spendTokens(intentHash, intent.mainWallet, intent.actionContract, actionData.tokenData);
     bytes memory actionResult = intent.actionContract.functionCall(
       abi.encodePacked(intent.actionSelector, actionData.actionCalldata)
     );
     IKSSessionIntentValidator(intent.validator).validateAfterExecution(
-      intent, beforeExecutionData, actionResult
+      intentHash, intent, beforeExecutionData, actionResult
     );
   }
 }

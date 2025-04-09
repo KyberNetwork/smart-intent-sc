@@ -286,10 +286,8 @@ contract MockActionTest is BaseTest {
     erc1155Mock.setApprovalForAll(address(router), true);
 
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
-      token: address(erc20Mock),
-      amount: bound(seed, 1, 1e18)
-    });
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: address(erc20Mock), amount: bound(seed, 1, 1e18)});
     erc20Mock.mint(mainWallet, tokenData.erc20Data[0].amount);
     erc20Mock.approve(address(router), tokenData.erc20Data[0].amount);
 
@@ -321,6 +319,7 @@ contract MockActionTest is BaseTest {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionCalldata: actionCalldata,
+      validatorData: '',
       deadline: block.timestamp + 1 days
     });
   }

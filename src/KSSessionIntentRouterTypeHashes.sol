@@ -126,11 +126,9 @@ abstract contract KSSessionIntentRouterTypeHashes is
       bytes32 actionDataTypeHash
     )
   {
-    bytes memory erc1155DataTypeString = abi.encodePacked(
-      'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)'
-    );
-    bytes memory erc20DataTypeString =
-      abi.encodePacked('ERC20Data(address token,uint256 amount)');
+    bytes memory erc1155DataTypeString =
+      abi.encodePacked('ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)');
+    bytes memory erc20DataTypeString = abi.encodePacked('ERC20Data(address token,uint256 amount)');
     bytes memory erc721DataTypeString =
       abi.encodePacked('ERC721Data(address token,uint256 tokenId)');
     bytes memory tokenDataTypeString = abi.encodePacked(

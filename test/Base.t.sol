@@ -45,7 +45,7 @@ contract BaseTest is Test {
   ERC20Mock erc20Mock;
   ERC721Mock erc721Mock;
 
-  function setUp() public {
+  function setUp() public virtual {
     vm.createSelectFork('mainnet', FORK_BLOCK);
 
     (operator, operatorKey) = makeAddrAndKey('operator');
