@@ -19,96 +19,138 @@ contract KSSessionIntentRouter is
 
   mapping(bytes32 => IntentCoreData) public intents;
 
-  constructor(
-    address initialOwner,
-    address[] memory initialOperators,
-    address[] memory initialGuardians
-  ) KSSessionIntentRouterAccounting(initialOwner, initialOperators, initialGuardians) {}
+  mapping(bytes32 => bool) whitelistedActions;
+
+  mapping(address => bool) whitelistedValidators;
+
+  constructor(address initialOwner, address[] memory initialGuardians)
+    KSSessionIntentRouterAccounting(initialOwner, initialGuardians)
+  {}
+
+  function whitelistActions(
+    address[] calldata actionContracts,
+    bytes4[] calldata actionSelectors,
+    bool grantOrRevoke
+  ) public onlyOwner {
+    for (uint256 i = 0; i < actionContracts.length; i++) {
+      whitelistedActions[keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]))] =
+        grantOrRevoke;
+
+      emit WhitelistAction(actionContracts[i], actionSelectors[i], grantOrRevoke);
+    }
+  }
+
+  function whitelistValidators(address[] calldata validators, bool grantOrRevoke) public onlyOwner {
+    for (uint256 i = 0; i < validators.length; i++) {
+      whitelistedValidators[validators[i]] = grantOrRevoke;
+
+      emit WhitelistValidator(validators[i], grantOrRevoke);
+    }
+  }
 
   /// @inheritdoc IKSSessionIntentRouter
   function delegate(IntentData calldata intentData) public {
-    require(intentData.coreData.mainWallet == _msgSender(), NotMainWallet());
+    require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
     _delegate(intentData, 0);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
   function revoke(bytes32 intentHash) public {
-    intents[intentHash].mainWallet = DEAD_ADDRESS;
+    intents[intentHash].mainAddress = DEAD_ADDRESS;
   }
 
   /// @inheritdoc IKSSessionIntentRouter
   function execute(
     bytes32 intentHash,
-    bytes memory swSignature,
-    address operator,
-    bytes memory opSignature,
+    bytes memory daSignature,
+    address guardian,
+    bytes memory gdSignature,
     ActionData calldata actionData
   ) public {
-    _execute(intentHash, swSignature, operator, opSignature, actionData);
+    _execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
   function executeWithSignedIntent(
     IntentData calldata intentData,
-    bytes memory mwSignature,
-    bytes memory swSignature,
-    address operator,
-    bytes memory opSignature,
+    bytes memory maSignature,
+    bytes memory daSignature,
+    address guardian,
+    bytes memory gdSignature,
     ActionData calldata actionData
   ) public {
     bytes32 intentHash = _hashTypedIntentData(intentData);
     require(
-      SignatureChecker.isValidSignatureNow(intentData.coreData.mainWallet, intentHash, mwSignature),
-      InvalidMainWalletSignature()
+      SignatureChecker.isValidSignatureNow(intentData.coreData.mainAddress, intentHash, maSignature),
+      InvalidMainAddressSignature()
     );
     _delegate(intentData, intentHash);
-    _execute(intentHash, swSignature, operator, opSignature, actionData);
+    _execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function _delegate(IntentData calldata intentData, bytes32 intentHash) internal {
     if (intentHash == 0) intentHash = _hashTypedIntentData(intentData);
-    require(intents[intentHash].mainWallet == address(0), IntentAlreadyExists());
+    require(intents[intentHash].mainAddress == address(0), IntentAlreadyExists());
+    {
+      bytes32 actionHash = keccak256(
+        abi.encodePacked(intentData.coreData.actionContract, intentData.coreData.actionSelector)
+      );
+      require(
+        whitelistedActions[actionHash],
+        NonWhitelistedAction(intentData.coreData.actionContract, intentData.coreData.actionSelector)
+      );
+    }
+    require(
+      whitelistedValidators[intentData.coreData.validator],
+      NonWhitelistedValidator(intentData.coreData.validator)
+    );
     intents[intentHash] = intentData.coreData;
 
     _approveTokens(intentHash, intentData.tokenData);
+
+    emit DelegateIntent(
+      intentData.coreData.mainAddress, intentData.coreData.delegatedAddress, intentHash
+    );
   }
 
   function _execute(
     bytes32 intentHash,
-    bytes memory swSignature,
-    address operator,
-    bytes memory opSignature,
+    bytes memory daSignature,
+    address guardian,
+    bytes memory gdSignature,
     ActionData calldata actionData
   ) internal nonReentrant {
     IntentCoreData storage intent = intents[intentHash];
-    require(intent.mainWallet != DEAD_ADDRESS, IntentRevoked());
+    require(intent.mainAddress != DEAD_ADDRESS, IntentRevoked());
     require(block.timestamp >= intent.startTime, ExecuteTooEarly());
     require(block.timestamp <= intent.endTime, ExecuteTooLate());
     require(block.timestamp <= actionData.deadline, ExecuteTooLate());
-    require(operators[operator], KyberSwapRole.KSRoleNotOperator(operator));
+    require(guardians[guardian], KyberSwapRole.KSRoleNotGuardian(guardian));
 
     bytes32 actionHash = _hashTypedActionData(actionData);
-    if (_msgSender() != intent.sessionWallet) {
+    if (_msgSender() != intent.delegatedAddress) {
       require(
-        SignatureChecker.isValidSignatureNow(intent.sessionWallet, actionHash, swSignature),
-        InvalidSessionWalletSignature()
+        SignatureChecker.isValidSignatureNow(intent.delegatedAddress, actionHash, daSignature),
+        InvalidDelegatedAddressSignature()
       );
     }
-    if (_msgSender() != operator) {
+    if (_msgSender() != guardian) {
       require(
-        SignatureChecker.isValidSignatureNow(operator, actionHash, opSignature),
-        InvalidOperatorSignature()
+        SignatureChecker.isValidSignatureNow(guardian, actionHash, gdSignature),
+        InvalidGuardianSignature()
       );
     }
 
     bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
       .validateBeforeExecution(intentHash, intent, actionData);
-    _spendTokens(intentHash, intent.mainWallet, intent.actionContract, actionData.tokenData);
+    _spendTokens(intentHash, intent.mainAddress, intent.actionContract, actionData.tokenData);
     bytes memory actionResult = intent.actionContract.functionCall(
       abi.encodePacked(intent.actionSelector, actionData.actionCalldata)
     );
     IKSSessionIntentValidator(intent.validator).validateAfterExecution(
       intentHash, intent, beforeExecutionData, actionResult
     );
+
+    emit ExecuteIntent(intentHash, actionData, actionResult);
   }
 }
