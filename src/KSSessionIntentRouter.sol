@@ -5,13 +5,13 @@ import './KSSessionIntentRouterAccounting.sol';
 import './KSSessionIntentRouterTypeHashes.sol';
 
 import 'openzeppelin-contracts/utils/Address.sol';
-import 'openzeppelin-contracts/utils/ReentrancyGuard.sol';
+import 'openzeppelin-contracts/utils/ReentrancyGuardTransient.sol';
 import 'openzeppelin-contracts/utils/cryptography/SignatureChecker.sol';
 
 contract KSSessionIntentRouter is
   KSSessionIntentRouterAccounting,
   KSSessionIntentRouterTypeHashes,
-  ReentrancyGuard
+  ReentrancyGuardTransient
 {
   using Address for address;
 
