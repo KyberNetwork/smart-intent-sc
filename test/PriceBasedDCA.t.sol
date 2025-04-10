@@ -42,6 +42,11 @@ contract PriceBasedDCATest is BaseTest {
     initialRouters[0] = address(router);
     dcaValidator = new KSPriceBasedDCAIntentValidator(initialRouters);
 
+    address[] memory validators = new address[](1);
+    validators[0] = address(dcaValidator);
+    vm.prank(owner);
+    router.whitelistValidators(validators, true);
+
     tokenIn = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     tokenOut = 0x0bBCEfA5F3630Cae34842cb9D9b36BC0d4257a0d;
 
