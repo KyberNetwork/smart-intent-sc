@@ -429,6 +429,7 @@ contract TimeBasedDCATest is BaseTest {
     validationData.amountIn = amountIn;
     validationData.amountOutLimits = minAmountOut << 128 | maxAmountOut;
     validationData.executionParams = executionParams;
+    validationData.recipient = recipient;
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
@@ -437,7 +438,6 @@ contract TimeBasedDCATest is BaseTest {
       endTime: deadline,
       actionContract: swapRouter,
       actionSelector: IKSSwapRouter.swap.selector,
-      recipient: recipient,
       validator: address(dcaValidator),
       validationData: abi.encode(validationData)
     });

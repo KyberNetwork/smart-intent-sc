@@ -59,6 +59,7 @@ contract SwapTest is BaseTest {
     validationData.dstTokens[0] = tokenOut;
     validationData.minRates = new uint256[](1);
     validationData.minRates[0] = minRate;
+    validationData.recipient = recipient;
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
@@ -67,7 +68,6 @@ contract SwapTest is BaseTest {
       endTime: block.timestamp + 1 days,
       actionContract: swapRouter,
       actionSelector: IKSSwapRouter.swap.selector,
-      recipient: recipient,
       validator: address(swapValidator),
       validationData: abi.encode(validationData)
     });

@@ -414,6 +414,7 @@ contract PriceBasedDCATest is BaseTest {
     validationData.dstToken = tokenOut;
     validationData.amountIns = amountIns;
     validationData.amountOutLimits = amountOutLimits;
+    validationData.recipient = recipient;
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
@@ -422,7 +423,6 @@ contract PriceBasedDCATest is BaseTest {
       endTime: deadline,
       actionContract: swapRouter,
       actionSelector: IKSSwapRouter.swap.selector,
-      recipient: recipient,
       validator: address(dcaValidator),
       validationData: abi.encode(validationData)
     });

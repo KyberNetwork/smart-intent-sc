@@ -56,7 +56,10 @@ contract KSSessionIntentRouter is
 
   /// @inheritdoc IKSSessionIntentRouter
   function revoke(bytes32 intentHash) public {
-    intents[intentHash].mainAddress = DEAD_ADDRESS;
+    IntentCoreData storage intent = intents[intentHash];
+    require(intent.mainAddress == _msgSender(), NotMainAddress());
+
+    intent.mainAddress = DEAD_ADDRESS;
   }
 
   /// @inheritdoc IKSSessionIntentRouter
@@ -109,7 +112,7 @@ contract KSSessionIntentRouter is
     _approveTokens(intentHash, intentData.tokenData);
 
     emit DelegateIntent(
-      intentData.coreData.mainAddress, intentData.coreData.delegatedAddress, intentHash
+      intentData.coreData.mainAddress, intentData.coreData.delegatedAddress, intentData
     );
   }
 

@@ -18,12 +18,14 @@ contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
    * @param dstToken The destination token
    * @param amountIns
    * @param amountOutLimits
+   * @param recipient
    */
   struct DCAValidationData {
     address srcToken;
     address dstToken;
     uint256[] amountIns;
     uint256[] amountOutLimits;
+    address recipient;
   }
 
   address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
@@ -71,9 +73,9 @@ contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
 
     uint256 balanceBefore;
     if (validationData.dstToken == ETH_ADDRESS) {
-      balanceBefore = coreData.recipient.balance;
+      balanceBefore = validationData.recipient.balance;
     } else {
-      balanceBefore = IERC20(validationData.dstToken).balanceOf(coreData.recipient);
+      balanceBefore = IERC20(validationData.dstToken).balanceOf(validationData.recipient);
     }
 
     return abi.encode(--swapNo, balanceBefore);
@@ -96,9 +98,10 @@ contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
 
     uint256 amountOut;
     if (validationData.dstToken == ETH_ADDRESS) {
-      amountOut = coreData.recipient.balance - balanceBefore;
+      amountOut = validationData.recipient.balance - balanceBefore;
     } else {
-      amountOut = IERC20(validationData.dstToken).balanceOf(coreData.recipient) - balanceBefore;
+      amountOut =
+        IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
     }
 
     if (amountOut < minAmountOut || maxAmountOut < amountOut) {

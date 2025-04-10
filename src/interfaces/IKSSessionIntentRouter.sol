@@ -55,7 +55,7 @@ interface IKSSessionIntentRouter {
 
   /// @notice Emitted when an intent is delegated
   event DelegateIntent(
-    address indexed mainAddress, address indexed delegatedAddress, bytes32 indexed intentHash
+    address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
   );
 
   /// @notice Emitted when an intent is executed
@@ -113,7 +113,6 @@ interface IKSSessionIntentRouter {
    * @param endTime The end time of the intent
    * @param actionContract The address of the action contract
    * @param actionSelector The selector of the action function
-   * @param recipient The address of the recipient
    * @param validator The address of the validator
    * @param validationData The data for the validator
    */
@@ -124,7 +123,6 @@ interface IKSSessionIntentRouter {
     uint256 endTime;
     address actionContract;
     bytes4 actionSelector;
-    address recipient;
     address validator;
     bytes validationData;
   }

@@ -20,6 +20,7 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
    * @param amountIn The amount of source token to be swapped, should be the same for all swaps
    * @param amountOutLimits The minimum and maximum amount of destination token to be received, should be the same for all swaps (minAmountOut 128bits, maxAmountOut 128bits)
    * @param executionParams The parameters for swaps validation (numSwaps 32bits, duration 32bits, startPeriod 32bits, firstTimestamp 32bits)
+   * @param recipient The recipient of the destination token
    */
   struct DCAValidationData {
     address srcToken;
@@ -27,9 +28,11 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
     uint256 amountIn;
     uint256 amountOutLimits;
     uint256 executionParams;
+    address recipient;
   }
 
   address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+
   mapping(bytes32 => uint256) public latestSwap;
 
   constructor(address[] memory initialRouters) BaseStatefulIntentValidator(initialRouters) {}
@@ -85,9 +88,9 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
 
     uint256 balanceBefore;
     if (validationData.dstToken == ETH_ADDRESS) {
-      balanceBefore = coreData.recipient.balance;
+      balanceBefore = validationData.recipient.balance;
     } else {
-      balanceBefore = IERC20(validationData.dstToken).balanceOf(coreData.recipient);
+      balanceBefore = IERC20(validationData.dstToken).balanceOf(validationData.recipient);
     }
 
     return abi.encode(balanceBefore);
@@ -109,9 +112,9 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
     uint256 balanceBefore = abi.decode(beforeExecutionData, (uint256));
     uint256 amountOut;
     if (validationData.dstToken == ETH_ADDRESS) {
-      amountOut = coreData.recipient.balance - balanceBefore;
+      amountOut = validationData.recipient.balance - balanceBefore;
     } else {
-      amountOut = IERC20(validationData.dstToken).balanceOf(coreData.recipient) - balanceBefore;
+      amountOut = IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
     }
 
     if (amountOut < minAmountOut || maxAmountOut < amountOut) {

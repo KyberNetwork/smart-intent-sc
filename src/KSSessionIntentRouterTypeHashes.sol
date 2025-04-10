@@ -84,7 +84,6 @@ abstract contract KSSessionIntentRouterTypeHashes is
         data.endTime,
         data.actionContract,
         data.actionSelector,
-        data.recipient,
         data.validator,
         keccak256(data.validationData)
       )
@@ -140,7 +139,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
       erc721DataTypeString
     );
     bytes memory intentCoreDataTypeString = abi.encodePacked(
-      'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address recipient,address validator,bytes validationData)'
+      'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
     );
     bytes memory intentDataTypeString = abi.encodePacked(
       'IntentData(IntentData intentData,TokenData tokenData)',

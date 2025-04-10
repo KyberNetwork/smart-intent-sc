@@ -18,11 +18,13 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
    * @param srcTokens The source tokens
    * @param dstTokens The destination tokens
    * @param minRates The minimum rates, denominated in 1e18
+   * @param recipient
    */
   struct SwapValidationData {
     address[] srcTokens;
     address[] dstTokens;
     uint256[] minRates;
+    address recipient;
   }
 
   /// @inheritdoc IKSSessionIntentValidator
@@ -59,7 +61,7 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     }
 
     uint256 srcBalanceBefore = IERC20(swapDesc.srcToken).balanceOf(msg.sender);
-    uint256 dstBalanceBefore = IERC20(swapDesc.dstToken).balanceOf(coreData.recipient);
+    uint256 dstBalanceBefore = IERC20(swapDesc.dstToken).balanceOf(validationData.recipient);
 
     return
       abi.encode(swapDesc.srcToken, swapDesc.dstToken, srcBalanceBefore, dstBalanceBefore, minRate);
@@ -75,6 +77,8 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     uint256 minRate;
     uint256 inputAmount;
     uint256 outputAmount;
+    SwapValidationData memory validationData =
+      abi.decode(coreData.validationData, (SwapValidationData));
     {
       address srcToken;
       address dstToken;
@@ -84,7 +88,7 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
         abi.decode(beforeExecutionData, (address, address, uint256, uint256, uint256));
 
       inputAmount = srcBalanceBefore - IERC20(srcToken).balanceOf(msg.sender);
-      outputAmount = IERC20(dstToken).balanceOf(coreData.recipient) - dstBalanceBefore;
+      outputAmount = IERC20(dstToken).balanceOf(validationData.recipient) - dstBalanceBefore;
     }
     if (outputAmount * RATE_DENOMINATOR < inputAmount * minRate) {
       revert BelowMinRate(inputAmount, outputAmount, minRate);

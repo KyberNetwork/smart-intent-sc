@@ -141,6 +141,14 @@ contract MockActionTest is BaseTest {
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  function testMockActionDelegateWithRandomCallerShouldRevert(uint256 seed) public {
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+
+    vm.prank(randomCaller);
+    vm.expectRevert(IKSSessionIntentRouter.NotMainAddress.selector);
+    router.delegate(intentData);
+  }
+
   function testMockActionDelegateWithNonWhitelistedActionShouldRevert(uint256 seed) public {
     {
       vm.startPrank(owner);
@@ -249,14 +257,28 @@ contract MockActionTest is BaseTest {
     );
   }
 
-  function testMockActionExecuteRevokedIntentShouldRevert(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
+  function testMockActionRevokeWithRandomCallerShouldRevert(uint256 seed) public {
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
     bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     vm.prank(mainAddress);
     router.delegate(intentData);
+
+    vm.startPrank(randomCaller);
+    vm.expectRevert(IKSSessionIntentRouter.NotMainAddress.selector);
     router.revoke(intentHash);
+    vm.stopPrank();
+  }
+
+  function testMockActionExecuteRevokedIntentShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.startPrank(mainAddress);
+    router.delegate(intentData);
+    router.revoke(intentHash);
+    vm.stopPrank();
 
     IKSSessionIntentRouter.TokenData memory newTokenData =
       _getNewTokenData(intentData.tokenData, seed);
@@ -380,7 +402,6 @@ contract MockActionTest is BaseTest {
       endTime: block.timestamp + 1 days,
       actionContract: address(mockActionContract),
       actionSelector: MockActionContract.doNothing.selector,
-      recipient: recipient,
       validator: address(mockValidator),
       validationData: ''
     });
