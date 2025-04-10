@@ -114,7 +114,8 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
     if (validationData.dstToken == ETH_ADDRESS) {
       amountOut = validationData.recipient.balance - balanceBefore;
     } else {
-      amountOut = IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
+      amountOut =
+        IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
     }
 
     if (amountOut < minAmountOut || maxAmountOut < amountOut) {
