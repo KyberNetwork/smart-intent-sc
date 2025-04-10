@@ -142,7 +142,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
       'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
     );
     bytes memory intentDataTypeString = abi.encodePacked(
-      'IntentData(IntentData intentData,TokenData tokenData)',
+      'IntentData(IntentCoreData coreData,TokenData tokenData)',
       intentCoreDataTypeString,
       tokenDataTypeString
     );
