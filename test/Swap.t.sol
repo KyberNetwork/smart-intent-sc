@@ -11,18 +11,18 @@ contract SwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-    _setUpMainWallet(intentData, false);
+    _setUpMainAddress(intentData, false);
 
     IKSSessionIntentRouter.ActionData memory actionData =
       _getActionData(intentData.tokenData, swapCalldata);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory swSignature, bytes memory opSignature) =
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
     router.execute(
-      router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
+      router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
     );
   }
 
@@ -31,19 +31,19 @@ contract SwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-    _setUpMainWallet(intentData, true);
+    _setUpMainAddress(intentData, true);
 
     IKSSessionIntentRouter.ActionData memory actionData =
       _getActionData(intentData.tokenData, swapCalldata);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory swSignature, bytes memory opSignature) =
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
-    bytes memory mwSignature = _getMWSignature(intentData);
+    bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
     router.executeWithSignedIntent(
-      intentData, mwSignature, swSignature, operator, opSignature, actionData
+      intentData, maSignature, daSignature, guardian, gdSignature, actionData
     );
   }
 
@@ -59,10 +59,11 @@ contract SwapTest is BaseTest {
     validationData.dstTokens[0] = tokenOut;
     validationData.minRates = new uint256[](1);
     validationData.minRates[0] = minRate;
+    validationData.recipient = recipient;
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
-      mainWallet: mainWallet,
-      sessionWallet: sessionWallet,
+      mainAddress: mainAddress,
+      delegatedAddress: delegatedAddress,
       startTime: block.timestamp + 10,
       endTime: block.timestamp + 1 days,
       actionContract: swapRouter,
@@ -78,12 +79,12 @@ contract SwapTest is BaseTest {
     intentData = IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData});
   }
 
-  function _setUpMainWallet(
+  function _setUpMainAddress(
     IKSSessionIntentRouter.IntentData memory intentData,
     bool withSignedIntent
   ) internal {
-    deal(tokenIn, mainWallet, amountIn);
-    vm.startPrank(mainWallet);
+    deal(tokenIn, mainAddress, amountIn);
+    vm.startPrank(mainAddress);
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
     if (!withSignedIntent) {
       router.delegate(intentData);

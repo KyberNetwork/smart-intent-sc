@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-import '../interfaces/IKSSessionIntentValidator.sol';
+import './base/BaseStatefulIntentValidator.sol';
 
-contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
+contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
   error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
   error InvalidExecutionTime(uint256 startTime, uint256 endTime, uint256 currentTime);
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
@@ -20,6 +20,7 @@ contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
    * @param amountIn The amount of source token to be swapped, should be the same for all swaps
    * @param amountOutLimits The minimum and maximum amount of destination token to be received, should be the same for all swaps (minAmountOut 128bits, maxAmountOut 128bits)
    * @param executionParams The parameters for swaps validation (numSwaps 32bits, duration 32bits, startPeriod 32bits, firstTimestamp 32bits)
+   * @param recipient The recipient of the destination token
    */
   struct DCAValidationData {
     address srcToken;
@@ -31,14 +32,17 @@ contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
   }
 
   address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+
   mapping(bytes32 => uint256) public latestSwap;
+
+  constructor(address[] memory initialRouters) BaseStatefulIntentValidator(initialRouters) {}
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     bytes32 intentHash,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external override returns (bytes memory beforeExecutionData) {
+  ) external override onlyWhitelistedRouter returns (bytes memory beforeExecutionData) {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 
@@ -98,7 +102,7 @@ contract KSTimeBasedDCAIntentValidator is IKSSessionIntentValidator {
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     bytes calldata beforeExecutionData,
     bytes calldata
-  ) external view override {
+  ) external view override onlyWhitelistedRouter {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 

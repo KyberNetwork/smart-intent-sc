@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 interface IKSSessionIntentRouter {
-  /// @notice Thrown when the caller is not the main wallet
-  error NotMainWallet();
+  /// @notice Thrown when the caller is not the main address
+  error NotMainAddress();
 
   /// @notice Thrown when executing the intent before the start time
   error ExecuteTooEarly();
@@ -17,14 +17,20 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when the intent has been revoked
   error IntentRevoked();
 
-  /// @notice Thrown when the signature is not from the main wallet
-  error InvalidMainWalletSignature();
+  /// @notice Thrown when the signature is not from the main address
+  error InvalidMainAddressSignature();
 
   /// @notice Thrown when the signature is not from the session wallet
-  error InvalidSessionWalletSignature();
+  error InvalidDelegatedAddressSignature();
 
-  /// @notice Thrown when the signature is not from the operator
-  error InvalidOperatorSignature();
+  /// @notice Thrown when the signature is not from the guardian
+  error InvalidGuardianSignature();
+
+  /// @notice Thrown when the action is not whitelisted
+  error NonWhitelistedAction(address actionContract, bytes4 actionSelector);
+
+  /// @notice Thrown when the validator is not whitelisted
+  error NonWhitelistedValidator(address validator);
 
   /// @notice Thrown when spending more than the intent allowance for ERC1155
   error ERC1155InsufficientIntentAllowance(
@@ -38,6 +44,22 @@ interface IKSSessionIntentRouter {
 
   /// @notice Thrown when spending unapproved ERC721
   error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
+
+  /// @notice Emitted when the whitelist status of an action is updated
+  event WhitelistAction(
+    address indexed actionContract, bytes4 indexed actionSelector, bool grantOrRevoke
+  );
+
+  /// @notice Emitted when the whitelist status of a validator is updated
+  event WhitelistValidator(address indexed validator, bool grantOrRevoke);
+
+  /// @notice Emitted when an intent is delegated
+  event DelegateIntent(
+    address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
+  );
+
+  /// @notice Emitted when an intent is executed
+  event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
 
   /**
    * @notice Data structure for ERC20 token
@@ -85,8 +107,8 @@ interface IKSSessionIntentRouter {
 
   /**
    * @notice Data structure for core components of intent
-   * @param mainWallet The address of the main wallet
-   * @param sessionWallet The address of the session wallet
+   * @param mainAddress The main address
+   * @param delegatedAddress The delegated address
    * @param startTime The start time of the intent
    * @param endTime The end time of the intent
    * @param actionContract The address of the action contract
@@ -95,8 +117,8 @@ interface IKSSessionIntentRouter {
    * @param validationData The data for the validator
    */
   struct IntentCoreData {
-    address mainWallet;
-    address sessionWallet;
+    address mainAddress;
+    address delegatedAddress;
     uint256 startTime;
     uint256 endTime;
     address actionContract;
@@ -119,6 +141,7 @@ interface IKSSessionIntentRouter {
    * @notice Data structure for action
    * @param tokenData The token data for the action
    * @param actionCalldata The calldata for the action
+   * @param validatorData The data for the validator
    * @param deadline The deadline for the action
    */
   struct ActionData {
@@ -129,7 +152,26 @@ interface IKSSessionIntentRouter {
   }
 
   /**
-   * @notice Delegate the intent to the session wallet
+   * @notice Whitelist the actions
+   * @param actionContracts The addresses of the action contracts
+   * @param actionSelectors The selectors of the action functions
+   * @param grantOrRevoke Whether to grant or revoke the actions
+   */
+  function whitelistActions(
+    address[] calldata actionContracts,
+    bytes4[] calldata actionSelectors,
+    bool grantOrRevoke
+  ) external;
+
+  /**
+   * @notice Whitelist the validators
+   * @param validators The addresses of the validators
+   * @param grantOrRevoke Whether to grant or revoke the validators
+   */
+  function whitelistValidators(address[] calldata validators, bool grantOrRevoke) external;
+
+  /**
+   * @notice Delegate the intent to the delegated address
    * @param intentData The data for the intent
    */
   function delegate(IntentData calldata intentData) external;
@@ -143,34 +185,34 @@ interface IKSSessionIntentRouter {
   /**
    * @notice Execute the intent
    * @param intentHash The hash of the intent
-   * @param swSignature The signature of the session wallet
-   * @param operator The address of the operator
-   * @param opSignature The signature of the operator
+   * @param daSignature The signature of the delegated address
+   * @param guardian The address of the guardian
+   * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
    */
   function execute(
     bytes32 intentHash,
-    bytes memory swSignature,
-    address operator,
-    bytes memory opSignature,
+    bytes memory daSignature,
+    address guardian,
+    bytes memory gdSignature,
     ActionData calldata actionData
   ) external;
 
   /**
-   * @notice Execute the intent with the signed data and main wallet signature
+   * @notice Execute the intent with the signed data and main address signature
    * @param intentData The data for the intent
-   * @param mwSignature The signature of the main wallet
-   * @param swSignature The signature of the session wallet
-   * @param operator The address of the operator
-   * @param opSignature The signature of the operator
+   * @param maSignature The signature of the main address
+   * @param daSignature The signature of the delegated address
+   * @param guardian The address of the guardian
+   * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
    */
   function executeWithSignedIntent(
     IntentData calldata intentData,
-    bytes memory mwSignature,
-    bytes memory swSignature,
-    address operator,
-    bytes memory opSignature,
+    bytes memory maSignature,
+    bytes memory daSignature,
+    address guardian,
+    bytes memory gdSignature,
     ActionData calldata actionData
   ) external;
 }

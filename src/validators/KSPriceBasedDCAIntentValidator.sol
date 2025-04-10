@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-import '../interfaces/IKSSessionIntentValidator.sol';
+import './base/BaseStatefulIntentValidator.sol';
 
-contract KSPriceBasedDCAIntentValidator is IKSSessionIntentValidator {
+contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
   error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
   error InvalidAmountIn(uint256 amountIn, uint256 actualAmountIn);
@@ -18,6 +18,7 @@ contract KSPriceBasedDCAIntentValidator is IKSSessionIntentValidator {
    * @param dstToken The destination token
    * @param amountIns
    * @param amountOutLimits
+   * @param recipient
    */
   struct DCAValidationData {
     address srcToken;
@@ -28,14 +29,17 @@ contract KSPriceBasedDCAIntentValidator is IKSSessionIntentValidator {
   }
 
   address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+
   mapping(bytes32 => uint256) public latestSwap;
+
+  constructor(address[] memory initialRouters) BaseStatefulIntentValidator(initialRouters) {}
 
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     bytes32 intentHash,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external override returns (bytes memory beforeExecutionData) {
+  ) external override onlyWhitelistedRouter returns (bytes memory beforeExecutionData) {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 
@@ -83,7 +87,7 @@ contract KSPriceBasedDCAIntentValidator is IKSSessionIntentValidator {
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     bytes calldata beforeExecutionData,
     bytes calldata
-  ) external view override {
+  ) external view override onlyWhitelistedRouter {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 

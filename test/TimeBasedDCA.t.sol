@@ -29,7 +29,6 @@ contract TimeBasedDCATest is BaseTest {
   uint256 maxAmountOut;
   uint256 actualAmountOut = 93_365_783_355_232_154_369_729;
   uint32 firstTimestamp = 1_742_449_139;
-  address recipient = 0x318d280C0dc7C0A3B4F03372F54c07d923c08ddA;
   uint32 duration = uint32(1 days);
   uint32 startPeriod = uint32(60);
   uint256 executionParams;
@@ -40,7 +39,15 @@ contract TimeBasedDCATest is BaseTest {
 
   function setUp() public override {
     super.setUp();
-    dcaValidator = new KSTimeBasedDCAIntentValidator();
+
+    address[] memory initialRouters = new address[](1);
+    initialRouters[0] = address(router);
+    dcaValidator = new KSTimeBasedDCAIntentValidator(initialRouters);
+
+    address[] memory validators = new address[](1);
+    validators[0] = address(dcaValidator);
+    vm.prank(owner);
+    router.whitelistValidators(validators, true);
 
     tokenIn = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     tokenOut = 0x0bBCEfA5F3630Cae34842cb9D9b36BC0d4257a0d;
@@ -69,18 +76,18 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
       router.execute(
-        router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
+        router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
       );
       vm.stopPrank();
     }
@@ -102,18 +109,18 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
       router.execute(
-        router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
+        router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
       );
       vm.stopPrank();
     }
@@ -139,18 +146,18 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
       router.execute(
-        router.hashTypedIntentData(intentData), swSignature, operator, opSignature, actionData
+        router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
       );
       vm.stopPrank();
     }
@@ -169,13 +176,13 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -187,7 +194,7 @@ contract TimeBasedDCATest is BaseTest {
         );
       }
 
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -202,13 +209,13 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -222,7 +229,7 @@ contract TimeBasedDCATest is BaseTest {
           timestamps[i] + startPeriod + 1
         )
       );
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -242,13 +249,13 @@ contract TimeBasedDCATest is BaseTest {
       validationData.srcToken = makeAddr('dummy'); //invalid tokenIn
       intentData.coreData.validationData = abi.encode(validationData);
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -259,7 +266,7 @@ contract TimeBasedDCATest is BaseTest {
           KSTimeBasedDCAIntentValidator.InvalidTokenIn.selector, validationData.srcToken, tokenIn
         )
       );
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -279,13 +286,13 @@ contract TimeBasedDCATest is BaseTest {
       validationData.amountIn = 1e8; //invalid amountIn
       intentData.coreData.validationData = abi.encode(validationData);
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -296,7 +303,7 @@ contract TimeBasedDCATest is BaseTest {
           KSTimeBasedDCAIntentValidator.InvalidAmountIn.selector, 1e8, amountIn
         )
       );
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -313,13 +320,13 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -333,7 +340,7 @@ contract TimeBasedDCATest is BaseTest {
           actualAmountOut
         )
       );
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -350,13 +357,13 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -370,7 +377,7 @@ contract TimeBasedDCATest is BaseTest {
           actualAmountOut
         )
       );
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -386,26 +393,26 @@ contract TimeBasedDCATest is BaseTest {
 
       IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
-      _setUpMainWallet(intentData, false);
+      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
-      (address caller, bytes memory swSignature, bytes memory opSignature) =
+      (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       bytes32 intentHash = router.hashTypedIntentData(intentData);
 
       vm.startPrank(caller);
-      router.execute(intentHash, swSignature, operator, opSignature, actionData);
+      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
 
       //try to execute again
       if (i == swapNo) {
         vm.expectRevert(
           abi.encodeWithSelector(KSTimeBasedDCAIntentValidator.SwapAlreadyExecuted.selector)
         );
-        router.execute(intentHash, swSignature, operator, opSignature, actionData);
+        router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
       }
       vm.stopPrank();
     }
@@ -425,8 +432,8 @@ contract TimeBasedDCATest is BaseTest {
     validationData.recipient = recipient;
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
-      mainWallet: mainWallet,
-      sessionWallet: sessionWallet,
+      mainAddress: mainAddress,
+      delegatedAddress: delegatedAddress,
       startTime: block.timestamp + 10,
       endTime: deadline,
       actionContract: swapRouter,
@@ -442,12 +449,12 @@ contract TimeBasedDCATest is BaseTest {
     intentData = IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData});
   }
 
-  function _setUpMainWallet(
+  function _setUpMainAddress(
     IKSSessionIntentRouter.IntentData memory intentData,
     bool withSignedIntent
   ) internal {
-    deal(tokenIn, mainWallet, amountIn);
-    vm.startPrank(mainWallet);
+    deal(tokenIn, mainAddress, amountIn);
+    vm.startPrank(mainAddress);
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
     if (!withSignedIntent) {
       router.delegate(intentData);
