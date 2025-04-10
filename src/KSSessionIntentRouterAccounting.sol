@@ -17,16 +17,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
 
   mapping(bytes32 => mapping(address => mapping(uint256 => bool))) internal erc721Approvals;
 
-  constructor(
-    address initialOwner,
-    address[] memory initialOperators,
-    address[] memory initialGuardians
-  ) Ownable(initialOwner) {
-    for (uint256 i = 0; i < initialOperators.length; i++) {
-      operators[initialOperators[i]] = true;
-
-      emit UpdateOperator(initialOperators[i], true);
-    }
+  constructor(address initialOwner, address[] memory initialGuardians) Ownable(initialOwner) {
     for (uint256 i = 0; i < initialGuardians.length; i++) {
       guardians[initialGuardians[i]] = true;
 
@@ -56,7 +47,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
   /// @notice Transfer the tokens to this contract and update the allowances
   function _spendTokens(
     bytes32 intentHash,
-    address mainWallet,
+    address mainAddress,
     address actionContract,
     TokenData calldata tokenData
   ) internal {
@@ -82,7 +73,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
         }
       }
       token.safeBatchTransferFrom(
-        mainWallet, address(this), erc1155Data.tokenIds, erc1155Data.amounts, ''
+        mainAddress, address(this), erc1155Data.tokenIds, erc1155Data.amounts, ''
       );
       token.setApprovalForAll(actionContract, true);
     }
@@ -96,7 +87,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
       unchecked {
         erc20Allowances[intentHash][erc20Data.token] = allowance - erc20Data.amount;
       }
-      IERC20(erc20Data.token).safeTransferFrom(mainWallet, address(this), erc20Data.amount);
+      IERC20(erc20Data.token).safeTransferFrom(mainAddress, address(this), erc20Data.amount);
       _safeApproveInf(erc20Data.token, actionContract);
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
@@ -106,7 +97,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
         erc721Approvals[intentHash][erc721Data.token][erc721Data.tokenId],
         ERC721InsufficientIntentApproval(intentHash, address(token), erc721Data.tokenId)
       );
-      token.safeTransferFrom(mainWallet, address(this), erc721Data.tokenId);
+      token.safeTransferFrom(mainAddress, address(this), erc721Data.tokenId);
       token.approve(actionContract, erc721Data.tokenId);
     }
   }

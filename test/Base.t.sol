@@ -11,20 +11,22 @@ import './mocks/MockIntentValidator.sol';
 import 'forge-std/Test.sol';
 
 import 'openzeppelin-contracts/mocks/token/ERC20Mock.sol';
+
+import 'src/interfaces/IKSSwapRouter.sol';
 import 'src/validators/KSSwapIntentValidator.sol';
 
 contract BaseTest is Test {
   uint256 FORK_BLOCK = 22_085_494;
 
   address owner = makeAddr('owner');
-  address operator;
-  uint256 operatorKey;
-  address guardian = makeAddr('guardian');
-  address mainWallet;
-  uint256 mainWalletKey;
-  address sessionWallet;
-  uint256 sessionWalletKey;
+  address guardian;
+  uint256 guardianKey;
+  address mainAddress;
+  uint256 mainAddressKey;
+  address delegatedAddress;
+  uint256 delegatedAddressKey;
   address randomCaller = makeAddr('randomCaller');
+  address recipient = 0x318d280C0dc7C0A3B4F03372F54c07d923c08ddA;
 
   address swapRouter = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
   address tokenIn = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
@@ -46,67 +48,88 @@ contract BaseTest is Test {
   ERC721Mock erc721Mock;
 
   function setUp() public virtual {
-    vm.createSelectFork('mainnet', FORK_BLOCK);
+    _fork();
 
-    (operator, operatorKey) = makeAddrAndKey('operator');
-    (mainWallet, mainWalletKey) = makeAddrAndKey('mainWallet');
-    (sessionWallet, sessionWalletKey) = makeAddrAndKey('sessionWallet');
+    (guardian, guardianKey) = makeAddrAndKey('guardian');
+    (mainAddress, mainAddressKey) = makeAddrAndKey('mainAddress');
+    (delegatedAddress, delegatedAddressKey) = makeAddrAndKey('delegatedAddress');
 
-    address[] memory initialOperators = new address[](1);
-    initialOperators[0] = operator;
     address[] memory initialGuardians = new address[](1);
     initialGuardians[0] = guardian;
-    router = new KSSessionIntentRouterHarness(owner, initialOperators, initialGuardians);
+    router = new KSSessionIntentRouterHarness(owner, initialGuardians);
 
     mockValidator = new MockIntentValidator();
     swapValidator = new KSSwapIntentValidator();
     mockActionContract = new MockActionContract();
+    {
+      vm.startPrank(owner);
+      address[] memory validators = new address[](2);
+      validators[0] = address(mockValidator);
+      validators[1] = address(swapValidator);
+      router.whitelistValidators(validators, true);
+
+      address[] memory actionContracts = new address[](3);
+      actionContracts[0] = address(mockActionContract);
+      actionContracts[1] = address(swapRouter);
+      actionContracts[2] = address(swapRouter);
+
+      bytes4[] memory actionSelectors = new bytes4[](3);
+      actionSelectors[0] = MockActionContract.doNothing.selector;
+      actionSelectors[1] = IKSSwapRouter.swap.selector;
+      actionSelectors[2] = IKSSwapRouter.swapSimpleMode.selector;
+      router.whitelistActions(actionContracts, actionSelectors, true);
+      vm.stopPrank();
+    }
 
     erc1155Mock = new ERC1155Mock();
     erc20Mock = new ERC20Mock();
     erc721Mock = new ERC721Mock();
   }
 
-  function _getMWSignature(IKSSessionIntentRouter.IntentData memory intentData)
+  function _fork() public virtual {
+    vm.createSelectFork('mainnet', FORK_BLOCK);
+  }
+
+  function _getMASignature(IKSSessionIntentRouter.IntentData memory intentData)
     internal
     view
     returns (bytes memory)
   {
     bytes32 intentHash = router.hashTypedIntentData(intentData);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(mainWalletKey, intentHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(mainAddressKey, intentHash);
     return abi.encodePacked(r, s, v);
   }
 
-  function _getOPSignature(IKSSessionIntentRouter.ActionData memory actionData)
+  function _getGDSignature(IKSSessionIntentRouter.ActionData memory actionData)
     internal
     view
     returns (bytes memory)
   {
     bytes32 actionHash = router.hashTypedActionData(actionData);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorKey, actionHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(guardianKey, actionHash);
     return abi.encodePacked(r, s, v);
   }
 
-  function _getSWSignature(IKSSessionIntentRouter.ActionData memory actionData)
+  function _getDASignature(IKSSessionIntentRouter.ActionData memory actionData)
     internal
     view
     returns (bytes memory)
   {
     bytes32 actionHash = router.hashTypedActionData(actionData);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(sessionWalletKey, actionHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(delegatedAddressKey, actionHash);
     return abi.encodePacked(r, s, v);
   }
 
   function _getCallerAndSignatures(
     uint256 mode,
     IKSSessionIntentRouter.ActionData memory actionData
-  ) internal view returns (address caller, bytes memory swSignature, bytes memory opSignature) {
-    caller = mode == 0 ? randomCaller : (mode == 1 ? operator : sessionWallet);
+  ) internal view returns (address caller, bytes memory daSignature, bytes memory gdSignature) {
+    caller = mode == 0 ? randomCaller : (mode == 1 ? guardian : delegatedAddress);
     if (mode == 0 || mode == 1) {
-      swSignature = _getSWSignature(actionData);
+      daSignature = _getDASignature(actionData);
     }
     if (mode == 0 || mode == 2) {
-      opSignature = _getOPSignature(actionData);
+      gdSignature = _getGDSignature(actionData);
     }
   }
 }

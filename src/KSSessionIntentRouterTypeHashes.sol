@@ -78,8 +78,8 @@ abstract contract KSSessionIntentRouterTypeHashes is
     return keccak256(
       abi.encode(
         INTENT_CORE_DATA_TYPEHASH,
-        data.mainWallet,
-        data.sessionWallet,
+        data.mainAddress,
+        data.delegatedAddress,
         data.startTime,
         data.endTime,
         data.actionContract,
@@ -107,6 +107,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
           ACTION_DATA_TYPEHASH,
           _hashTokenData(data.tokenData),
           keccak256(data.actionCalldata),
+          keccak256(data.validatorData),
           data.deadline
         )
       )
@@ -138,15 +139,16 @@ abstract contract KSSessionIntentRouterTypeHashes is
       erc721DataTypeString
     );
     bytes memory intentCoreDataTypeString = abi.encodePacked(
-      'IntentCoreData(address mainWallet,address sessionWallet,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
+      'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
     );
     bytes memory intentDataTypeString = abi.encodePacked(
-      'IntentData(IntentData intentData,TokenData tokenData)',
+      'IntentData(IntentCoreData coreData,TokenData tokenData)',
       intentCoreDataTypeString,
       tokenDataTypeString
     );
     bytes memory actionDataTypeString = abi.encodePacked(
-      'ActionData(TokenData tokenData,bytes actionCalldata,uint256 deadline)', tokenDataTypeString
+      'ActionData(TokenData tokenData,bytes actionCalldata,bytes validatorData,uint256 deadline)',
+      tokenDataTypeString
     );
 
     erc1155DataTypeHash = keccak256(erc1155DataTypeString);
