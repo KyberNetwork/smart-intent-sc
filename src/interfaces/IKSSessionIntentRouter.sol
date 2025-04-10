@@ -32,17 +32,17 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when the validator is not whitelisted
   error NonWhitelistedValidator(address validator);
 
-  /// @notice Thrown when spending more than the intent allowance for ERC1155
+  /// @notice Thrown when collecting more than the intent allowance for ERC1155
   error ERC1155InsufficientIntentAllowance(
     bytes32 intentHash, address token, uint256 tokenId, uint256 allowance, uint256 needed
   );
 
-  /// @notice Thrown when spending more than the intent allowance for ERC20
+  /// @notice Thrown when collecting more than the intent allowance for ERC20
   error ERC20InsufficientIntentAllowance(
     bytes32 intentHash, address token, uint256 allowance, uint256 needed
   );
 
-  /// @notice Thrown when spending unapproved ERC721
+  /// @notice Thrown when collecting unapproved ERC721
   error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
 
   /// @notice Emitted when the whitelist status of an action is updated

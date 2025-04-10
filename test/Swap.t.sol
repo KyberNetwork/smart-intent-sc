@@ -6,15 +6,13 @@ import './Base.t.sol';
 contract SwapTest is BaseTest {
   using SafeERC20 for IERC20;
 
-  /// forge-config: default.fuzz.runs = 10
   function testSwapSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
     _setUpMainAddress(intentData, false);
 
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, swapCalldata);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -26,15 +24,13 @@ contract SwapTest is BaseTest {
     );
   }
 
-  /// forge-config: default.fuzz.runs = 10
   function testSwapWithSignedIntentSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
 
     _setUpMainAddress(intentData, true);
 
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, swapCalldata);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -92,13 +88,14 @@ contract SwapTest is BaseTest {
     vm.stopPrank();
   }
 
-  function _getActionData(
-    IKSSessionIntentRouter.TokenData memory tokenData,
-    bytes memory actionCalldata
-  ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
+  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData)
+    internal
+    view
+    returns (IKSSessionIntentRouter.ActionData memory actionData)
+  {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
-      actionCalldata: actionCalldata,
+      actionCalldata: swapCalldata,
       validatorData: '',
       deadline: block.timestamp + 1 days
     });

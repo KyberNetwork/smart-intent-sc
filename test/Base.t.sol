@@ -48,7 +48,7 @@ contract BaseTest is Test {
   ERC721Mock erc721Mock;
 
   function setUp() public virtual {
-    _fork();
+    _selectFork();
 
     (guardian, guardianKey) = makeAddrAndKey('guardian');
     (mainAddress, mainAddressKey) = makeAddrAndKey('mainAddress');
@@ -86,7 +86,7 @@ contract BaseTest is Test {
     erc721Mock = new ERC721Mock();
   }
 
-  function _fork() public virtual {
+  function _selectFork() public virtual {
     vm.createSelectFork('mainnet', FORK_BLOCK);
   }
 

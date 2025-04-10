@@ -146,7 +146,7 @@ contract KSSessionIntentRouter is
 
     bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
       .validateBeforeExecution(intentHash, intent, actionData);
-    _spendTokens(intentHash, intent.mainAddress, intent.actionContract, actionData.tokenData);
+    _collectTokens(intentHash, intent.mainAddress, intent.actionContract, actionData.tokenData);
     bytes memory actionResult = intent.actionContract.functionCall(
       abi.encodePacked(intent.actionSelector, actionData.actionCalldata)
     );
