@@ -46,13 +46,17 @@ interface IKSSessionIntentRouter {
   error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
 
   /// @notice Emitted when the whitelist status of an action is updated
-  event WhitelistAction(address indexed actionContract, bytes4 indexed actionSelector, bool grantOrRevoke);
+  event WhitelistAction(
+    address indexed actionContract, bytes4 indexed actionSelector, bool grantOrRevoke
+  );
 
   /// @notice Emitted when the whitelist status of a validator is updated
   event WhitelistValidator(address indexed validator, bool grantOrRevoke);
 
   /// @notice Emitted when an intent is delegated
-  event DelegateIntent(address indexed mainAddress, address indexed delegatedAddress, bytes32 indexed intentHash);
+  event DelegateIntent(
+    address indexed mainAddress, address indexed delegatedAddress, bytes32 indexed intentHash
+  );
 
   /// @notice Emitted when an intent is executed
   event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);

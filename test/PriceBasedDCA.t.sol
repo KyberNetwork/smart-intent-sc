@@ -37,7 +37,7 @@ contract PriceBasedDCATest is BaseTest {
 
   function setUp() public override {
     super.setUp();
-    
+
     address[] memory initialRouters = new address[](1);
     initialRouters[0] = address(router);
     dcaValidator = new KSPriceBasedDCAIntentValidator(initialRouters);
