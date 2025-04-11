@@ -13,10 +13,6 @@ contract DeployRouter is BaseScript {
     }
     console.log('chainId is %s', chainId);
 
-    address weth =
-      _readAddress(string(abi.encodePacked(root, '/script/configs/weth.json')), chainId);
-    console.log('WETH is %s', weth);
-
     address owner =
       _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
 
