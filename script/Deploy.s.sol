@@ -22,18 +22,20 @@ contract DeployScript is BaseScript {
       _readAddress(string(abi.encodePacked(root, '/script/configs/weth.json')), chainId);
     console.log('WETH is %s', weth);
 
-    address[] memory addresses = _readAddressArray(
-      string(abi.encodePacked(root, '/script/configs/initAddresses.json')), chainId
+    address owner =
+      _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
+
+    address[] memory operators = _readAddressArray(
+      string(abi.encodePacked(root, '/script/configs/router-operators.json')), chainId
     );
 
-    console.log('owner is %s', addresses[0]);
-    console.log('operator is %s', addresses[1]);
-    console.log('guardian is %s', addresses[2]);
+    address[] memory guardians = _readAddressArray(
+      string(abi.encodePacked(root, '/script/configs/router-guardians.json')), chainId
+    );
 
     vm.startBroadcast();
 
-    KSSessionIntentRouter router =
-      new KSSessionIntentRouter(addresses[0], _toArray(addresses[1]), _toArray(addresses[2]));
+    KSSessionIntentRouter router = new KSSessionIntentRouter(owner, operators, guardians);
     KSSwapIntentValidator swapValidator = new KSSwapIntentValidator();
     KSPriceBasedDCAIntentValidator priceBasedDCAValidator = new KSPriceBasedDCAIntentValidator();
     KSTimeBasedDCAIntentValidator timeBasedDCAValidator = new KSTimeBasedDCAIntentValidator();
