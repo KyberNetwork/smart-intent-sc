@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import './Base.s.sol';
 
-contract DCAScript is BaseScript {
+contract DCAScript is BaseOnchainScript {
   using SafeERC20 for IERC20;
 
   function priceBased() external {

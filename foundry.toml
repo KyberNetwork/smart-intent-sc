@@ -4,7 +4,7 @@ optimizer_runs = 44444444
 via_ir = true
 ffi = true
 solc = '0.8.28'
-fs_permissions = [{ access = 'read', path = './'}]
+fs_permissions = [{ access = 'read-write', path = './'}]
 
 [fmt]
 line_length = 100
