@@ -7,7 +7,7 @@ contract DCAScript is BaseOnchainScript {
   using SafeERC20 for IERC20;
 
   function priceBased() external {
-    _prepareData();
+    _prepareData('priceBasedDCAValidator');
 
     //prepare data for validation
     amountIns.push(amountIn);
@@ -15,7 +15,14 @@ contract DCAScript is BaseOnchainScript {
     startTime = block.timestamp;
     endTime = type(uint32).max;
 
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData;
+    validationData.srcToken = tokenIn;
+    validationData.dstToken = tokenOut;
+    validationData.amountIns = amountIns;
+    validationData.amountOutLimits = amountOutLimits;
+    validationData.recipient = recipient;
+
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(abi.encode(validationData));
     IKSSessionIntentRouter.ActionData memory actionData =
       _getActionData(intentData.tokenData, callData);
 
@@ -25,7 +32,7 @@ contract DCAScript is BaseOnchainScript {
 
     vm.startBroadcast();
     router.executeWithSignedIntent(
-      intentData, _getMWSignature(intentData), _getSWSignature(actionData), operator, '', actionData
+      intentData, _getMWSignature(intentData), _getSWSignature(actionData), guardian, '', actionData
     );
     vm.stopBroadcast();
   }

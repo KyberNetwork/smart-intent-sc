@@ -25,7 +25,7 @@ contract DeployRouter is BaseScript {
     KSSessionIntentRouter router = new KSSessionIntentRouter(owner, guardians);
 
     string memory path = string(abi.encodePacked(root, '/script/deployedAddresses/'));
-    _writeAddress(path, chainId, 'router', address(router));
+    _writeAddress(path, 'router', chainId, address(router));
 
     vm.stopBroadcast();
   }

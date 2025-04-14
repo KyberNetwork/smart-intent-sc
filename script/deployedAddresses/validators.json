@@ -1,0 +1,16 @@
+{
+  "1": [
+    {
+      "address": "0xbc5951d90d41d3290a7f2175B417CaF225Cc4482",
+      "name": "swapValidator"
+    },
+    {
+      "address": "0xdFF4992C4A61400C0914eD558f696949c7dD2721",
+      "name": "priceBasedDCAValidator"
+    },
+    {
+      "address": "0x24F40B8a021d5442B97459A336D1363E4D0f1388",
+      "name": "timeBasedDCAValidator"
+    }
+  ]
+}

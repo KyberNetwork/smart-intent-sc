@@ -29,9 +29,17 @@ contract DeployValidators is BaseScript {
       new KSTimeBasedDCAIntentValidator(_toArray(router));
 
     string memory path = string(abi.encodePacked(root, '/script/deployedAddresses/'));
-    _writeAddress(path, chainId, 'swapValidator', address(swapValidator));
-    _writeAddress(path, chainId, 'priceBasedDCAValidator', address(priceBasedDCAValidator));
-    _writeAddress(path, chainId, 'timeBasedDCAValidator', address(timeBasedDCAValidator));
+    string[] memory keys = new string[](3);
+    keys[0] = 'swapValidator';
+    keys[1] = 'priceBasedDCAValidator';
+    keys[2] = 'timeBasedDCAValidator';
+
+    address[] memory addresses = new address[](3);
+    addresses[0] = address(swapValidator);
+    addresses[1] = address(priceBasedDCAValidator);
+    addresses[2] = address(timeBasedDCAValidator);
+
+    _writeAddress(path, 'validators', chainId, keys, addresses);
 
     vm.stopBroadcast();
   }
