@@ -127,36 +127,41 @@ abstract contract KSSessionIntentRouterTypeHashes is
       bytes32 actionDataTypeHash
     )
   {
-    bytes memory erc1155DataTypeString =
-      abi.encodePacked('ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)');
-    bytes memory erc20DataTypeString = abi.encodePacked('ERC20Data(address token,uint256 amount)');
-    bytes memory erc721DataTypeString =
-      abi.encodePacked('ERC721Data(address token,uint256 tokenId)');
-    bytes memory tokenDataTypeString = abi.encodePacked(
-      'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)',
-      erc1155DataTypeString,
-      erc20DataTypeString,
-      erc721DataTypeString
+    erc1155DataTypeHash =
+      keccak256(abi.encodePacked('ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)'));
+    erc20DataTypeHash = keccak256(abi.encodePacked('ERC20Data(address token,uint256 amount)'));
+    erc721DataTypeHash = keccak256(abi.encodePacked('ERC721Data(address token,uint256 tokenId)'));
+    tokenDataTypeHash = keccak256(
+      abi.encodePacked(
+        'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)',
+        'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
+        'ERC20Data(address token,uint256 amount)',
+        'ERC721Data(address token,uint256 tokenId)'
+      )
     );
-    bytes memory intentCoreDataTypeString = abi.encodePacked(
-      'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
+    intentCoreDataTypeHash = keccak256(
+      abi.encodePacked(
+        'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
+      )
     );
-    bytes memory intentDataTypeString = abi.encodePacked(
-      'IntentData(IntentCoreData coreData,TokenData tokenData)',
-      intentCoreDataTypeString,
-      tokenDataTypeString
+    intentDataTypeHash = keccak256(
+      abi.encodePacked(
+        'IntentData(IntentCoreData coreData,TokenData tokenData)',
+        'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
+        'ERC20Data(address token,uint256 amount)',
+        'ERC721Data(address token,uint256 tokenId)',
+        'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)',
+        'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
+      )
     );
-    bytes memory actionDataTypeString = abi.encodePacked(
-      'ActionData(TokenData tokenData,bytes actionCalldata,bytes validatorData,uint256 deadline)',
-      tokenDataTypeString
+    actionDataTypeHash = keccak256(
+      abi.encodePacked(
+        'ActionData(TokenData tokenData,bytes actionCalldata,bytes validatorData,uint256 deadline)',
+        'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
+        'ERC20Data(address token,uint256 amount)',
+        'ERC721Data(address token,uint256 tokenId)',
+        'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
+      )
     );
-
-    erc1155DataTypeHash = keccak256(erc1155DataTypeString);
-    erc20DataTypeHash = keccak256(erc20DataTypeString);
-    erc721DataTypeHash = keccak256(erc721DataTypeString);
-    tokenDataTypeHash = keccak256(tokenDataTypeString);
-    intentCoreDataTypeHash = keccak256(intentCoreDataTypeString);
-    intentDataTypeHash = keccak256(intentDataTypeString);
-    actionDataTypeHash = keccak256(actionDataTypeString);
   }
 }
