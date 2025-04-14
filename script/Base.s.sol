@@ -56,9 +56,9 @@ contract BaseScript is Script {
     return json.readUint(string.concat('.', key));
   }
 
-  function _readString(string memory path, string memory key) internal view returns (string memory) {
+  function _readString(string memory path, uint256 chainId) internal view returns (string memory) {
     string memory json = vm.readFile(path);
-    return json.readString(string.concat('.', key));
+    return json.readString(string.concat('.', vm.toString(chainId)));
   }
 
   function _readSwapRouterAddresses(string memory path, uint256 chainId)
