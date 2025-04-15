@@ -1,16 +1,22 @@
 {
-  "1": [
+  "111551111": [
     {
-      "address": "0xbc5951d90d41d3290a7f2175B417CaF225Cc4482",
-      "name": "swapValidator"
+      "address": "0x6395C2A11C5B0Ca9f605767cD194ee4Be3F99Bbc",
+      "name": "KSPriceBasedDCAIntentValidator"
     },
     {
-      "address": "0xdFF4992C4A61400C0914eD558f696949c7dD2721",
-      "name": "priceBasedDCAValidator"
+      "address": "0xA9c1839F15d5FE0ae94109b6f2265Dc509d2e3D4",
+      "name": "KSTimeBasedDCAIntentValidator"
+    }
+  ],
+  "8453": [
+    {
+      "address": "0x0B97Bb8E302daD0ffF34AB86e617a5055463F75f",
+      "name": "KSPriceBasedDCAIntentValidator"
     },
     {
-      "address": "0x24F40B8a021d5442B97459A336D1363E4D0f1388",
-      "name": "timeBasedDCAValidator"
+      "address": "0xd90499D57dCf2924C8944CfEcB2169bE08052743",
+      "name": "KSTimeBasedDCAIntentValidator"
     }
   ]
 }
