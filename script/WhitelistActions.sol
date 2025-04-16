@@ -18,7 +18,7 @@ contract WhitelistActions is BaseScript {
     console.log('router is %s', router);
 
     (address[] memory swapRouters, bytes4[] memory selectors) = _readSwapRouterAddresses(
-      string(abi.encodePacked(root, '/script/configs/swap-routers.json')), chainId
+      string(abi.encodePacked(root, '/script/configs/whitelisted-actions.json')), chainId
     );
 
     vm.startBroadcast();

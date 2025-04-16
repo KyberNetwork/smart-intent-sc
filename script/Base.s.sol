@@ -17,6 +17,13 @@ contract BaseScript is Script {
     string name;
   }
 
+  struct SwapInputs {
+    uint256 amountIn;
+    address recipient;
+    address tokenIn;
+    address tokenOut;
+  }
+
   function _readAddress(string memory path, uint256 chainId) internal view returns (address) {
     string memory json = vm.readFile(path);
     return json.readAddress(string.concat('.', vm.toString(chainId)));
@@ -93,6 +100,17 @@ contract BaseScript is Script {
       validators[i] = validatorInfos[i].name;
       addresses[i] = validatorInfos[i].validator;
     }
+  }
+
+  function _readSwapInputs(string memory path, uint256 chainId)
+    internal
+    view
+    returns (SwapInputs memory swapInputs)
+  {
+    string memory json = vm.readFile(path);
+    bytes memory data = json.parseRaw(string.concat('.', vm.toString(chainId)));
+
+    (swapInputs) = abi.decode(data, (SwapInputs));
   }
 
   function _getJsonString(string memory path, string memory key)
