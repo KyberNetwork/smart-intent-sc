@@ -215,4 +215,50 @@ interface IKSSessionIntentRouter {
     bytes memory gdSignature,
     ActionData calldata actionData
   ) external;
+
+  /**
+   * @notice hashTypedDataV4 for intentData
+   * @param intentData The intent data for hash
+   * @return The hashTypedDataV4 of the intent data
+   */
+  function hashTypedIntentData(IntentData calldata intentData) external view returns (bytes32);
+
+  /**
+   * @notice hashTypedDataV4 for actionData
+   * @param actionData The action data for hash
+   * @return The hashTypedDataV4 of the action data
+   */
+  function hashTypedActionData(ActionData calldata actionData) external view returns (bytes32);
+
+  /**
+   * @notice Get the ERC1155 allowance for a specific intent
+   * @param intentHash The hash of the intent
+   * @param token The address of the ERC1155 token
+   * @param tokenId The ID of the ERC1155 token
+   * @return The allowance for the specified token and token ID
+   */
+  function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
+    external
+    view
+    returns (uint256);
+
+  /**
+   * @notice Get the ERC20 allowance for a specific intent
+   * @param intentHash The hash of the intent
+   * @param token The address of the ERC20 token
+   * @return The allowance for the specified token
+   */
+  function getERC20Allowance(bytes32 intentHash, address token) external view returns (uint256);
+
+  /**
+   * @notice Check if an ERC721 token is approved for a specific intent
+   * @param intentHash The hash of the intent
+   * @param token The address of the ERC721 token
+   * @param tokenId The ID of the ERC721 token
+   * @return True if the token is approved, false otherwise
+   */
+  function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
+    external
+    view
+    returns (bool);
 }

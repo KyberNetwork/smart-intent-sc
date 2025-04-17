@@ -19,9 +19,9 @@ contract KSSessionIntentRouter is
 
   mapping(bytes32 => IntentCoreData) public intents;
 
-  mapping(bytes32 => bool) whitelistedActions;
+  mapping(bytes32 => bool) public whitelistedActions;
 
-  mapping(address => bool) whitelistedValidators;
+  mapping(address => bool) public whitelistedValidators;
 
   constructor(address initialOwner, address[] memory initialGuardians)
     KSSessionIntentRouterAccounting(initialOwner, initialGuardians)
@@ -89,6 +89,34 @@ contract KSSessionIntentRouter is
     );
     _delegate(intentData, intentHash);
     _execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function hashTypedIntentData(IntentData calldata intentData) public view returns (bytes32) {
+    return _hashTypedIntentData(intentData);
+  }
+
+  function hashTypedActionData(ActionData calldata actionData) public view returns (bytes32) {
+    return _hashTypedActionData(actionData);
+  }
+
+  function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
+    public
+    view
+    returns (uint256)
+  {
+    return erc1155Allowances[intentHash][token][tokenId];
+  }
+
+  function getERC20Allowance(bytes32 intentHash, address token) public view returns (uint256) {
+    return erc20Allowances[intentHash][token];
+  }
+
+  function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
+    public
+    view
+    returns (bool)
+  {
+    return erc721Approvals[intentHash][token][tokenId];
   }
 
   function _delegate(IntentData calldata intentData, bytes32 intentHash) internal {
