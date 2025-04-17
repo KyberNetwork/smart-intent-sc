@@ -65,6 +65,16 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
+  function revoke(IntentData calldata intentData) public {
+    require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
+    bytes32 intentHash = _hashTypedIntentData(intentData);
+
+    intents[intentHash].mainAddress = DEAD_ADDRESS;
+
+    emit RevokeIntent(intentHash);
+  }
+
+  /// @inheritdoc IKSSessionIntentRouter
   function execute(
     bytes32 intentHash,
     bytes memory daSignature,
@@ -123,7 +133,8 @@ contract KSSessionIntentRouter is
 
   function _delegate(IntentData calldata intentData, bytes32 intentHash) internal {
     if (intentHash == 0) intentHash = _hashTypedIntentData(intentData);
-    require(intents[intentHash].mainAddress == address(0), IntentAlreadyExists());
+    address mainAddress = intents[intentHash].mainAddress;
+    require(mainAddress == address(0), IntentAlreadyExistsOrRevoked());
     {
       bytes32 actionHash = keccak256(
         abi.encodePacked(intentData.coreData.actionContract, intentData.coreData.actionSelector)

@@ -11,8 +11,8 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when executing the intent after the end time
   error ExecuteTooLate();
 
-  /// @notice Thrown when the intent has already existed
-  error IntentAlreadyExists();
+  /// @notice Thrown when the intent has already existed or has been revoked
+  error IntentAlreadyExistsOrRevoked();
 
   /// @notice Thrown when the intent has been revoked
   error IntentRevoked();
@@ -186,6 +186,12 @@ interface IKSSessionIntentRouter {
    * @param intentHash The hash of the intent
    */
   function revoke(bytes32 intentHash) external;
+
+  /**
+   * @notice Revoke the delegated intent
+   * @param intentData The intent data to revoke
+   */
+  function revoke(IntentData memory intentData) external;
 
   /**
    * @notice Execute the intent

@@ -365,6 +365,38 @@ contract MockActionTest is BaseTest {
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  function testMockActionDelegateRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+
+    vm.startPrank(mainAddress);
+    router.revoke(intentData);
+    vm.expectRevert(IKSSessionIntentRouter.IntentAlreadyExistsOrRevoked.selector);
+    router.delegate(intentData);
+    vm.stopPrank();
+  }
+
+  function testMockActionExecuteRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.startPrank(mainAddress);
+    router.revoke(intentData);
+    vm.stopPrank();
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(IKSSessionIntentRouter.IntentRevoked.selector);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
   function testMockActionExecuteNonExistentIntentShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
@@ -389,7 +421,7 @@ contract MockActionTest is BaseTest {
     vm.startPrank(mainAddress);
     router.delegate(intentData);
 
-    vm.expectRevert(IKSSessionIntentRouter.IntentAlreadyExists.selector);
+    vm.expectRevert(IKSSessionIntentRouter.IntentAlreadyExistsOrRevoked.selector);
     router.delegate(intentData);
   }
 
