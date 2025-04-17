@@ -6,8 +6,6 @@ import 'forge-std/StdJson.sol';
 
 import '../Base.s.sol';
 
-import 'test/harness/KSSessionIntentRouterHarness.sol';
-
 import 'src/KSSessionIntentRouter.sol';
 import 'src/interfaces/IKSSwapRouter.sol';
 import 'src/validators/KSPriceBasedDCAIntentValidator.sol';
@@ -40,7 +38,6 @@ contract BaseOnchainScript is BaseScript {
   uint256[] amountOutLimits;
 
   address guardian;
-  uint256 guardianPrivateKey;
   address mainWallet;
   uint256 mainWalletPrivateKey;
   address sessionWallet;
@@ -48,7 +45,7 @@ contract BaseOnchainScript is BaseScript {
   uint256 startTime;
   uint256 endTime;
   address swapRouter;
-  KSSessionIntentRouterHarness router;
+  KSSessionIntentRouter router;
   address validator;
 
   function _prepareData(string memory validatorType) internal {
@@ -59,28 +56,20 @@ contract BaseOnchainScript is BaseScript {
     }
     console.log('chainId is %s', chainId);
 
-    (guardian, guardianPrivateKey) = makeAddrAndKey('guardian');
-    address[] memory guardians = new address[](1);
-    guardians[0] = guardian;
+    address[] memory guardians = _readAddressArray(
+      string(abi.encodePacked(root, '/script/configs/router-guardians.json')), chainId
+    );
+
+    //select your guardian address (which is the address running this script)
+    guardian = guardians[0];
 
     (address[] memory swapRouters,) = _readSwapRouterAddresses(
       string(abi.encodePacked(root, '/script/configs/whitelisted-actions.json')), chainId
     );
     swapRouter = swapRouters[0];
-    router = KSSessionIntentRouterHarness(
+    router = KSSessionIntentRouter(
       _readAddress(string(abi.encodePacked(root, '/script/deployedAddresses/router.json')), chainId)
     );
-
-    //replace router with routerHarness
-    {
-      address owner =
-        _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
-      KSSessionIntentRouterHarness harness = new KSSessionIntentRouterHarness(owner, guardians);
-      vm.etch(address(router), address(harness).code);
-      vm.startBroadcast(owner);
-      router.updateGuardian(guardian, true);
-      vm.stopBroadcast();
-    }
 
     (string[] memory validators, address[] memory addresses) = _readValidatorAddresses(
       string(abi.encodePacked(root, '/script/deployedAddresses/validators.json')), chainId

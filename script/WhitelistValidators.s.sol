@@ -2,9 +2,13 @@
 pragma solidity ^0.8.0;
 
 import './Base.s.sol';
+
+import {KSSessionIntentRouter} from 'src/KSSessionIntentRouter.sol';
 import {IKSSessionIntentRouter} from 'src/interfaces/IKSSessionIntentRouter.sol';
 
 contract WhitelistValidators is BaseScript {
+  address[] unWhitelistedValidators;
+
   function run() external {
     string memory root = vm.projectRoot();
     uint256 chainId;
@@ -20,8 +24,14 @@ contract WhitelistValidators is BaseScript {
       string(abi.encodePacked(root, '/script/deployedAddresses/validators.json')), chainId
     );
 
+    for (uint256 i; i < validators.length; ++i) {
+      if (!KSSessionIntentRouter(router).whitelistedValidators(validators[i])) {
+        unWhitelistedValidators.push(validators[i]);
+      }
+    }
+
     vm.startBroadcast();
-    IKSSessionIntentRouter(router).whitelistValidators(validators, true);
+    IKSSessionIntentRouter(router).whitelistValidators(unWhitelistedValidators, true);
     vm.stopBroadcast();
   }
 }

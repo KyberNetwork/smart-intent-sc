@@ -11,7 +11,7 @@ contract DCAScript is BaseOnchainScript {
 
     //prepare data for validation
     amountIns.push(amountIn);
-    amountOutLimits.push(1 << 128 | 2 ** 128 - 1);
+    amountOutLimits.push((1 << 128) | (2 ** 128 - 1));
     startTime = block.timestamp;
     endTime = type(uint32).max;
 
@@ -30,7 +30,7 @@ contract DCAScript is BaseOnchainScript {
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
     vm.stopBroadcast();
 
-    vm.startBroadcast(guardianPrivateKey);
+    vm.startBroadcast();
     router.executeWithSignedIntent(
       intentData, _getMWSignature(intentData), _getSWSignature(actionData), guardian, '', actionData
     );
@@ -56,7 +56,7 @@ contract DCAScript is BaseOnchainScript {
     validationData.srcToken = tokenIn;
     validationData.dstToken = tokenOut;
     validationData.amountIn = amountIn;
-    validationData.amountOutLimits = 1 << 128 | 2 ** 128 - 1;
+    validationData.amountOutLimits = (1 << 128) | (2 ** 128 - 1);
     validationData.executionParams = executionParams;
     validationData.recipient = recipient;
 
@@ -68,7 +68,7 @@ contract DCAScript is BaseOnchainScript {
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
     vm.stopBroadcast();
 
-    vm.startBroadcast(guardianPrivateKey);
+    vm.startBroadcast();
     router.executeWithSignedIntent(
       intentData, _getMWSignature(intentData), _getSWSignature(actionData), guardian, '', actionData
     );
