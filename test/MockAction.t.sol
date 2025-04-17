@@ -227,6 +227,45 @@ contract MockActionTest is BaseTest {
     );
   }
 
+  function testMockActionExecuteWithNonWhitelistedActionAfterDelegateShouldRevert(uint256 seed)
+    public
+  {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+
+    {
+      vm.startPrank(owner);
+      address[] memory actionContracts = new address[](1);
+      actionContracts[0] = address(mockActionContract);
+      bytes4[] memory actionSelectors = new bytes4[](1);
+      actionSelectors[0] = MockActionContract.doNothing.selector;
+      router.whitelistActions(actionContracts, actionSelectors, false);
+      vm.stopPrank();
+    }
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IKSSessionIntentRouter.NonWhitelistedAction.selector,
+        address(mockActionContract),
+        MockActionContract.doNothing.selector
+      )
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
   function testMockActionExecuteWithNonWhitelistedValidatorShouldRevert(uint256 seed) public {
     {
       vm.startPrank(owner);
@@ -255,6 +294,39 @@ contract MockActionTest is BaseTest {
     router.executeWithSignedIntent(
       intentData, maSignature, daSignature, guardian, gdSignature, actionData
     );
+  }
+
+  function testMockActionExecuteWithNonWhitelistedValidatorAfterDelegateShouldRevert(uint256 seed)
+    public
+  {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+
+    {
+      vm.startPrank(owner);
+      address[] memory validators = new address[](1);
+      validators[0] = address(mockValidator);
+      router.whitelistValidators(validators, false);
+      vm.stopPrank();
+    }
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(IKSSessionIntentRouter.NonWhitelistedValidator.selector, mockValidator)
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionRevokeWithRandomCallerShouldRevert(uint256 seed) public {

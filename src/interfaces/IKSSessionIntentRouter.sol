@@ -59,7 +59,12 @@ interface IKSSessionIntentRouter {
   );
 
   /// @notice Emitted when an intent is executed
+  event RevokeIntent(bytes32 indexed intentHash);
+
+  /// @notice Emitted when an intent is executed
   event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
+
+  event SpendTokens(bytes32 indexed intentHash, TokenData tokenData);
 
   /**
    * @notice Data structure for ERC20 token

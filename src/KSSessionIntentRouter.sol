@@ -60,6 +60,8 @@ contract KSSessionIntentRouter is
     require(intent.mainAddress == _msgSender(), NotMainAddress());
 
     intent.mainAddress = DEAD_ADDRESS;
+
+    emit RevokeIntent(intentHash);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
@@ -171,10 +173,18 @@ contract KSSessionIntentRouter is
         InvalidGuardianSignature()
       );
     }
-
+    require(whitelistedValidators[intent.validator], NonWhitelistedValidator(intent.validator));
     bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
       .validateBeforeExecution(intentHash, intent, actionData);
     _spendTokens(intentHash, intent.mainAddress, intent.actionContract, actionData.tokenData);
+    {
+      bytes32 actionContractAndSelectorHash =
+        keccak256(abi.encodePacked(intent.actionContract, intent.actionSelector));
+      require(
+        whitelistedActions[actionContractAndSelectorHash],
+        NonWhitelistedAction(intent.actionContract, intent.actionSelector)
+      );
+    }
     bytes memory actionResult = intent.actionContract.functionCall(
       abi.encodePacked(intent.actionSelector, actionData.actionCalldata)
     );
