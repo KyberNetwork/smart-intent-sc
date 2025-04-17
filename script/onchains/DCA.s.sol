@@ -30,7 +30,7 @@ contract DCAScript is BaseOnchainScript {
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
     vm.stopBroadcast();
 
-    vm.startBroadcast();
+    vm.startBroadcast(guardianPrivateKey);
     router.executeWithSignedIntent(
       intentData, _getMWSignature(intentData), _getSWSignature(actionData), guardian, '', actionData
     );
@@ -68,7 +68,7 @@ contract DCAScript is BaseOnchainScript {
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
     vm.stopBroadcast();
 
-    vm.startBroadcast();
+    vm.startBroadcast(guardianPrivateKey);
     router.executeWithSignedIntent(
       intentData, _getMWSignature(intentData), _getSWSignature(actionData), guardian, '', actionData
     );

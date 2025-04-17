@@ -31,6 +31,7 @@ contract BaseOnchainScript is BaseScript {
   address tokenOut;
   uint256 amountIn;
   address recipient;
+  bytes4 selector;
   bytes callData;
 
   //validationData
@@ -38,6 +39,7 @@ contract BaseOnchainScript is BaseScript {
   uint256[] amountOutLimits;
 
   address guardian;
+  uint256 guardianPrivateKey;
   address mainWallet;
   uint256 mainWalletPrivateKey;
   address sessionWallet;
@@ -56,12 +58,7 @@ contract BaseOnchainScript is BaseScript {
     }
     console.log('chainId is %s', chainId);
 
-    address[] memory guardians = _readAddressArray(
-      string(abi.encodePacked(root, '/script/configs/router-guardians.json')), chainId
-    );
-
-    //select your guardian address (which is the address running this script)
-    guardian = guardians[0];
+    (guardian, guardianPrivateKey) = makeAddrAndKey('guardian');
 
     (address[] memory swapRouters,) = _readSwapRouterAddresses(
       string(abi.encodePacked(root, '/script/configs/whitelisted-actions.json')), chainId
@@ -70,6 +67,15 @@ contract BaseOnchainScript is BaseScript {
     router = KSSessionIntentRouter(
       _readAddress(string(abi.encodePacked(root, '/script/deployedAddresses/router.json')), chainId)
     );
+
+    //add guardian
+    {
+      address owner =
+        _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
+      vm.startBroadcast(owner);
+      router.updateGuardian(guardian, true);
+      vm.stopBroadcast();
+    }
 
     (string[] memory validators, address[] memory addresses) = _readValidatorAddresses(
       string(abi.encodePacked(root, '/script/deployedAddresses/validators.json')), chainId
@@ -97,7 +103,7 @@ contract BaseOnchainScript is BaseScript {
     tokenOut = swapInputs.tokenOut;
     amountIn = swapInputs.amountIn;
     recipient = swapInputs.recipient;
-    (, callData,) = _getSwapCalldata(
+    (, selector, callData,) = _getSwapCalldata(
       chainName,
       SwapRequest({
         tokenIn: tokenIn,
@@ -121,7 +127,7 @@ contract BaseOnchainScript is BaseScript {
       startTime: startTime,
       endTime: endTime,
       actionContract: swapRouter,
-      actionSelector: IKSSwapRouter.swap.selector,
+      actionSelector: selector,
       validator: validator,
       validationData: validationData
     });
@@ -167,7 +173,7 @@ contract BaseOnchainScript is BaseScript {
 
   function _getSwapCalldata(string memory chain, SwapRequest memory req)
     internal
-    returns (address, bytes memory, uint256)
+    returns (address, bytes4, bytes memory, uint256)
   {
     string[] memory commandInput = new string[](15);
 
@@ -192,7 +198,16 @@ contract BaseOnchainScript is BaseScript {
     bytes memory swapCallData = abi.decode(result.parseRaw('.callData'), (bytes));
     uint256 value = result.readUint('.value');
 
-    return (routerAddress, _removeSelector(swapCallData), value);
+    return (routerAddress, _getSelector(swapCallData), _removeSelector(swapCallData), value);
+  }
+
+  function _getSelector(bytes memory data) internal pure returns (bytes4) {
+    bytes memory returnValue = new bytes(4);
+    for (uint256 i = 0; i < 4; i++) {
+      returnValue[i] = data[i];
+    }
+
+    return bytes4(returnValue);
   }
 
   function _removeSelector(bytes memory data) internal pure returns (bytes memory) {
