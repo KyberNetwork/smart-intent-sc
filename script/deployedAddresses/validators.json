@@ -11,11 +11,11 @@
   ],
   "8453": [
     {
-      "address": "0x0B97Bb8E302daD0ffF34AB86e617a5055463F75f",
+      "address": "0xD5F4A047A9BF007D9b38C8f0836668f9782d8eAb",
       "name": "KSPriceBasedDCAIntentValidator"
     },
     {
-      "address": "0xd90499D57dCf2924C8944CfEcB2169bE08052743",
+      "address": "0x9833e3434488DEbd52560b31e4F6f29EAB6ab396",
       "name": "KSTimeBasedDCAIntentValidator"
     }
   ]
