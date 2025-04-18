@@ -132,4 +132,16 @@ contract BaseTest is Test {
       gdSignature = _getGDSignature(actionData);
     }
   }
+
+  function _toArray(address a) internal pure returns (address[] memory) {
+    address[] memory array = new address[](1);
+    array[0] = a;
+    return array;
+  }
+
+  function _toArray(bytes4 a) internal pure returns (bytes4[] memory) {
+    bytes4[] memory array = new bytes4[](1);
+    array[0] = a;
+    return array;
+  }
 }

@@ -14,6 +14,9 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when the intent has already existed or has been revoked
   error IntentAlreadyExistsOrRevoked();
 
+  /// @notice Thrown when the action contract and selector length mismatch
+  error ActionContractAndSelectorLengthMismatch();
+
   /// @notice Thrown when the intent has been revoked
   error IntentRevoked();
 
@@ -25,6 +28,9 @@ interface IKSSessionIntentRouter {
 
   /// @notice Thrown when the signature is not from the guardian
   error InvalidGuardianSignature();
+
+  /// @notice Thrown when the action contract and selector not found in intent
+  error ActionNotFound(address actionContract, bytes4 actionSelector);
 
   /// @notice Thrown when the action is not whitelisted
   error NonWhitelistedAction(address actionContract, bytes4 actionSelector);
@@ -116,8 +122,8 @@ interface IKSSessionIntentRouter {
    * @param delegatedAddress The delegated address
    * @param startTime The start time of the intent
    * @param endTime The end time of the intent
-   * @param actionContract The address of the action contract
-   * @param actionSelector The selector of the action function
+   * @param actionContracts The addresses of the action contracts
+   * @param actionSelectors The selectors of the action functions
    * @param validator The address of the validator
    * @param validationData The data for the validator
    */
@@ -126,8 +132,8 @@ interface IKSSessionIntentRouter {
     address delegatedAddress;
     uint256 startTime;
     uint256 endTime;
-    address actionContract;
-    bytes4 actionSelector;
+    address[] actionContracts;
+    bytes4[] actionSelectors;
     address validator;
     bytes validationData;
   }
@@ -146,11 +152,15 @@ interface IKSSessionIntentRouter {
    * @notice Data structure for action
    * @param tokenData The token data for the action
    * @param actionCalldata The calldata for the action
+   * @param actionContract The address of the action contract
+   * @param actionSelector The selector of the action function
    * @param validatorData The data for the validator
    * @param deadline The deadline for the action
    */
   struct ActionData {
     TokenData tokenData;
+    address actionContract;
+    bytes4 actionSelector;
     bytes actionCalldata;
     bytes validatorData;
     uint256 deadline;

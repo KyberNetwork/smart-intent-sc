@@ -49,13 +49,13 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function delegate(IntentData calldata intentData) public {
+  function delegate(IntentData calldata intentData) public override {
     require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
     _delegate(intentData, 0);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function revoke(bytes32 intentHash) public {
+  function revoke(bytes32 intentHash) public override {
     IntentCoreData storage intent = intents[intentHash];
     require(intent.mainAddress == _msgSender(), NotMainAddress());
 
@@ -65,7 +65,7 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function revoke(IntentData calldata intentData) public {
+  function revoke(IntentData calldata intentData) public override {
     require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
     bytes32 intentHash = _hashTypedIntentData(intentData);
 
@@ -81,7 +81,7 @@ contract KSSessionIntentRouter is
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
-  ) public {
+  ) public override {
     _execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -93,7 +93,7 @@ contract KSSessionIntentRouter is
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
-  ) public {
+  ) public override {
     bytes32 intentHash = _hashTypedIntentData(intentData);
     require(
       SignatureChecker.isValidSignatureNow(intentData.coreData.mainAddress, intentHash, maSignature),
@@ -103,29 +103,46 @@ contract KSSessionIntentRouter is
     _execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function hashTypedIntentData(IntentData calldata intentData) public view returns (bytes32) {
+  function hashTypedIntentData(IntentData calldata intentData)
+    public
+    view
+    override
+    returns (bytes32)
+  {
     return _hashTypedIntentData(intentData);
   }
 
-  function hashTypedActionData(ActionData calldata actionData) public view returns (bytes32) {
+  function hashTypedActionData(ActionData calldata actionData)
+    public
+    view
+    override
+    returns (bytes32)
+  {
     return _hashTypedActionData(actionData);
   }
 
   function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
     public
     view
+    override
     returns (uint256)
   {
     return erc1155Allowances[intentHash][token][tokenId];
   }
 
-  function getERC20Allowance(bytes32 intentHash, address token) public view returns (uint256) {
+  function getERC20Allowance(bytes32 intentHash, address token)
+    public
+    view
+    override
+    returns (uint256)
+  {
     return erc20Allowances[intentHash][token];
   }
 
   function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
     public
     view
+    override
     returns (bool)
   {
     return erc721Approvals[intentHash][token][tokenId];
@@ -135,14 +152,24 @@ contract KSSessionIntentRouter is
     if (intentHash == 0) intentHash = _hashTypedIntentData(intentData);
     address mainAddress = intents[intentHash].mainAddress;
     require(mainAddress == address(0), IntentAlreadyExistsOrRevoked());
+    require(
+      intentData.coreData.actionContracts.length == intentData.coreData.actionSelectors.length,
+      ActionContractAndSelectorLengthMismatch()
+    );
     {
-      bytes32 actionHash = keccak256(
-        abi.encodePacked(intentData.coreData.actionContract, intentData.coreData.actionSelector)
-      );
-      require(
-        whitelistedActions[actionHash],
-        NonWhitelistedAction(intentData.coreData.actionContract, intentData.coreData.actionSelector)
-      );
+      for (uint256 i; i < intentData.coreData.actionContracts.length; i++) {
+        bytes32 actionHash = keccak256(
+          abi.encodePacked(
+            intentData.coreData.actionContracts[i], intentData.coreData.actionSelectors[i]
+          )
+        );
+        require(
+          whitelistedActions[actionHash],
+          NonWhitelistedAction(
+            intentData.coreData.actionContracts[i], intentData.coreData.actionSelectors[i]
+          )
+        );
+      }
     }
     require(
       whitelistedValidators[intentData.coreData.validator],
@@ -187,18 +214,34 @@ contract KSSessionIntentRouter is
     require(whitelistedValidators[intent.validator], NonWhitelistedValidator(intent.validator));
     bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
       .validateBeforeExecution(intentHash, intent, actionData);
-    _spendTokens(intentHash, intent.mainAddress, intent.actionContract, actionData.tokenData);
-    {
-      bytes32 actionContractAndSelectorHash =
-        keccak256(abi.encodePacked(intent.actionContract, intent.actionSelector));
-      require(
-        whitelistedActions[actionContractAndSelectorHash],
-        NonWhitelistedAction(intent.actionContract, intent.actionSelector)
-      );
+
+    address actionContract;
+    bytes4 actionSelector;
+    for (uint256 i; i < intent.actionContracts.length; i++) {
+      if (
+        intent.actionContracts[i] == actionData.actionContract
+          && intent.actionSelectors[i] == actionData.actionSelector
+      ) {
+        actionContract = intent.actionContracts[i];
+        actionSelector = intent.actionSelectors[i];
+        break;
+      }
     }
-    bytes memory actionResult = intent.actionContract.functionCall(
-      abi.encodePacked(intent.actionSelector, actionData.actionCalldata)
+    require(
+      actionContract != address(0) && actionSelector != bytes4(0),
+      ActionNotFound(actionData.actionContract, actionData.actionSelector)
     );
+
+    bytes32 actionContractAndSelectorHash =
+      keccak256(abi.encodePacked(actionContract, actionSelector));
+    require(
+      whitelistedActions[actionContractAndSelectorHash],
+      NonWhitelistedAction(actionContract, actionSelector)
+    );
+    _spendTokens(intentHash, intent.mainAddress, actionContract, actionData.tokenData);
+
+    bytes memory actionResult =
+      actionContract.functionCall(abi.encodePacked(actionSelector, actionData.actionCalldata));
     IKSSessionIntentValidator(intent.validator).validateAfterExecution(
       intentHash, intent, beforeExecutionData, actionResult
     );

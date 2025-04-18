@@ -467,6 +467,67 @@ contract MockActionTest is BaseTest {
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  function testMockActionExecuteEmptyActionShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    intentData.coreData.actionContracts = new address[](0);
+    intentData.coreData.actionSelectors = new bytes4[](0);
+
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IKSSessionIntentRouter.ActionNotFound.selector,
+        address(mockActionContract),
+        MockActionContract.doNothing.selector
+      )
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteActionNotInListActionsShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.actionContract = address(swapRouter);
+    actionData.actionSelector = IKSSwapRouter.swap.selector;
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IKSSessionIntentRouter.ActionNotFound.selector,
+        address(swapRouter),
+        IKSSwapRouter.swap.selector
+      )
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
   function _getNewTokenData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 seed)
     internal
     view
@@ -504,8 +565,8 @@ contract MockActionTest is BaseTest {
       delegatedAddress: delegatedAddress,
       startTime: block.timestamp + 10,
       endTime: block.timestamp + 1 days,
-      actionContract: address(mockActionContract),
-      actionSelector: MockActionContract.doNothing.selector,
+      actionContracts: _toArray(address(mockActionContract)),
+      actionSelectors: _toArray(MockActionContract.doNothing.selector),
       validator: address(mockValidator),
       validationData: ''
     });
@@ -547,6 +608,8 @@ contract MockActionTest is BaseTest {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
+      actionContract: address(mockActionContract),
+      actionSelector: MockActionContract.doNothing.selector,
       actionCalldata: actionCalldata,
       validatorData: '',
       deadline: block.timestamp + 1 days
