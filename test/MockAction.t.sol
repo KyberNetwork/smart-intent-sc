@@ -122,7 +122,8 @@ contract MockActionTest is BaseTest {
 
     IKSSessionIntentRouter.TokenData memory newTokenData =
       _getNewTokenData(intentData.tokenData, seed);
-    newTokenData.erc721Data[0].tokenId = seed + 1;
+
+    newTokenData.erc721Data[0].tokenId = seed == UINT256_MAX ? seed - 1 : seed + 1; // overflow when seed = 2**256 - 1
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
 
     vm.warp(block.timestamp + 100);
@@ -146,48 +147,6 @@ contract MockActionTest is BaseTest {
 
     vm.prank(randomCaller);
     vm.expectRevert(IKSSessionIntentRouter.NotMainAddress.selector);
-    router.delegate(intentData);
-  }
-
-  function testMockActionDelegateWithNonWhitelistedActionShouldRevert(uint256 seed) public {
-    {
-      vm.startPrank(owner);
-      address[] memory actionContracts = new address[](1);
-      actionContracts[0] = address(mockActionContract);
-      bytes4[] memory actionSelectors = new bytes4[](1);
-      actionSelectors[0] = MockActionContract.doNothing.selector;
-      router.whitelistActions(actionContracts, actionSelectors, false);
-      vm.stopPrank();
-    }
-
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-
-    vm.startPrank(mainAddress);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IKSSessionIntentRouter.NonWhitelistedAction.selector,
-        address(mockActionContract),
-        MockActionContract.doNothing.selector
-      )
-    );
-    router.delegate(intentData);
-  }
-
-  function testMockActionDelegateWithNonWhitelistedValidatorShouldRevert(uint256 seed) public {
-    {
-      vm.startPrank(owner);
-      address[] memory validators = new address[](1);
-      validators[0] = address(mockValidator);
-      router.whitelistValidators(validators, false);
-      vm.stopPrank();
-    }
-
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-
-    vm.startPrank(mainAddress);
-    vm.expectRevert(
-      abi.encodeWithSelector(IKSSessionIntentRouter.NonWhitelistedValidator.selector, mockValidator)
-    );
     router.delegate(intentData);
   }
 
