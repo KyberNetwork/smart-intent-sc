@@ -370,7 +370,7 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(mainAddress);
     router.revoke(intentData);
-    vm.expectRevert(IKSSessionIntentRouter.IntentAlreadyExistsOrRevoked.selector);
+    vm.expectRevert(IKSSessionIntentRouter.IntentExistedOrRevoked.selector);
     router.delegate(intentData);
     vm.stopPrank();
   }
@@ -421,7 +421,7 @@ contract MockActionTest is BaseTest {
     vm.startPrank(mainAddress);
     router.delegate(intentData);
 
-    vm.expectRevert(IKSSessionIntentRouter.IntentAlreadyExistsOrRevoked.selector);
+    vm.expectRevert(IKSSessionIntentRouter.IntentExistedOrRevoked.selector);
     router.delegate(intentData);
   }
 
@@ -525,6 +525,61 @@ contract MockActionTest is BaseTest {
         IKSSwapRouter.swap.selector
       )
     );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteDifferentActions(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+
+    //add actions to intent
+    intentData.coreData.actionContracts = new address[](2);
+    intentData.coreData.actionContracts[0] = address(mockActionContract);
+    intentData.coreData.actionContracts[1] = address(mockDex);
+
+    intentData.coreData.actionSelectors = new bytes4[](2);
+    intentData.coreData.actionSelectors[0] = MockActionContract.doNothing.selector;
+    intentData.coreData.actionSelectors[1] = MockDex.mockSwap.selector;
+
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.actionContract = address(mockActionContract);
+    actionData.actionSelector = MockActionContract.doNothing.selector;
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    //execute first time
+    vm.prank(caller);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+
+    amountIn = newTokenData.erc20Data[0].amount;
+
+    newTokenData.erc1155Data = new IKSSessionIntentRouter.ERC1155Data[](0);
+    newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
+      token: address(erc20Mock),
+      amount: newTokenData.erc20Data[0].amount
+    });
+    newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](0);
+
+    actionData.actionContract = address(mockDex);
+    actionData.actionSelector = MockDex.mockSwap.selector;
+    actionData.actionCalldata = abi.encode(address(erc20Mock), tokenOut, recipient, amountIn);
+
+    vm.warp(block.timestamp + 200);
+    (caller, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
+
+    //execute second time
+    vm.prank(caller);
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 

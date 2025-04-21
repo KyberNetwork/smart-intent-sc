@@ -151,30 +151,12 @@ contract KSSessionIntentRouter is
   function _delegate(IntentData calldata intentData, bytes32 intentHash) internal {
     if (intentHash == 0) intentHash = _hashTypedIntentData(intentData);
     address mainAddress = intents[intentHash].mainAddress;
-    require(mainAddress == address(0), IntentAlreadyExistsOrRevoked());
+    require(mainAddress == address(0), IntentExistedOrRevoked());
     require(
       intentData.coreData.actionContracts.length == intentData.coreData.actionSelectors.length,
-      ActionContractAndSelectorLengthMismatch()
+      LengthMismatch()
     );
-    {
-      for (uint256 i; i < intentData.coreData.actionContracts.length; i++) {
-        bytes32 actionHash = keccak256(
-          abi.encodePacked(
-            intentData.coreData.actionContracts[i], intentData.coreData.actionSelectors[i]
-          )
-        );
-        require(
-          whitelistedActions[actionHash],
-          NonWhitelistedAction(
-            intentData.coreData.actionContracts[i], intentData.coreData.actionSelectors[i]
-          )
-        );
-      }
-    }
-    require(
-      whitelistedValidators[intentData.coreData.validator],
-      NonWhitelistedValidator(intentData.coreData.validator)
-    );
+
     intents[intentHash] = intentData.coreData;
 
     _approveTokens(intentHash, intentData.tokenData);

@@ -12,10 +12,10 @@ interface IKSSessionIntentRouter {
   error ExecuteTooLate();
 
   /// @notice Thrown when the intent has already existed or has been revoked
-  error IntentAlreadyExistsOrRevoked();
+  error IntentExistedOrRevoked();
 
   /// @notice Thrown when the action contract and selector length mismatch
-  error ActionContractAndSelectorLengthMismatch();
+  error LengthMismatch();
 
   /// @notice Thrown when the intent has been revoked
   error IntentRevoked();
