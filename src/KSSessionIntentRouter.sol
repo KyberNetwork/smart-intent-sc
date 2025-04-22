@@ -32,7 +32,7 @@ contract KSSessionIntentRouter is
     address[] calldata actionContracts,
     bytes4[] calldata actionSelectors,
     bool grantOrRevoke
-  ) public onlyOwner {
+  ) public override onlyOwner {
     for (uint256 i = 0; i < actionContracts.length; i++) {
       whitelistedActions[keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]))] =
         grantOrRevoke;
@@ -42,7 +42,11 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function whitelistValidators(address[] calldata validators, bool grantOrRevoke) public onlyOwner {
+  function whitelistValidators(address[] calldata validators, bool grantOrRevoke)
+    public
+    override
+    onlyOwner
+  {
     for (uint256 i = 0; i < validators.length; i++) {
       whitelistedValidators[validators[i]] = grantOrRevoke;
 
