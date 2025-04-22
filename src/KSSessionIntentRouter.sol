@@ -32,7 +32,7 @@ contract KSSessionIntentRouter is
     address[] calldata actionContracts,
     bytes4[] calldata actionSelectors,
     bool grantOrRevoke
-  ) public override onlyOwner {
+  ) public onlyOwner {
     for (uint256 i = 0; i < actionContracts.length; i++) {
       whitelistedActions[keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]))] =
         grantOrRevoke;
@@ -42,11 +42,7 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function whitelistValidators(address[] calldata validators, bool grantOrRevoke)
-    public
-    override
-    onlyOwner
-  {
+  function whitelistValidators(address[] calldata validators, bool grantOrRevoke) public onlyOwner {
     for (uint256 i = 0; i < validators.length; i++) {
       whitelistedValidators[validators[i]] = grantOrRevoke;
 
@@ -55,13 +51,13 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function delegate(IntentData calldata intentData) public override {
+  function delegate(IntentData calldata intentData) public {
     require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
     _delegate(intentData, 0);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function revoke(bytes32 intentHash) public override {
+  function revoke(bytes32 intentHash) public {
     IntentCoreData storage intent = intents[intentHash];
     require(intent.mainAddress == _msgSender(), NotMainAddress());
 
@@ -71,7 +67,7 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function revoke(IntentData calldata intentData) public override {
+  function revoke(IntentData calldata intentData) public {
     require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
     bytes32 intentHash = _hashTypedIntentData(intentData);
 
@@ -87,7 +83,7 @@ contract KSSessionIntentRouter is
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
-  ) public override {
+  ) public {
     _execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -99,7 +95,7 @@ contract KSSessionIntentRouter is
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
-  ) public override {
+  ) public {
     bytes32 intentHash = _hashTypedIntentData(intentData);
     require(
       SignatureChecker.isValidSignatureNow(intentData.coreData.mainAddress, intentHash, maSignature),
@@ -110,22 +106,12 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function hashTypedIntentData(IntentData calldata intentData)
-    public
-    view
-    override
-    returns (bytes32)
-  {
+  function hashTypedIntentData(IntentData calldata intentData) public view returns (bytes32) {
     return _hashTypedIntentData(intentData);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function hashTypedActionData(ActionData calldata actionData)
-    public
-    view
-    override
-    returns (bytes32)
-  {
+  function hashTypedActionData(ActionData calldata actionData) public view returns (bytes32) {
     return _hashTypedActionData(actionData);
   }
 
@@ -133,19 +119,13 @@ contract KSSessionIntentRouter is
   function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
     public
     view
-    override
     returns (uint256)
   {
     return erc1155Allowances[intentHash][token][tokenId];
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function getERC20Allowance(bytes32 intentHash, address token)
-    public
-    view
-    override
-    returns (uint256)
-  {
+  function getERC20Allowance(bytes32 intentHash, address token) public view returns (uint256) {
     return erc20Allowances[intentHash][token];
   }
 
@@ -153,7 +133,6 @@ contract KSSessionIntentRouter is
   function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
     public
     view
-    override
     returns (bool)
   {
     return erc721Approvals[intentHash][token][tokenId];
