@@ -98,8 +98,7 @@ contract SwapTest is BaseTest {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
-      actionContract: swapRouter,
-      actionSelector: IKSSwapRouter.swap.selector,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: '',
       deadline: block.timestamp + 1 days

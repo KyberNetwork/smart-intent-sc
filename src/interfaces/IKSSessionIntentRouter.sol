@@ -30,7 +30,7 @@ interface IKSSessionIntentRouter {
   error InvalidGuardianSignature();
 
   /// @notice Thrown when the action contract and selector not found in intent
-  error ActionNotFound(address actionContract, bytes4 actionSelector);
+  error InvalidActionSelectorId(uint256 actionSelectorId);
 
   /// @notice Thrown when the action is not whitelisted
   error NonWhitelistedAction(address actionContract, bytes4 actionSelector);
@@ -151,16 +151,14 @@ interface IKSSessionIntentRouter {
   /**
    * @notice Data structure for action
    * @param tokenData The token data for the action
+   * @param actionSelectorId The ID of the action selector
    * @param actionCalldata The calldata for the action
-   * @param actionContract The address of the action contract
-   * @param actionSelector The selector of the action function
    * @param validatorData The data for the validator
    * @param deadline The deadline for the action
    */
   struct ActionData {
     TokenData tokenData;
-    address actionContract;
-    bytes4 actionSelector;
+    uint256 actionSelectorId;
     bytes actionCalldata;
     bytes validatorData;
     uint256 deadline;

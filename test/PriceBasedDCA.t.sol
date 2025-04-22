@@ -453,8 +453,7 @@ contract PriceBasedDCATest is BaseTest {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
-      actionContract: swapRouter,
-      actionSelector: IKSSwapRouter.swap.selector,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: abi.encode(swap),
       deadline: deadline

@@ -448,11 +448,7 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
     vm.expectRevert(
-      abi.encodeWithSelector(
-        IKSSessionIntentRouter.ActionNotFound.selector,
-        address(mockActionContract),
-        MockActionContract.doNothing.selector
-      )
+      abi.encodeWithSelector(IKSSessionIntentRouter.InvalidActionSelectorId.selector, 0)
     );
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
@@ -469,8 +465,7 @@ contract MockActionTest is BaseTest {
     IKSSessionIntentRouter.TokenData memory newTokenData =
       _getNewTokenData(intentData.tokenData, seed);
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
-    actionData.actionContract = address(swapRouter);
-    actionData.actionSelector = IKSSwapRouter.swap.selector;
+    actionData.actionSelectorId = 1; // set to 1 to make sure the action is not in the list
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -478,11 +473,7 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
     vm.expectRevert(
-      abi.encodeWithSelector(
-        IKSSessionIntentRouter.ActionNotFound.selector,
-        address(swapRouter),
-        IKSSwapRouter.swap.selector
-      )
+      abi.encodeWithSelector(IKSSessionIntentRouter.InvalidActionSelectorId.selector, 1)
     );
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
@@ -509,8 +500,7 @@ contract MockActionTest is BaseTest {
     IKSSessionIntentRouter.TokenData memory newTokenData =
       _getNewTokenData(intentData.tokenData, seed);
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
-    actionData.actionContract = address(mockActionContract);
-    actionData.actionSelector = MockActionContract.doNothing.selector;
+    actionData.actionSelectorId = 0;
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -530,8 +520,7 @@ contract MockActionTest is BaseTest {
     });
     newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](0);
 
-    actionData.actionContract = address(mockDex);
-    actionData.actionSelector = MockDex.mockSwap.selector;
+    actionData.actionSelectorId = 1;
     actionData.actionCalldata = abi.encode(address(erc20Mock), tokenOut, recipient, amountIn);
 
     vm.warp(block.timestamp + 200);
@@ -622,8 +611,7 @@ contract MockActionTest is BaseTest {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
-      actionContract: address(mockActionContract),
-      actionSelector: MockActionContract.doNothing.selector,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: '',
       deadline: block.timestamp + 1 days

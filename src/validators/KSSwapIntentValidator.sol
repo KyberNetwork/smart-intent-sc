@@ -34,11 +34,12 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     IKSSessionIntentRouter.ActionData calldata actionData
   ) external view override returns (bytes memory beforeExecutionData) {
     IKSSwapRouter.SwapDescriptionV2 memory swapDesc;
-    if (actionData.actionSelector == IKSSwapRouter.swap.selector) {
+    bytes4 actionSelector = coreData.actionSelectors[actionData.actionSelectorId];
+    if (actionSelector == IKSSwapRouter.swap.selector) {
       IKSSwapRouter.SwapExecutionParams memory params =
         abi.decode(actionData.actionCalldata, (IKSSwapRouter.SwapExecutionParams));
       swapDesc = params.desc;
-    } else if (actionData.actionSelector == IKSSwapRouter.swapSimpleMode.selector) {
+    } else if (actionSelector == IKSSwapRouter.swapSimpleMode.selector) {
       (, swapDesc,,) = abi.decode(
         actionData.actionCalldata, (address, IKSSwapRouter.SwapDescriptionV2, bytes, bytes)
       );

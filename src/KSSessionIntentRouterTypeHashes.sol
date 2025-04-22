@@ -106,8 +106,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
         abi.encode(
           ACTION_DATA_TYPEHASH,
           _hashTokenData(data.tokenData),
-          data.actionContract,
-          data.actionSelector,
+          data.actionSelectorId,
           keccak256(data.actionCalldata),
           keccak256(data.validatorData),
           data.deadline
@@ -158,7 +157,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
     );
     actionDataTypeHash = keccak256(
       abi.encodePacked(
-        'ActionData(TokenData tokenData,address actionContract,bytes4 actionSelector,bytes actionCalldata,bytes validatorData,uint256 deadline)',
+        'ActionData(TokenData tokenData,uint256 actionSelectorId,bytes actionCalldata,bytes validatorData,uint256 deadline)',
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
         'ERC20Data(address token,uint256 amount)',
         'ERC721Data(address token,uint256 tokenId)',

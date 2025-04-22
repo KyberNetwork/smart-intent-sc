@@ -145,8 +145,7 @@ contract BaseOnchainScript is BaseScript {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
-      actionContract: swapRouter,
-      actionSelector: selector,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: abi.encode(0), //swapNo, but this script only swap once
       deadline: endTime - 100

@@ -27,6 +27,7 @@ contract KSSessionIntentRouter is
     KSSessionIntentRouterAccounting(initialOwner, initialGuardians)
   {}
 
+  /// @inheritdoc IKSSessionIntentRouter
   function whitelistActions(
     address[] calldata actionContracts,
     bytes4[] calldata actionSelectors,
@@ -40,6 +41,7 @@ contract KSSessionIntentRouter is
     }
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function whitelistValidators(address[] calldata validators, bool grantOrRevoke) public onlyOwner {
     for (uint256 i = 0; i < validators.length; i++) {
       whitelistedValidators[validators[i]] = grantOrRevoke;
@@ -103,6 +105,7 @@ contract KSSessionIntentRouter is
     _execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function hashTypedIntentData(IntentData calldata intentData)
     public
     view
@@ -112,6 +115,7 @@ contract KSSessionIntentRouter is
     return _hashTypedIntentData(intentData);
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function hashTypedActionData(ActionData calldata actionData)
     public
     view
@@ -121,6 +125,7 @@ contract KSSessionIntentRouter is
     return _hashTypedActionData(actionData);
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
     public
     view
@@ -130,6 +135,7 @@ contract KSSessionIntentRouter is
     return erc1155Allowances[intentHash][token][tokenId];
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function getERC20Allowance(bytes32 intentHash, address token)
     public
     view
@@ -139,6 +145,7 @@ contract KSSessionIntentRouter is
     return erc20Allowances[intentHash][token];
   }
 
+  /// @inheritdoc IKSSessionIntentRouter
   function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
     public
     view
@@ -179,6 +186,10 @@ contract KSSessionIntentRouter is
     require(block.timestamp <= intent.endTime, ExecuteTooLate());
     require(block.timestamp <= actionData.deadline, ExecuteTooLate());
     require(guardians[guardian], KyberSwapRole.KSRoleNotGuardian(guardian));
+    require(
+      actionData.actionSelectorId < intent.actionContracts.length,
+      InvalidActionSelectorId(actionData.actionSelectorId)
+    );
 
     bytes32 actionHash = _hashTypedActionData(actionData);
     if (_msgSender() != intent.delegatedAddress) {
@@ -197,22 +208,8 @@ contract KSSessionIntentRouter is
     bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
       .validateBeforeExecution(intentHash, intent, actionData);
 
-    address actionContract;
-    bytes4 actionSelector;
-    for (uint256 i; i < intent.actionContracts.length; i++) {
-      if (
-        intent.actionContracts[i] == actionData.actionContract
-          && intent.actionSelectors[i] == actionData.actionSelector
-      ) {
-        actionContract = intent.actionContracts[i];
-        actionSelector = intent.actionSelectors[i];
-        break;
-      }
-    }
-    require(
-      actionContract != address(0) && actionSelector != bytes4(0),
-      ActionNotFound(actionData.actionContract, actionData.actionSelector)
-    );
+    address actionContract = intent.actionContracts[actionData.actionSelectorId];
+    bytes4 actionSelector = intent.actionSelectors[actionData.actionSelectorId];
 
     bytes32 actionContractAndSelectorHash =
       keccak256(abi.encodePacked(actionContract, actionSelector));
