@@ -154,6 +154,7 @@ interface IKSSessionIntentRouter {
    * @param actionSelectorId The ID of the action selector
    * @param actionCalldata The calldata for the action
    * @param validatorData The data for the validator
+   * @param extraData The extra data for the action
    * @param deadline The deadline for the action
    */
   struct ActionData {
@@ -161,6 +162,7 @@ interface IKSSessionIntentRouter {
     uint256 actionSelectorId;
     bytes actionCalldata;
     bytes validatorData;
+    bytes extraData;
     uint256 deadline;
   }
 

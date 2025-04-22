@@ -531,6 +531,44 @@ contract MockActionTest is BaseTest {
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  function testMockActionExecuteSuccessShouldEmitExtraData(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.extraData = hex'1234';
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.recordLogs();
+    vm.startPrank(caller);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
+
+    Vm.Log[] memory entries = vm.getRecordedLogs();
+
+    for (uint256 i; i < entries.length; i++) {
+      if (
+        entries[i].topics[0]
+          == keccak256(
+            'ExecuteIntent(bytes32,(((address,uint256[],uint256[])[],(address,uint256)[],(address,uint256)[]),uint256,bytes,bytes,bytes,uint256),bytes)'
+          )
+      ) {
+        assertEq(entries[i].topics[1], intentHash);
+        assertEq(entries[i].data, abi.encode(actionData, new bytes(0)));
+      }
+    }
+  }
+
   function _getNewTokenData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 seed)
     internal
     view
@@ -614,6 +652,7 @@ contract MockActionTest is BaseTest {
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: '',
+      extraData: '',
       deadline: block.timestamp + 1 days
     });
   }

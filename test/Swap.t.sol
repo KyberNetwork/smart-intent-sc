@@ -101,6 +101,7 @@ contract SwapTest is BaseTest {
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: '',
+      extraData: '',
       deadline: block.timestamp + 1 days
     });
   }

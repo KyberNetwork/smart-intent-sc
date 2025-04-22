@@ -456,6 +456,7 @@ contract PriceBasedDCATest is BaseTest {
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: abi.encode(swap),
+      extraData: '',
       deadline: deadline
     });
   }
