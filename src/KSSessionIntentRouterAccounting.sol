@@ -45,7 +45,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
   }
 
   /// @notice Transfer the tokens to this contract and update the allowances
-  function _spendTokens(
+  function _collectTokens(
     bytes32 intentHash,
     address mainAddress,
     address actionContract,
@@ -101,7 +101,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
       token.approve(actionContract, erc721Data.tokenId);
     }
 
-    emit SpendTokens(intentHash, tokenData);
+    emit CollectTokens(intentHash, tokenData);
   }
 
   function onERC721Received(address, address, uint256, bytes calldata)
