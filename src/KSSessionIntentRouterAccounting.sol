@@ -100,6 +100,8 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
       token.safeTransferFrom(mainAddress, address(this), erc721Data.tokenId);
       token.approve(actionContract, erc721Data.tokenId);
     }
+
+    emit SpendTokens(intentHash, tokenData);
   }
 
   function onERC721Received(address, address, uint256, bytes calldata)

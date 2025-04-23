@@ -11,8 +11,11 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when executing the intent after the end time
   error ExecuteTooLate();
 
-  /// @notice Thrown when the intent has already existed
-  error IntentAlreadyExists();
+  /// @notice Thrown when the intent has already existed or has been revoked
+  error IntentExistedOrRevoked();
+
+  /// @notice Thrown when the action contract and selector length mismatch
+  error LengthMismatch();
 
   /// @notice Thrown when the intent has been revoked
   error IntentRevoked();
@@ -25,6 +28,9 @@ interface IKSSessionIntentRouter {
 
   /// @notice Thrown when the signature is not from the guardian
   error InvalidGuardianSignature();
+
+  /// @notice Thrown when the action contract and selector not found in intent
+  error InvalidActionSelectorId(uint256 actionSelectorId);
 
   /// @notice Thrown when the action is not whitelisted
   error NonWhitelistedAction(address actionContract, bytes4 actionSelector);
@@ -59,7 +65,12 @@ interface IKSSessionIntentRouter {
   );
 
   /// @notice Emitted when an intent is executed
+  event RevokeIntent(bytes32 indexed intentHash);
+
+  /// @notice Emitted when an intent is executed
   event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
+
+  event SpendTokens(bytes32 indexed intentHash, TokenData tokenData);
 
   /**
    * @notice Data structure for ERC20 token
@@ -111,8 +122,8 @@ interface IKSSessionIntentRouter {
    * @param delegatedAddress The delegated address
    * @param startTime The start time of the intent
    * @param endTime The end time of the intent
-   * @param actionContract The address of the action contract
-   * @param actionSelector The selector of the action function
+   * @param actionContracts The addresses of the action contracts
+   * @param actionSelectors The selectors of the action functions
    * @param validator The address of the validator
    * @param validationData The data for the validator
    */
@@ -121,8 +132,8 @@ interface IKSSessionIntentRouter {
     address delegatedAddress;
     uint256 startTime;
     uint256 endTime;
-    address actionContract;
-    bytes4 actionSelector;
+    address[] actionContracts;
+    bytes4[] actionSelectors;
     address validator;
     bytes validationData;
   }
@@ -140,14 +151,18 @@ interface IKSSessionIntentRouter {
   /**
    * @notice Data structure for action
    * @param tokenData The token data for the action
+   * @param actionSelectorId The ID of the action selector
    * @param actionCalldata The calldata for the action
    * @param validatorData The data for the validator
+   * @param extraData The extra data for the action
    * @param deadline The deadline for the action
    */
   struct ActionData {
     TokenData tokenData;
+    uint256 actionSelectorId;
     bytes actionCalldata;
     bytes validatorData;
+    bytes extraData;
     uint256 deadline;
   }
 
@@ -181,6 +196,12 @@ interface IKSSessionIntentRouter {
    * @param intentHash The hash of the intent
    */
   function revoke(bytes32 intentHash) external;
+
+  /**
+   * @notice Revoke the delegated intent
+   * @param intentData The intent data to revoke
+   */
+  function revoke(IntentData memory intentData) external;
 
   /**
    * @notice Execute the intent

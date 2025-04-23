@@ -126,8 +126,8 @@ contract BaseOnchainScript is BaseScript {
       delegatedAddress: sessionWallet,
       startTime: startTime,
       endTime: endTime,
-      actionContract: swapRouter,
-      actionSelector: selector,
+      actionContracts: _toArray(swapRouter),
+      actionSelectors: _toArray(selector),
       validator: validator,
       validationData: validationData
     });
@@ -145,8 +145,10 @@ contract BaseOnchainScript is BaseScript {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: abi.encode(0), //swapNo, but this script only swap once
+      extraData: '',
       deadline: endTime - 100
     });
   }

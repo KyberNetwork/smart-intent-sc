@@ -165,6 +165,12 @@ contract BaseScript is Script {
     return array;
   }
 
+  function _toArray(bytes4 a) internal pure returns (bytes4[] memory) {
+    bytes4[] memory array = new bytes4[](1);
+    array[0] = a;
+    return array;
+  }
+
   function _compareStrings(string memory a, string memory b) internal pure returns (bool) {
     return (keccak256(abi.encodePacked((a))) == keccak256(abi.encodePacked((b))));
   }
