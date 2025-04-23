@@ -38,17 +38,17 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when the validator is not whitelisted
   error NonWhitelistedValidator(address validator);
 
-  /// @notice Thrown when spending more than the intent allowance for ERC1155
+  /// @notice Thrown when collecting more than the intent allowance for ERC1155
   error ERC1155InsufficientIntentAllowance(
     bytes32 intentHash, address token, uint256 tokenId, uint256 allowance, uint256 needed
   );
 
-  /// @notice Thrown when spending more than the intent allowance for ERC20
+  /// @notice Thrown when collecting more than the intent allowance for ERC20
   error ERC20InsufficientIntentAllowance(
     bytes32 intentHash, address token, uint256 allowance, uint256 needed
   );
 
-  /// @notice Thrown when spending unapproved ERC721
+  /// @notice Thrown when collecting unapproved ERC721
   error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
 
   /// @notice Emitted when the whitelist status of an action is updated
@@ -64,13 +64,14 @@ interface IKSSessionIntentRouter {
     address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
   );
 
-  /// @notice Emitted when an intent is executed
+  /// @notice Emitted when an intent is revoked
   event RevokeIntent(bytes32 indexed intentHash);
 
   /// @notice Emitted when an intent is executed
   event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
 
-  event SpendTokens(bytes32 indexed intentHash, TokenData tokenData);
+  /// @notice Emitted when tokens are collected
+  event CollectTokens(bytes32 indexed intentHash, TokenData tokenData);
 
   /**
    * @notice Data structure for ERC20 token
@@ -240,46 +241,55 @@ interface IKSSessionIntentRouter {
   /**
    * @notice hashTypedDataV4 for intentData
    * @param intentData The intent data for hash
-   * @return The hashTypedDataV4 of the intent data
+   * @return intentHash The hashTypedDataV4 of the intent data
    */
-  function hashTypedIntentData(IntentData calldata intentData) external view returns (bytes32);
+  function hashTypedIntentData(IntentData calldata intentData)
+    external
+    view
+    returns (bytes32 intentHash);
 
   /**
    * @notice hashTypedDataV4 for actionData
    * @param actionData The action data for hash
-   * @return The hashTypedDataV4 of the action data
+   * @return actionHash The hashTypedDataV4 of the action data
    */
-  function hashTypedActionData(ActionData calldata actionData) external view returns (bytes32);
+  function hashTypedActionData(ActionData calldata actionData)
+    external
+    view
+    returns (bytes32 actionHash);
 
   /**
    * @notice Get the ERC1155 allowance for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC1155 token
    * @param tokenId The ID of the ERC1155 token
-   * @return The allowance for the specified token and token ID
+   * @return allowance The allowance for the specified token and token ID
    */
   function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
     external
     view
-    returns (uint256);
+    returns (uint256 allowance);
 
   /**
    * @notice Get the ERC20 allowance for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC20 token
-   * @return The allowance for the specified token
+   * @return allowance The allowance for the specified token
    */
-  function getERC20Allowance(bytes32 intentHash, address token) external view returns (uint256);
+  function getERC20Allowance(bytes32 intentHash, address token)
+    external
+    view
+    returns (uint256 allowance);
 
   /**
    * @notice Check if an ERC721 token is approved for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC721 token
    * @param tokenId The ID of the ERC721 token
-   * @return True if the token is approved, false otherwise
+   * @return approved True if the token is approved, false otherwise
    */
   function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
     external
     view
-    returns (bool);
+    returns (bool approved);
 }

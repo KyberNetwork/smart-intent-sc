@@ -200,7 +200,7 @@ contract KSSessionIntentRouter is
       whitelistedActions[actionContractAndSelectorHash],
       NonWhitelistedAction(actionContract, actionSelector)
     );
-    _spendTokens(intentHash, intent.mainAddress, actionContract, actionData.tokenData);
+    _collectTokens(intentHash, intent.mainAddress, actionContract, actionData.tokenData);
 
     bytes memory actionResult =
       actionContract.functionCall(abi.encodePacked(actionSelector, actionData.actionCalldata));
