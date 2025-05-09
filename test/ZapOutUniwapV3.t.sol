@@ -11,6 +11,7 @@ contract ZapOutUniswapV3Test is BaseTest {
 
   address zapRouter = 0x0e97C887b61cCd952a53578B04763E7134429e05;
   IUniswapV3PM pm = IUniswapV3PM(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
+  address pool = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
   uint256 tokenId = 963_424;
   address outputToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
   bytes zapOutCalldata =
@@ -90,8 +91,16 @@ contract ZapOutUniswapV3Test is BaseTest {
     validationData.nftAddresses[0] = address(pm);
     validationData.nftIds = new uint256[](1);
     validationData.nftIds[0] = tokenId;
+    validationData.pools = new address[](1);
+    validationData.pools[0] = address(pool);
     validationData.outputTokens = new address[](1);
     validationData.outputTokens[0] = outputToken;
+    validationData.liquidityOffsets = new uint256[](1);
+    validationData.liquidityOffsets[0] = 7;
+    validationData.sqrtPLowers = new uint160[](1);
+    validationData.sqrtPLowers[0] = 0;
+    validationData.sqrtPUppers = new uint160[](1);
+    validationData.sqrtPUppers[0] = type(uint160).max;
     validationData.minRates = new uint256[](1);
     validationData.minRates[0] = minRate;
     validationData.recipient = recipient;
@@ -101,8 +110,8 @@ contract ZapOutUniswapV3Test is BaseTest {
       delegatedAddress: delegatedAddress,
       startTime: block.timestamp,
       endTime: block.timestamp + 1 days,
-      actionContract: zapRouter,
-      actionSelector: IKSZapRouter.zap.selector,
+      actionContracts: _toArray(zapRouter),
+      actionSelectors: _toArray(IKSZapRouter.zap.selector),
       validator: address(zapOutValidator),
       validationData: abi.encode(validationData)
     });
@@ -134,8 +143,10 @@ contract ZapOutUniswapV3Test is BaseTest {
   {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
+      actionSelectorId: 0,
       actionCalldata: zapOutCalldata,
       validatorData: abi.encode(pm, tokenId, outputToken),
+      extraData: '',
       deadline: block.timestamp + 1 days
     });
   }
