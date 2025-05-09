@@ -421,8 +421,8 @@ contract PriceBasedDCATest is BaseTest {
       delegatedAddress: delegatedAddress,
       startTime: block.timestamp + 10,
       endTime: deadline,
-      actionContract: swapRouter,
-      actionSelector: IKSSwapRouter.swap.selector,
+      actionContracts: _toArray(swapRouter),
+      actionSelectors: _toArray(IKSSwapRouter.swap.selector),
       validator: address(dcaValidator),
       validationData: abi.encode(validationData)
     });
@@ -453,8 +453,10 @@ contract PriceBasedDCATest is BaseTest {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: abi.encode(swap),
+      extraData: '',
       deadline: deadline
     });
   }

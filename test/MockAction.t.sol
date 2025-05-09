@@ -122,7 +122,8 @@ contract MockActionTest is BaseTest {
 
     IKSSessionIntentRouter.TokenData memory newTokenData =
       _getNewTokenData(intentData.tokenData, seed);
-    newTokenData.erc721Data[0].tokenId = seed + 1;
+
+    newTokenData.erc721Data[0].tokenId = seed == UINT256_MAX ? seed - 1 : seed + 1; // overflow when seed = 2**256 - 1
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
 
     vm.warp(block.timestamp + 100);
@@ -146,48 +147,6 @@ contract MockActionTest is BaseTest {
 
     vm.prank(randomCaller);
     vm.expectRevert(IKSSessionIntentRouter.NotMainAddress.selector);
-    router.delegate(intentData);
-  }
-
-  function testMockActionDelegateWithNonWhitelistedActionShouldRevert(uint256 seed) public {
-    {
-      vm.startPrank(owner);
-      address[] memory actionContracts = new address[](1);
-      actionContracts[0] = address(mockActionContract);
-      bytes4[] memory actionSelectors = new bytes4[](1);
-      actionSelectors[0] = MockActionContract.doNothing.selector;
-      router.whitelistActions(actionContracts, actionSelectors, false);
-      vm.stopPrank();
-    }
-
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-
-    vm.startPrank(mainAddress);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IKSSessionIntentRouter.NonWhitelistedAction.selector,
-        address(mockActionContract),
-        MockActionContract.doNothing.selector
-      )
-    );
-    router.delegate(intentData);
-  }
-
-  function testMockActionDelegateWithNonWhitelistedValidatorShouldRevert(uint256 seed) public {
-    {
-      vm.startPrank(owner);
-      address[] memory validators = new address[](1);
-      validators[0] = address(mockValidator);
-      router.whitelistValidators(validators, false);
-      vm.stopPrank();
-    }
-
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-
-    vm.startPrank(mainAddress);
-    vm.expectRevert(
-      abi.encodeWithSelector(IKSSessionIntentRouter.NonWhitelistedValidator.selector, mockValidator)
-    );
     router.delegate(intentData);
   }
 
@@ -227,6 +186,45 @@ contract MockActionTest is BaseTest {
     );
   }
 
+  function testMockActionExecuteWithNonWhitelistedActionAfterDelegateShouldRevert(uint256 seed)
+    public
+  {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+
+    {
+      vm.startPrank(owner);
+      address[] memory actionContracts = new address[](1);
+      actionContracts[0] = address(mockActionContract);
+      bytes4[] memory actionSelectors = new bytes4[](1);
+      actionSelectors[0] = MockActionContract.doNothing.selector;
+      router.whitelistActions(actionContracts, actionSelectors, false);
+      vm.stopPrank();
+    }
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IKSSessionIntentRouter.NonWhitelistedAction.selector,
+        address(mockActionContract),
+        MockActionContract.doNothing.selector
+      )
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
   function testMockActionExecuteWithNonWhitelistedValidatorShouldRevert(uint256 seed) public {
     {
       vm.startPrank(owner);
@@ -257,6 +255,39 @@ contract MockActionTest is BaseTest {
     );
   }
 
+  function testMockActionExecuteWithNonWhitelistedValidatorAfterDelegateShouldRevert(uint256 seed)
+    public
+  {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+
+    {
+      vm.startPrank(owner);
+      address[] memory validators = new address[](1);
+      validators[0] = address(mockValidator);
+      router.whitelistValidators(validators, false);
+      vm.stopPrank();
+    }
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(IKSSessionIntentRouter.NonWhitelistedValidator.selector, mockValidator)
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
   function testMockActionRevokeWithRandomCallerShouldRevert(uint256 seed) public {
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
     bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -278,6 +309,38 @@ contract MockActionTest is BaseTest {
     vm.startPrank(mainAddress);
     router.delegate(intentData);
     router.revoke(intentHash);
+    vm.stopPrank();
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(IKSSessionIntentRouter.IntentRevoked.selector);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionDelegateRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+
+    vm.startPrank(mainAddress);
+    router.revoke(intentData);
+    vm.expectRevert(IKSSessionIntentRouter.IntentExistedOrRevoked.selector);
+    router.delegate(intentData);
+    vm.stopPrank();
+  }
+
+  function testMockActionExecuteRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.startPrank(mainAddress);
+    router.revoke(intentData);
     vm.stopPrank();
 
     IKSSessionIntentRouter.TokenData memory newTokenData =
@@ -317,7 +380,7 @@ contract MockActionTest is BaseTest {
     vm.startPrank(mainAddress);
     router.delegate(intentData);
 
-    vm.expectRevert(IKSSessionIntentRouter.IntentAlreadyExists.selector);
+    vm.expectRevert(IKSSessionIntentRouter.IntentExistedOrRevoked.selector);
     router.delegate(intentData);
   }
 
@@ -363,6 +426,149 @@ contract MockActionTest is BaseTest {
     router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  function testMockActionExecuteEmptyActionShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    intentData.coreData.actionContracts = new address[](0);
+    intentData.coreData.actionSelectors = new bytes4[](0);
+
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(IKSSessionIntentRouter.InvalidActionSelectorId.selector, 0)
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteActionNotInListActionsShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.actionSelectorId = 1; // set to 1 to make sure the action is not in the list
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(IKSSessionIntentRouter.InvalidActionSelectorId.selector, 1)
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteDifferentActions(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+
+    //add actions to intent
+    intentData.coreData.actionContracts = new address[](2);
+    intentData.coreData.actionContracts[0] = address(mockActionContract);
+    intentData.coreData.actionContracts[1] = address(mockDex);
+
+    intentData.coreData.actionSelectors = new bytes4[](2);
+    intentData.coreData.actionSelectors[0] = MockActionContract.doNothing.selector;
+    intentData.coreData.actionSelectors[1] = MockDex.mockSwap.selector;
+
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.actionSelectorId = 0;
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    //execute first time
+    vm.prank(caller);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+
+    amountIn = newTokenData.erc20Data[0].amount;
+
+    newTokenData.erc1155Data = new IKSSessionIntentRouter.ERC1155Data[](0);
+    newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
+      token: address(erc20Mock),
+      amount: newTokenData.erc20Data[0].amount
+    });
+    newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](0);
+
+    actionData.actionSelectorId = 1;
+    actionData.actionCalldata = abi.encode(address(erc20Mock), tokenOut, recipient, amountIn);
+
+    vm.warp(block.timestamp + 200);
+    (caller, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
+
+    //execute second time
+    vm.prank(caller);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteSuccessShouldEmitExtraData(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.extraData = hex'1234';
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.recordLogs();
+    vm.startPrank(caller);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
+
+    Vm.Log[] memory entries = vm.getRecordedLogs();
+
+    for (uint256 i; i < entries.length; i++) {
+      if (
+        entries[i].topics[0]
+          == keccak256(
+            'ExecuteIntent(bytes32,(((address,uint256[],uint256[])[],(address,uint256)[],(address,uint256)[]),uint256,bytes,bytes,bytes,uint256),bytes)'
+          )
+      ) {
+        assertEq(entries[i].topics[1], intentHash);
+        assertEq(entries[i].data, abi.encode(actionData, new bytes(0)));
+      }
+    }
+  }
+
   function _getNewTokenData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 seed)
     internal
     view
@@ -400,8 +606,8 @@ contract MockActionTest is BaseTest {
       delegatedAddress: delegatedAddress,
       startTime: block.timestamp + 10,
       endTime: block.timestamp + 1 days,
-      actionContract: address(mockActionContract),
-      actionSelector: MockActionContract.doNothing.selector,
+      actionContracts: _toArray(address(mockActionContract)),
+      actionSelectors: _toArray(MockActionContract.doNothing.selector),
       validator: address(mockValidator),
       validationData: ''
     });
@@ -443,8 +649,10 @@ contract MockActionTest is BaseTest {
   ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
+      actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: '',
+      extraData: '',
       deadline: block.timestamp + 1 days
     });
   }

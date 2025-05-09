@@ -82,8 +82,8 @@ abstract contract KSSessionIntentRouterTypeHashes is
         data.delegatedAddress,
         data.startTime,
         data.endTime,
-        data.actionContract,
-        data.actionSelector,
+        keccak256(abi.encodePacked(data.actionContracts)),
+        keccak256(abi.encodePacked(data.actionSelectors)),
         data.validator,
         keccak256(data.validationData)
       )
@@ -106,8 +106,10 @@ abstract contract KSSessionIntentRouterTypeHashes is
         abi.encode(
           ACTION_DATA_TYPEHASH,
           _hashTokenData(data.tokenData),
+          data.actionSelectorId,
           keccak256(data.actionCalldata),
           keccak256(data.validatorData),
+          keccak256(data.extraData),
           data.deadline
         )
       )
@@ -141,7 +143,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
     );
     intentCoreDataTypeHash = keccak256(
       abi.encodePacked(
-        'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)'
+        'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address[] actionContracts,bytes4[] actionSelectors,address validator,bytes validationData)'
       )
     );
     intentDataTypeHash = keccak256(
@@ -150,13 +152,13 @@ abstract contract KSSessionIntentRouterTypeHashes is
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
         'ERC20Data(address token,uint256 amount)',
         'ERC721Data(address token,uint256 tokenId)',
-        'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address actionContract,bytes4 actionSelector,address validator,bytes validationData)',
+        'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address[] actionContracts,bytes4[] actionSelectors,address validator,bytes validationData)',
         'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
       )
     );
     actionDataTypeHash = keccak256(
       abi.encodePacked(
-        'ActionData(TokenData tokenData,bytes actionCalldata,bytes validatorData,uint256 deadline)',
+        'ActionData(TokenData tokenData,uint256 actionSelectorId,bytes actionCalldata,bytes validatorData,bytes extraData,uint256 deadline)',
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
         'ERC20Data(address token,uint256 amount)',
         'ERC721Data(address token,uint256 tokenId)',

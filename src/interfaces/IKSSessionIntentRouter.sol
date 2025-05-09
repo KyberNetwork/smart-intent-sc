@@ -11,8 +11,11 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when executing the intent after the end time
   error ExecuteTooLate();
 
-  /// @notice Thrown when the intent has already existed
-  error IntentAlreadyExists();
+  /// @notice Thrown when the intent has already existed or has been revoked
+  error IntentExistedOrRevoked();
+
+  /// @notice Thrown when the action contract and selector length mismatch
+  error LengthMismatch();
 
   /// @notice Thrown when the intent has been revoked
   error IntentRevoked();
@@ -25,6 +28,9 @@ interface IKSSessionIntentRouter {
 
   /// @notice Thrown when the signature is not from the guardian
   error InvalidGuardianSignature();
+
+  /// @notice Thrown when the action contract and selector not found in intent
+  error InvalidActionSelectorId(uint256 actionSelectorId);
 
   /// @notice Thrown when the action is not whitelisted
   error NonWhitelistedAction(address actionContract, bytes4 actionSelector);
@@ -58,8 +64,14 @@ interface IKSSessionIntentRouter {
     address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
   );
 
+  /// @notice Emitted when an intent is revoked
+  event RevokeIntent(bytes32 indexed intentHash);
+
   /// @notice Emitted when an intent is executed
   event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
+
+  /// @notice Emitted when tokens are collected
+  event CollectTokens(bytes32 indexed intentHash, TokenData tokenData);
 
   /**
    * @notice Data structure for ERC20 token
@@ -111,8 +123,8 @@ interface IKSSessionIntentRouter {
    * @param delegatedAddress The delegated address
    * @param startTime The start time of the intent
    * @param endTime The end time of the intent
-   * @param actionContract The address of the action contract
-   * @param actionSelector The selector of the action function
+   * @param actionContracts The addresses of the action contracts
+   * @param actionSelectors The selectors of the action functions
    * @param validator The address of the validator
    * @param validationData The data for the validator
    */
@@ -121,8 +133,8 @@ interface IKSSessionIntentRouter {
     address delegatedAddress;
     uint256 startTime;
     uint256 endTime;
-    address actionContract;
-    bytes4 actionSelector;
+    address[] actionContracts;
+    bytes4[] actionSelectors;
     address validator;
     bytes validationData;
   }
@@ -140,14 +152,18 @@ interface IKSSessionIntentRouter {
   /**
    * @notice Data structure for action
    * @param tokenData The token data for the action
+   * @param actionSelectorId The ID of the action selector
    * @param actionCalldata The calldata for the action
    * @param validatorData The data for the validator
+   * @param extraData The extra data for the action
    * @param deadline The deadline for the action
    */
   struct ActionData {
     TokenData tokenData;
+    uint256 actionSelectorId;
     bytes actionCalldata;
     bytes validatorData;
+    bytes extraData;
     uint256 deadline;
   }
 
@@ -183,6 +199,12 @@ interface IKSSessionIntentRouter {
   function revoke(bytes32 intentHash) external;
 
   /**
+   * @notice Revoke the delegated intent
+   * @param intentData The intent data to revoke
+   */
+  function revoke(IntentData memory intentData) external;
+
+  /**
    * @notice Execute the intent
    * @param intentHash The hash of the intent
    * @param daSignature The signature of the delegated address
@@ -215,4 +237,59 @@ interface IKSSessionIntentRouter {
     bytes memory gdSignature,
     ActionData calldata actionData
   ) external;
+
+  /**
+   * @notice hashTypedDataV4 for intentData
+   * @param intentData The intent data for hash
+   * @return intentHash The hashTypedDataV4 of the intent data
+   */
+  function hashTypedIntentData(IntentData calldata intentData)
+    external
+    view
+    returns (bytes32 intentHash);
+
+  /**
+   * @notice hashTypedDataV4 for actionData
+   * @param actionData The action data for hash
+   * @return actionHash The hashTypedDataV4 of the action data
+   */
+  function hashTypedActionData(ActionData calldata actionData)
+    external
+    view
+    returns (bytes32 actionHash);
+
+  /**
+   * @notice Get the ERC1155 allowance for a specific intent
+   * @param intentHash The hash of the intent
+   * @param token The address of the ERC1155 token
+   * @param tokenId The ID of the ERC1155 token
+   * @return allowance The allowance for the specified token and token ID
+   */
+  function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
+    external
+    view
+    returns (uint256 allowance);
+
+  /**
+   * @notice Get the ERC20 allowance for a specific intent
+   * @param intentHash The hash of the intent
+   * @param token The address of the ERC20 token
+   * @return allowance The allowance for the specified token
+   */
+  function getERC20Allowance(bytes32 intentHash, address token)
+    external
+    view
+    returns (uint256 allowance);
+
+  /**
+   * @notice Check if an ERC721 token is approved for a specific intent
+   * @param intentHash The hash of the intent
+   * @param token The address of the ERC721 token
+   * @param tokenId The ID of the ERC721 token
+   * @return approved True if the token is approved, false otherwise
+   */
+  function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
+    external
+    view
+    returns (bool approved);
 }

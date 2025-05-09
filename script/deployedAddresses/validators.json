@@ -1,0 +1,22 @@
+{
+  "11155111": [
+    {
+      "address": "0x4669b9F4454A15c3d25441d3239cd7CF99Ce6721",
+      "name": "KSPriceBasedDCAIntentValidator"
+    },
+    {
+      "address": "0x6A0ac35a039321cC50fe99397C50Cf14164C71Ea",
+      "name": "KSTimeBasedDCAIntentValidator"
+    }
+  ],
+  "8453": [
+    {
+      "address": "0xA9c1839F15d5FE0ae94109b6f2265Dc509d2e3D4",
+      "name": "KSPriceBasedDCAIntentValidator"
+    },
+    {
+      "address": "0x285Bc2cDe1a88332892D1C92f13B2566463c2e2A",
+      "name": "KSTimeBasedDCAIntentValidator"
+    }
+  ]
+}

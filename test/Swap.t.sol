@@ -62,8 +62,8 @@ contract SwapTest is BaseTest {
       delegatedAddress: delegatedAddress,
       startTime: block.timestamp + 10,
       endTime: block.timestamp + 1 days,
-      actionContract: swapRouter,
-      actionSelector: IKSSwapRouter.swap.selector,
+      actionContracts: _toArray(swapRouter),
+      actionSelectors: _toArray(IKSSwapRouter.swap.selector),
       validator: address(swapValidator),
       validationData: abi.encode(validationData)
     });
@@ -95,8 +95,10 @@ contract SwapTest is BaseTest {
   {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
-      actionCalldata: swapCalldata,
+      actionSelectorId: 0,
+      actionCalldata: actionCalldata,
       validatorData: '',
+      extraData: '',
       deadline: block.timestamp + 1 days
     });
   }
