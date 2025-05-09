@@ -145,7 +145,7 @@ contract ZapOutUniswapV3Test is BaseTest {
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,
-      validatorData: abi.encode(pm, tokenId, outputToken),
+      validatorData: abi.encode(0),
       extraData: '',
       deadline: block.timestamp + 1 days
     });

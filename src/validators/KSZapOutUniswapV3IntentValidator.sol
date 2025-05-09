@@ -37,48 +37,37 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
   ) external view override returns (bytes memory beforeExecutionData) {
-    (address nftAddress, uint256 nftId, address outputToken) =
-      abi.decode(actionData.validatorData, (address, uint256, address));
+    uint256 index = abi.decode(actionData.validatorData, (uint256));
 
-    address pool;
-    uint256 liquidityOffset;
-    uint256 minRate;
-    uint160 sqrtPLower;
-    uint160 sqrtPUpper;
     ZapOutUniswapV3ValidationData memory validationData =
       abi.decode(coreData.validationData, (ZapOutUniswapV3ValidationData));
 
-    for (uint256 i = 0; i < validationData.nftAddresses.length; i++) {
-      if (
-        validationData.nftAddresses[i] == nftAddress && validationData.nftIds[i] == nftId
-          && validationData.outputTokens[i] == outputToken
-      ) {
-        pool = validationData.pools[i];
-        liquidityOffset = 0x20 + 0x20 * validationData.liquidityOffsets[i];
-        sqrtPLower = validationData.sqrtPLowers[i];
-        sqrtPUpper = validationData.sqrtPUppers[i];
-        minRate = validationData.minRates[i];
-
-        break;
-      }
-    }
-
-    if (pool == address(0)) {
-      revert InvalidZapOutPosition();
-    }
-    (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
+    (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(validationData.pools[index]).slot0();
     require(
-      sqrtPriceX96 >= sqrtPLower && sqrtPriceX96 <= sqrtPUpper,
-      OutsidePriceRange(sqrtPLower, sqrtPUpper, sqrtPriceX96)
+      sqrtPriceX96 >= validationData.sqrtPLowers[index]
+        && sqrtPriceX96 <= validationData.sqrtPUppers[index],
+      OutsidePriceRange(
+        validationData.sqrtPLowers[index], validationData.sqrtPUppers[index], sqrtPriceX96
+      )
     );
 
-    uint256 liquidityBefore = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
-    uint256 tokenBalanceBefore = outputToken == ETH_ADDRESS
+    uint256 liquidityBefore = _getPositionLiquidity(
+      validationData.nftAddresses[index],
+      validationData.nftIds[index],
+      validationData.liquidityOffsets[index]
+    );
+    uint256 tokenBalanceBefore = validationData.outputTokens[index] == ETH_ADDRESS
       ? validationData.recipient.balance
-      : IERC20(outputToken).balanceOf(validationData.recipient);
+      : IERC20(validationData.outputTokens[index]).balanceOf(validationData.recipient);
 
     return abi.encode(
-      nftAddress, nftId, outputToken, liquidityBefore, tokenBalanceBefore, liquidityOffset, minRate
+      validationData.nftAddresses[index],
+      validationData.nftIds[index],
+      validationData.outputTokens[index],
+      liquidityBefore,
+      tokenBalanceBefore,
+      validationData.liquidityOffsets[index],
+      validationData.minRates[index]
     );
   }
 
