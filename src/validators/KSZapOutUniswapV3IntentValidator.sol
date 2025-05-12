@@ -7,6 +7,8 @@ import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
 
 contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
+  error InvalidERC721Data();
+
   error InvalidZapOutPosition();
 
   error OutsidePriceRange(uint160 sqrtPLower, uint160 sqrtPUpper, uint160 sqrtPriceX96);
@@ -41,6 +43,11 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
 
     ZapOutUniswapV3ValidationData memory validationData =
       abi.decode(coreData.validationData, (ZapOutUniswapV3ValidationData));
+
+    IKSSessionIntentRouter.ERC721Data[] calldata erc721Data = actionData.tokenData.erc721Data;
+    require(erc721Data.length == 1, InvalidERC721Data());
+    require(erc721Data[0].token == validationData.nftAddresses[index], InvalidERC721Data());
+    require(erc721Data[0].tokenId == validationData.nftIds[index], InvalidERC721Data());
 
     (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(validationData.pools[index]).slot0();
     require(
