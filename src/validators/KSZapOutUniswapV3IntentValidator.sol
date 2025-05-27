@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSessionIntentValidator.sol';
+import './base/BaseIntentValidator.sol';
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
 
-contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
-  error InvalidERC721Data();
-
+contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
   error InvalidZapOutPosition();
 
   error OutsidePriceRange(uint160 sqrtPLower, uint160 sqrtPUpper, uint160 sqrtPriceX96);
 
   error GetPositionLiquidityFailed();
+
+  error GetSqrtPriceX96Failed();
 
   error BelowMinRate(uint256 liquidity, uint256 minRate, uint256 outputAmount);
 
@@ -26,11 +26,18 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
     uint256[] nftIds;
     address[] pools;
     address[] outputTokens;
-    uint256[] liquidityOffsets;
+    uint256[] offsets;
     uint160[] sqrtPLowers;
     uint160[] sqrtPUppers;
     uint256[] minRates;
     address recipient;
+  }
+
+  modifier isValidTokenLength(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+    require(tokenData.erc20Data.length == 0, InvalidTokenData());
+    require(tokenData.erc721Data.length == 1, InvalidTokenData());
+    require(tokenData.erc1155Data.length == 0, InvalidTokenData());
+    _;
   }
 
   /// @inheritdoc IKSSessionIntentValidator
@@ -38,18 +45,24 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
     bytes32,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external view override returns (bytes memory beforeExecutionData) {
+  )
+    external
+    view
+    override
+    isValidTokenLength(actionData.tokenData)
+    returns (bytes memory beforeExecutionData)
+  {
     uint256 index = abi.decode(actionData.validatorData, (uint256));
 
     ZapOutUniswapV3ValidationData memory validationData =
       abi.decode(coreData.validationData, (ZapOutUniswapV3ValidationData));
 
     IKSSessionIntentRouter.ERC721Data[] calldata erc721Data = actionData.tokenData.erc721Data;
-    require(erc721Data.length == 1, InvalidERC721Data());
-    require(erc721Data[0].token == validationData.nftAddresses[index], InvalidERC721Data());
-    require(erc721Data[0].tokenId == validationData.nftIds[index], InvalidERC721Data());
+    require(erc721Data[0].token == validationData.nftAddresses[index], InvalidTokenData());
+    require(erc721Data[0].tokenId == validationData.nftIds[index], InvalidTokenData());
 
-    (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(validationData.pools[index]).slot0();
+    uint160 sqrtPriceX96 =
+      _getSqrtPriceX96(validationData.pools[index], validationData.offsets[index] >> 128);
     require(
       sqrtPriceX96 >= validationData.sqrtPLowers[index]
         && sqrtPriceX96 <= validationData.sqrtPUppers[index],
@@ -61,7 +74,7 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
     uint256 liquidityBefore = _getPositionLiquidity(
       validationData.nftAddresses[index],
       validationData.nftIds[index],
-      validationData.liquidityOffsets[index]
+      uint128(validationData.offsets[index])
     );
     uint256 tokenBalanceBefore = validationData.outputTokens[index] == ETH_ADDRESS
       ? validationData.recipient.balance
@@ -73,7 +86,7 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
       validationData.outputTokens[index],
       liquidityBefore,
       tokenBalanceBefore,
-      validationData.liquidityOffsets[index],
+      uint128(validationData.offsets[index]),
       validationData.minRates[index]
     );
   }
@@ -135,6 +148,19 @@ contract KSZapOutUniswapV3IntentValidator is IKSSessionIntentValidator {
     require(success, GetPositionLiquidityFailed());
     assembly {
       liquidity := mload(add(result, liquidityOffset))
+    }
+  }
+
+  function _getSqrtPriceX96(address pool, uint256 priceOffset)
+    internal
+    view
+    returns (uint160 sqrtPriceX96)
+  {
+    (bool success, bytes memory result) =
+      address(pool).staticcall(abi.encodeWithSelector(IUniswapV3Pool.slot0.selector));
+    require(success, GetSqrtPriceX96Failed());
+    assembly {
+      sqrtPriceX96 := mload(add(result, priceOffset))
     }
   }
 }

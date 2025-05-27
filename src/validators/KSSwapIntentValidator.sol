@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSessionIntentValidator.sol';
 import '../interfaces/IKSSwapRouter.sol';
+import './base/BaseIntentValidator.sol';
 
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-contract KSSwapIntentValidator is IKSSessionIntentValidator {
+contract KSSwapIntentValidator is BaseIntentValidator {
   error InvalidSwapPair();
 
   error BelowMinRate(uint256 inputAmount, uint256 outputAmount, uint256 minRate);
@@ -27,12 +27,25 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     address recipient;
   }
 
+  modifier isValidTokenLength(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+    require(tokenData.erc20Data.length == 1, InvalidTokenData());
+    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+    require(tokenData.erc1155Data.length == 0, InvalidTokenData());
+    _;
+  }
+
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     bytes32,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external view override returns (bytes memory beforeExecutionData) {
+  )
+    external
+    view
+    override
+    isValidTokenLength(actionData.tokenData)
+    returns (bytes memory beforeExecutionData)
+  {
     uint256 index = abi.decode(actionData.validatorData, (uint256));
 
     SwapValidationData memory validationData =

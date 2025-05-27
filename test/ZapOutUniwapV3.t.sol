@@ -95,8 +95,9 @@ contract ZapOutUniswapV3Test is BaseTest {
     validationData.pools[0] = address(pool);
     validationData.outputTokens = new address[](1);
     validationData.outputTokens[0] = outputToken;
-    validationData.liquidityOffsets = new uint256[](1);
-    validationData.liquidityOffsets[0] = 7;
+    validationData.offsets = new uint256[](1);
+    validationData.offsets[0] = 7; // 7 is the liquidity offset
+    validationData.offsets[0] |= (uint256(0) << 128); // 0 is the sqrtPriceX96 offset
     validationData.sqrtPLowers = new uint160[](1);
     validationData.sqrtPLowers[0] = 0;
     validationData.sqrtPUppers = new uint160[](1);
