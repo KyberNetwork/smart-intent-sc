@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import 'src/validators/base/BaseIntentValidator.sol';
 
 contract MockIntentValidator is BaseIntentValidator {
-  modifier isValidTokenLength(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
     _;
   }
 

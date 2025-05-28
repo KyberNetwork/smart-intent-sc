@@ -37,7 +37,7 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
 
   constructor(address[] memory initialRouters) BaseStatefulIntentValidator(initialRouters) {}
 
-  modifier isValidTokenLength(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
     require(tokenData.erc20Data.length == 1, InvalidTokenData());
     require(tokenData.erc721Data.length == 0, InvalidTokenData());
     require(tokenData.erc1155Data.length == 0, InvalidTokenData());
@@ -53,7 +53,7 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
     external
     override
     onlyWhitelistedRouter
-    isValidTokenLength(actionData.tokenData)
+    checkTokenLengths(actionData.tokenData)
     returns (bytes memory beforeExecutionData)
   {
     DCAValidationData memory validationData =

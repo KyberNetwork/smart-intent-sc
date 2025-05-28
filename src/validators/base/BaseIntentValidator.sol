@@ -6,5 +6,5 @@ import '../../interfaces/IKSSessionIntentValidator.sol';
 abstract contract BaseIntentValidator is IKSSessionIntentValidator {
   error InvalidTokenData();
 
-  modifier isValidTokenLength(IKSSessionIntentRouter.TokenData calldata tokenData) virtual;
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) virtual;
 }

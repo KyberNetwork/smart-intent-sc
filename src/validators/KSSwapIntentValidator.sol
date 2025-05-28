@@ -27,7 +27,7 @@ contract KSSwapIntentValidator is BaseIntentValidator {
     address recipient;
   }
 
-  modifier isValidTokenLength(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
     require(tokenData.erc20Data.length == 1, InvalidTokenData());
     require(tokenData.erc721Data.length == 0, InvalidTokenData());
     require(tokenData.erc1155Data.length == 0, InvalidTokenData());
@@ -43,7 +43,7 @@ contract KSSwapIntentValidator is BaseIntentValidator {
     external
     view
     override
-    isValidTokenLength(actionData.tokenData)
+    checkTokenLengths(actionData.tokenData)
     returns (bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.validatorData, (uint256));
