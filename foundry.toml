@@ -19,4 +19,7 @@ runs = 20
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URL}"
 
+[etherscan]
+mainnet = { key = "${ETHERSCAN_API_KEY}" }
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
