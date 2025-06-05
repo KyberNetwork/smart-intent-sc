@@ -3,10 +3,13 @@ pragma solidity ^0.8.0;
 
 import '../interfaces/IKSSessionIntentValidator.sol';
 import '../interfaces/IKSSwapRouter.sol';
+import '../libraries/TokenLibrary.sol';
 
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
 contract KSSwapIntentValidator is IKSSessionIntentValidator {
+  using TokenLibrary for address;
+
   error InvalidSwapPair();
 
   error BelowMinRate(uint256 inputAmount, uint256 outputAmount, uint256 minRate);
@@ -38,9 +41,8 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     SwapValidationData memory validationData =
       abi.decode(coreData.validationData, (SwapValidationData));
 
-    uint256 srcBalanceBefore = IERC20(validationData.srcTokens[index]).balanceOf(msg.sender);
-    uint256 dstBalanceBefore =
-      IERC20(validationData.dstTokens[index]).balanceOf(validationData.recipient);
+    uint256 srcBalanceBefore = validationData.srcTokens[index].balanceOf(coreData.mainAddress);
+    uint256 dstBalanceBefore = validationData.dstTokens[index].balanceOf(validationData.recipient);
 
     return abi.encode(
       validationData.srcTokens[index],
@@ -71,8 +73,8 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
       (srcToken, dstToken, srcBalanceBefore, dstBalanceBefore, minRate) =
         abi.decode(beforeExecutionData, (address, address, uint256, uint256, uint256));
 
-      inputAmount = srcBalanceBefore - IERC20(srcToken).balanceOf(msg.sender);
-      outputAmount = IERC20(dstToken).balanceOf(validationData.recipient) - dstBalanceBefore;
+      inputAmount = srcBalanceBefore - srcToken.balanceOf(coreData.mainAddress);
+      outputAmount = dstToken.balanceOf(validationData.recipient) - dstBalanceBefore;
     }
     if (outputAmount * RATE_DENOMINATOR < inputAmount * minRate) {
       revert BelowMinRate(inputAmount, outputAmount, minRate);

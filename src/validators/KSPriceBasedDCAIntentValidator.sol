@@ -3,9 +3,12 @@ pragma solidity ^0.8.0;
 
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
+import '../libraries/TokenLibrary.sol';
 import './base/BaseStatefulIntentValidator.sol';
 
 contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
+  using TokenLibrary for address;
+
   error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
   error InvalidAmountIn(uint256 amountIn, uint256 actualAmountIn);
@@ -81,12 +84,7 @@ contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
     }
     latestSwap[intentHash] = swapNo;
 
-    uint256 balanceBefore;
-    if (validationData.dstToken == ETH_ADDRESS) {
-      balanceBefore = validationData.recipient.balance;
-    } else {
-      balanceBefore = IERC20(validationData.dstToken).balanceOf(validationData.recipient);
-    }
+    uint256 balanceBefore = validationData.dstToken.balanceOf(validationData.recipient);
 
     return abi.encode(--swapNo, balanceBefore);
   }
@@ -106,13 +104,7 @@ contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
     uint128 minAmountOut = uint128(validationData.amountOutLimits[swapNo] >> 128);
     uint128 maxAmountOut = uint128(validationData.amountOutLimits[swapNo]);
 
-    uint256 amountOut;
-    if (validationData.dstToken == ETH_ADDRESS) {
-      amountOut = validationData.recipient.balance - balanceBefore;
-    } else {
-      amountOut =
-        IERC20(validationData.dstToken).balanceOf(validationData.recipient) - balanceBefore;
-    }
+    uint256 amountOut = validationData.dstToken.balanceOf(validationData.recipient) - balanceBefore;
 
     if (amountOut < minAmountOut || maxAmountOut < amountOut) {
       revert InvalidAmountOut(minAmountOut, maxAmountOut, amountOut);

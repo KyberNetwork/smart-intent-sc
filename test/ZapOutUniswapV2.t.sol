@@ -100,7 +100,7 @@ contract ZapOutUniswapV2Test is BaseTest {
     validationData.srcTokens = new address[](1);
     validationData.srcTokens[0] = pool;
     validationData.dstTokens = new address[](1);
-    validationData.dstTokens[0] = tokenOut;
+    validationData.dstTokens[0] = dai;
     validationData.minRates = new uint256[](1);
     validationData.minRates[0] = minRate;
     validationData.recipient = recipient;

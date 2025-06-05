@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import '../libraries/TokenLibrary.sol';
 import './base/BaseIntentValidator.sol';
+
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
+
 import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
 
 contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
+  using TokenLibrary for address;
+
   error InvalidZapOutPosition();
 
   error OutsidePriceRange(uint160 sqrtPLower, uint160 sqrtPUpper, uint160 sqrtPriceX96);
@@ -76,9 +81,8 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       validationData.nftIds[index],
       uint128(validationData.offsets[index])
     );
-    uint256 tokenBalanceBefore = validationData.outputTokens[index] == ETH_ADDRESS
-      ? validationData.recipient.balance
-      : IERC20(validationData.outputTokens[index]).balanceOf(validationData.recipient);
+    uint256 tokenBalanceBefore =
+      validationData.outputTokens[index].balanceOf(validationData.recipient);
 
     return abi.encode(
       validationData.nftAddresses[index],
@@ -127,9 +131,7 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
       liquidity = liquidityBefore - liquidityAfter;
 
-      outputAmount = outputToken == ETH_ADDRESS
-        ? validationData.recipient.balance - tokenBalanceBefore
-        : IERC20(outputToken).balanceOf(validationData.recipient);
+      outputAmount = outputToken.balanceOf(validationData.recipient) - tokenBalanceBefore;
       outputAmount -= tokenBalanceBefore;
     }
 
