@@ -16,6 +16,8 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
 
   error OutsidePriceRange(uint160 sqrtPLower, uint160 sqrtPUpper, uint160 sqrtPriceX96);
 
+  error InvalidOwner();
+
   error GetPositionLiquidityFailed();
 
   error GetSqrtPriceX96Failed();
@@ -129,6 +131,10 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       );
 
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
+      require(
+        liquidityAfter == 0 || IERC721(nftAddress).ownerOf(nftId) == coreData.mainAddress,
+        InvalidOwner()
+      );
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken.balanceOf(validationData.recipient) - tokenBalanceBefore;
