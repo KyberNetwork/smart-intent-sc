@@ -37,12 +37,25 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
 
   constructor(address[] memory initialRouters) BaseStatefulIntentValidator(initialRouters) {}
 
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+    require(tokenData.erc20Data.length == 1, InvalidTokenData());
+    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+    require(tokenData.erc1155Data.length == 0, InvalidTokenData());
+    _;
+  }
+
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     bytes32 intentHash,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external override onlyWhitelistedRouter returns (bytes memory beforeExecutionData) {
+  )
+    external
+    override
+    onlyWhitelistedRouter
+    checkTokenLengths(actionData.tokenData)
+    returns (bytes memory beforeExecutionData)
+  {
     DCAValidationData memory validationData =
       abi.decode(coreData.validationData, (DCAValidationData));
 
@@ -68,10 +81,7 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
     }
 
     //validate amountIn, currently only support 1 tokenIn
-    if (
-      actionData.tokenData.erc20Data.length != 1
-        || actionData.tokenData.erc20Data[0].token != validationData.srcToken
-    ) {
+    if (actionData.tokenData.erc20Data[0].token != validationData.srcToken) {
       revert InvalidTokenIn(validationData.srcToken, actionData.tokenData.erc20Data[0].token);
     }
 

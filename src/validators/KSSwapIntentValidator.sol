@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSessionIntentValidator.sol';
 import '../interfaces/IKSSwapRouter.sol';
+import './base/BaseIntentValidator.sol';
 
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-contract KSSwapIntentValidator is IKSSessionIntentValidator {
+contract KSSwapIntentValidator is BaseIntentValidator {
   error InvalidSwapPair();
 
   error BelowMinRate(uint256 inputAmount, uint256 outputAmount, uint256 minRate);
@@ -27,45 +27,41 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     address recipient;
   }
 
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+    require(tokenData.erc20Data.length == 1, InvalidTokenData());
+    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+    require(tokenData.erc1155Data.length == 0, InvalidTokenData());
+    _;
+  }
+
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     bytes32,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external view override returns (bytes memory beforeExecutionData) {
-    IKSSwapRouter.SwapDescriptionV2 memory swapDesc;
-    bytes4 actionSelector = coreData.actionSelectors[actionData.actionSelectorId];
-    if (actionSelector == IKSSwapRouter.swap.selector) {
-      IKSSwapRouter.SwapExecutionParams memory params =
-        abi.decode(actionData.actionCalldata, (IKSSwapRouter.SwapExecutionParams));
-      swapDesc = params.desc;
-    } else if (actionSelector == IKSSwapRouter.swapSimpleMode.selector) {
-      (, swapDesc,,) = abi.decode(
-        actionData.actionCalldata, (address, IKSSwapRouter.SwapDescriptionV2, bytes, bytes)
-      );
-    }
+  )
+    external
+    view
+    override
+    checkTokenLengths(actionData.tokenData)
+    returns (bytes memory beforeExecutionData)
+  {
+    uint256 index = abi.decode(actionData.validatorData, (uint256));
 
-    uint256 minRate;
     SwapValidationData memory validationData =
       abi.decode(coreData.validationData, (SwapValidationData));
-    for (uint256 i = 0; i < validationData.srcTokens.length; i++) {
-      if (
-        validationData.srcTokens[i] == swapDesc.srcToken
-          && validationData.dstTokens[i] == swapDesc.dstToken
-      ) {
-        minRate = validationData.minRates[i];
-        break;
-      }
-    }
-    if (minRate == 0) {
-      revert InvalidSwapPair();
-    }
 
-    uint256 srcBalanceBefore = IERC20(swapDesc.srcToken).balanceOf(msg.sender);
-    uint256 dstBalanceBefore = IERC20(swapDesc.dstToken).balanceOf(validationData.recipient);
+    uint256 srcBalanceBefore = IERC20(validationData.srcTokens[index]).balanceOf(msg.sender);
+    uint256 dstBalanceBefore =
+      IERC20(validationData.dstTokens[index]).balanceOf(validationData.recipient);
 
-    return
-      abi.encode(swapDesc.srcToken, swapDesc.dstToken, srcBalanceBefore, dstBalanceBefore, minRate);
+    return abi.encode(
+      validationData.srcTokens[index],
+      validationData.dstTokens[index],
+      srcBalanceBefore,
+      dstBalanceBefore,
+      validationData.minRates[index]
+    );
   }
 
   /// @inheritdoc IKSSessionIntentValidator

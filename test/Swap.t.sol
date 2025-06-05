@@ -100,7 +100,7 @@ contract SwapTest is BaseTest {
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
-      validatorData: '',
+      validatorData: abi.encode(0),
       extraData: '',
       deadline: block.timestamp + 1 days
     });
