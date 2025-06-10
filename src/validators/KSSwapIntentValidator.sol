@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSessionIntentValidator.sol';
 import '../interfaces/IKSSwapRouter.sol';
 import '../libraries/TokenLibrary.sol';
+import './base/BaseIntentValidator.sol';
 
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-contract KSSwapIntentValidator is IKSSessionIntentValidator {
+contract KSSwapIntentValidator is BaseIntentValidator {
   using TokenLibrary for address;
 
   error InvalidSwapPair();
@@ -30,24 +30,39 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     address recipient;
   }
 
+  modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
+    require(tokenData.erc20Data.length == 1, InvalidTokenData());
+    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+    require(tokenData.erc1155Data.length == 0, InvalidTokenData());
+    _;
+  }
+
   /// @inheritdoc IKSSessionIntentValidator
   function validateBeforeExecution(
     bytes32,
     IKSSessionIntentRouter.IntentCoreData calldata coreData,
     IKSSessionIntentRouter.ActionData calldata actionData
-  ) external view override returns (bytes memory beforeExecutionData) {
+  )
+    external
+    view
+    override
+    checkTokenLengths(actionData.tokenData)
+    returns (bytes memory beforeExecutionData)
+  {
     uint256 index = abi.decode(actionData.validatorData, (uint256));
 
     SwapValidationData memory validationData =
       abi.decode(coreData.validationData, (SwapValidationData));
 
-    uint256 srcBalanceBefore = validationData.srcTokens[index].balanceOf(coreData.mainAddress);
+    IKSSessionIntentRouter.ERC20Data[] calldata erc20Data = actionData.tokenData.erc20Data;
+    require(erc20Data[0].token == validationData.srcTokens[index], InvalidTokenData());
+
     uint256 dstBalanceBefore = validationData.dstTokens[index].balanceOf(validationData.recipient);
 
     return abi.encode(
       validationData.srcTokens[index],
       validationData.dstTokens[index],
-      srcBalanceBefore,
+      erc20Data[0].amount,
       dstBalanceBefore,
       validationData.minRates[index]
     );
@@ -68,12 +83,10 @@ contract KSSwapIntentValidator is IKSSessionIntentValidator {
     {
       address srcToken;
       address dstToken;
-      uint256 srcBalanceBefore;
       uint256 dstBalanceBefore;
-      (srcToken, dstToken, srcBalanceBefore, dstBalanceBefore, minRate) =
+      (srcToken, dstToken, inputAmount, dstBalanceBefore, minRate) =
         abi.decode(beforeExecutionData, (address, address, uint256, uint256, uint256));
 
-      inputAmount = srcBalanceBefore - srcToken.balanceOf(coreData.mainAddress);
       outputAmount = dstToken.balanceOf(validationData.recipient) - dstBalanceBefore;
     }
     if (outputAmount * RATE_DENOMINATOR < inputAmount * minRate) {
