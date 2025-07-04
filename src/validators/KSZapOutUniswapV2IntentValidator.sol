@@ -2,17 +2,20 @@
 pragma solidity ^0.8.0;
 
 import '../interfaces/IKSSwapRouter.sol';
+import '../interfaces/uniswapv2/IUniswapV2Pair.sol';
 import '../libraries/TokenLibrary.sol';
 import './base/BaseIntentValidator.sol';
 
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-contract KSSwapIntentValidator is BaseIntentValidator {
+contract KSZapOutUniswapV2IntentValidator is BaseIntentValidator {
   using TokenLibrary for address;
 
   error InvalidSwapPair();
 
   error BelowMinRate(uint256 inputAmount, uint256 outputAmount, uint256 minRate);
+
+  error OutsidePriceRange(uint256 priceLower, uint256 priceUpper, uint256 priceCurrent);
 
   uint256 public constant RATE_DENOMINATOR = 1e18;
 
@@ -20,12 +23,16 @@ contract KSSwapIntentValidator is BaseIntentValidator {
    * @notice Data structure for swap validation
    * @param srcTokens The source tokens
    * @param dstTokens The destination tokens
+   * @param priceLowers The lower price bounds, denominated in 1e18
+   * @param priceUppers The upper price bounds, denominated in 1e18
    * @param minRates The minimum rates, denominated in 1e18
    * @param recipient
    */
-  struct SwapValidationData {
+  struct ZapOutUniswapV2ValidationData {
     address[] srcTokens;
     address[] dstTokens;
+    uint256[] priceLowers;
+    uint256[] priceUppers;
     uint256[] minRates;
     address recipient;
   }
@@ -44,20 +51,38 @@ contract KSSwapIntentValidator is BaseIntentValidator {
     IKSSessionIntentRouter.ActionData calldata actionData
   )
     external
-    view
     override
     checkTokenLengths(actionData.tokenData)
     returns (bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.validatorData, (uint256));
 
-    SwapValidationData memory validationData =
-      abi.decode(coreData.validationData, (SwapValidationData));
+    ZapOutUniswapV2ValidationData memory validationData =
+      abi.decode(coreData.validationData, (ZapOutUniswapV2ValidationData));
 
     IKSSessionIntentRouter.ERC20Data[] calldata erc20Data = actionData.tokenData.erc20Data;
     require(erc20Data[0].token == validationData.srcTokens[index], InvalidTokenData());
 
     uint256 dstBalanceBefore = validationData.dstTokens[index].balanceOf(validationData.recipient);
+
+    // this will works for most of UniswapV2 forks
+    // as they have different ways to get the reserves
+    IUniswapV2Pair(validationData.srcTokens[index]).skim(validationData.recipient);
+    uint256 priceCurrent;
+    {
+      address token0 = IUniswapV2Pair(validationData.srcTokens[index]).token0();
+      address token1 = IUniswapV2Pair(validationData.srcTokens[index]).token1();
+      uint256 reserve0 = token0.balanceOf(validationData.srcTokens[index]);
+      uint256 reserve1 = token1.balanceOf(validationData.srcTokens[index]);
+      priceCurrent = (reserve1 * RATE_DENOMINATOR) / reserve0;
+    }
+    require(
+      priceCurrent >= validationData.priceLowers[index]
+        && priceCurrent <= validationData.priceUppers[index],
+      OutsidePriceRange(
+        validationData.priceLowers[index], validationData.priceUppers[index], priceCurrent
+      )
+    );
 
     return abi.encode(
       validationData.srcTokens[index],
@@ -78,8 +103,8 @@ contract KSSwapIntentValidator is BaseIntentValidator {
     uint256 minRate;
     uint256 inputAmount;
     uint256 outputAmount;
-    SwapValidationData memory validationData =
-      abi.decode(coreData.validationData, (SwapValidationData));
+    ZapOutUniswapV2ValidationData memory validationData =
+      abi.decode(coreData.validationData, (ZapOutUniswapV2ValidationData));
     {
       address srcToken;
       address dstToken;
