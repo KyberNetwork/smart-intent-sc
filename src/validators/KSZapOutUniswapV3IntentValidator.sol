@@ -138,7 +138,6 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken.balanceOf(validationData.recipient) - tokenBalanceBefore;
-      outputAmount -= tokenBalanceBefore;
     }
 
     if (outputAmount * RATE_DENOMINATOR < minRate * liquidity) {
