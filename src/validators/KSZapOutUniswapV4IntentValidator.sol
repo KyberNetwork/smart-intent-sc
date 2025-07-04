@@ -25,8 +25,6 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
 
   uint256 public constant RATE_DENOMINATOR = 1e18;
 
-  address constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
   struct ZapOutUniswapV4ValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
@@ -86,9 +84,7 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
     );
 
     uint256 liquidityBefore = positionManager.getPositionLiquidity(tokenId);
-    uint256 tokenBalanceBefore = outputToken == ETH_ADDRESS
-      ? validationData.recipient.balance
-      : IERC20(outputToken).balanceOf(validationData.recipient);
+    uint256 tokenBalanceBefore = outputToken.balanceOf(validationData.recipient);
 
     return abi.encode(
       positionManager,

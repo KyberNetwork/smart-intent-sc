@@ -26,8 +26,6 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
 
   uint256 public constant RATE_DENOMINATOR = 1e18;
 
-  address constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
   struct ZapOutUniswapV3ValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
