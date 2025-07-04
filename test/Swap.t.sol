@@ -102,7 +102,8 @@ contract SwapTest is BaseTest {
       actionCalldata: actionCalldata,
       validatorData: abi.encode(0),
       extraData: '',
-      deadline: block.timestamp + 1 days
+      deadline: block.timestamp + 1 days,
+      nonce: 0
     });
   }
 }
