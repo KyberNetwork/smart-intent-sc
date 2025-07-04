@@ -453,7 +453,7 @@ contract PriceBasedDCATest is BaseTest {
   function _getActionData(
     IKSSessionIntentRouter.TokenData memory tokenData,
     bytes memory actionCalldata
-  ) internal  returns (IKSSessionIntentRouter.ActionData memory actionData) {
+  ) internal returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
