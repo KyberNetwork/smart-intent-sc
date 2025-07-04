@@ -6,6 +6,12 @@ import './Base.t.sol';
 contract SwapTest is BaseTest {
   using SafeERC20 for IERC20;
 
+  function setUp() public override {
+    super.setUp();
+
+    recipient = 0xA9B8506c28EAa9bD51D1fF5D42047611e481a392;
+  }
+
   /// forge-config: default.fuzz.runs = 10
   function testSwapSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
