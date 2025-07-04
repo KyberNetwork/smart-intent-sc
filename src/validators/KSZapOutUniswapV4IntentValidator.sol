@@ -13,6 +13,8 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
 
   error OutsidePriceRange(uint160 sqrtPLower, uint160 sqrtPUpper, uint160 sqrtPriceX96);
 
+  error InvalidOwner();
+
   error GetPositionLiquidityFailed();
 
   error GetSqrtPriceX96Failed();
@@ -120,6 +122,10 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
         .decode(beforeExecutionData, (IPositionManager, uint256, address, uint256, uint256, uint256));
 
       uint256 liquidityAfter = positionManager.getPositionLiquidity(tokenId);
+      require(
+        liquidityAfter == 0 || positionManager.ownerOf(tokenId) == coreData.mainAddress,
+        InvalidOwner()
+      );
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken == ETH_ADDRESS

@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 import './IPoolManager.sol';
+import 'openzeppelin-contracts/token/ERC721/IERC721.sol';
 
 /// @title IPositionManager
 /// @notice Interface for the PositionManager contract
-interface IPositionManager {
+interface IPositionManager is IERC721 {
   /// @notice Thrown when the caller is not approved to modify a position
   error NotApproved(address caller);
   /// @notice Thrown when the block.timestamp exceeds the user-provided deadline
