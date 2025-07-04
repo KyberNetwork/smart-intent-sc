@@ -5,9 +5,11 @@ import './base/BaseIntentValidator.sol';
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
 import 'src/libraries/StateLibrary.sol';
+import 'src/libraries/TokenLibrary.sol';
 
 contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
   using StateLibrary for IPoolManager;
+  using TokenLibrary for address;
 
   error InvalidZapOutPosition();
 
@@ -94,7 +96,8 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
       outputToken,
       liquidityBefore,
       tokenBalanceBefore,
-      validationData.minRates[index]
+      validationData.minRates[index],
+      validationData.recipient
     );
   }
 
@@ -108,8 +111,6 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
     uint256 minRate;
     uint256 liquidity;
     uint256 outputAmount;
-    ZapOutUniswapV4ValidationData memory validationData =
-      abi.decode(coreData.validationData, (ZapOutUniswapV4ValidationData));
 
     {
       IPositionManager positionManager;
@@ -117,9 +118,20 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
       address outputToken;
       uint256 liquidityBefore;
       uint256 tokenBalanceBefore;
+      address recipient;
 
-      (positionManager, tokenId, outputToken, liquidityBefore, tokenBalanceBefore, minRate) = abi
-        .decode(beforeExecutionData, (IPositionManager, uint256, address, uint256, uint256, uint256));
+      (
+        positionManager,
+        tokenId,
+        outputToken,
+        liquidityBefore,
+        tokenBalanceBefore,
+        minRate,
+        recipient
+      ) = abi.decode(
+        beforeExecutionData,
+        (IPositionManager, uint256, address, uint256, uint256, uint256, address)
+      );
 
       uint256 liquidityAfter = positionManager.getPositionLiquidity(tokenId);
       require(
@@ -128,10 +140,7 @@ contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
       );
       liquidity = liquidityBefore - liquidityAfter;
 
-      outputAmount = outputToken == ETH_ADDRESS
-        ? validationData.recipient.balance
-        : IERC20(outputToken).balanceOf(validationData.recipient);
-      outputAmount -= tokenBalanceBefore;
+      outputAmount = outputToken.balanceOf(recipient) - tokenBalanceBefore;
     }
 
     if (outputAmount * RATE_DENOMINATOR < minRate * liquidity) {

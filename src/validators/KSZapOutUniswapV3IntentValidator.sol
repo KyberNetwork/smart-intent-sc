@@ -93,7 +93,8 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       liquidityBefore,
       tokenBalanceBefore,
       uint128(validationData.offsets[index]),
-      validationData.minRates[index]
+      validationData.minRates[index],
+      validationData.recipient
     );
   }
 
@@ -107,8 +108,6 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
     uint256 minRate;
     uint256 liquidity;
     uint256 outputAmount;
-    ZapOutUniswapV3ValidationData memory validationData =
-      abi.decode(coreData.validationData, (ZapOutUniswapV3ValidationData));
 
     {
       address nftAddress;
@@ -117,6 +116,7 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       uint256 liquidityBefore;
       uint256 tokenBalanceBefore;
       uint256 liquidityOffset;
+      address recipient;
 
       (
         nftAddress,
@@ -125,9 +125,11 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
         liquidityBefore,
         tokenBalanceBefore,
         liquidityOffset,
-        minRate
+        minRate,
+        recipient
       ) = abi.decode(
-        beforeExecutionData, (address, uint256, address, uint256, uint256, uint256, uint256)
+        beforeExecutionData,
+        (address, uint256, address, uint256, uint256, uint256, uint256, address)
       );
 
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
@@ -137,10 +139,7 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       );
       liquidity = liquidityBefore - liquidityAfter;
 
-      outputAmount = outputToken == ETH_ADDRESS
-        ? validationData.recipient.balance
-        : IERC20(outputToken).balanceOf(validationData.recipient);
-      outputAmount -= tokenBalanceBefore;
+      outputAmount = outputToken.balanceOf(recipient) - tokenBalanceBefore;
     }
 
     if (outputAmount * RATE_DENOMINATOR < minRate * liquidity) {
