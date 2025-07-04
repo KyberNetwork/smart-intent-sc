@@ -137,7 +137,10 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       );
       liquidity = liquidityBefore - liquidityAfter;
 
-      outputAmount = outputToken.balanceOf(validationData.recipient) - tokenBalanceBefore;
+      outputAmount = outputToken == ETH_ADDRESS
+        ? validationData.recipient.balance
+        : IERC20(outputToken).balanceOf(validationData.recipient);
+      outputAmount -= tokenBalanceBefore;
     }
 
     if (outputAmount * RATE_DENOMINATOR < minRate * liquidity) {
