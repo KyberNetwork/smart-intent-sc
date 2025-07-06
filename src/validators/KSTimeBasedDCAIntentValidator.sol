@@ -34,8 +34,6 @@ contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
     address recipient;
   }
 
-  address private constant ETH_ADDRESS = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
-
   mapping(bytes32 => uint256) public latestSwap;
 
   constructor(address[] memory initialRouters) BaseStatefulIntentValidator(initialRouters) {}

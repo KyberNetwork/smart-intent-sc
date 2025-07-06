@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../libraries/TokenLibrary.sol';
 import './base/BaseIntentValidator.sol';
-
 import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
+import 'src/interfaces/uniswapv4/IPositionManager.sol';
+import 'src/libraries/StateLibrary.sol';
+import 'src/libraries/TokenLibrary.sol';
 
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
-
-contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
+contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
+  using StateLibrary for IPoolManager;
   using TokenLibrary for address;
 
   error InvalidZapOutPosition();
@@ -26,12 +25,11 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
 
   uint256 public constant RATE_DENOMINATOR = 1e18;
 
-  struct ZapOutUniswapV3ValidationData {
+  struct ZapOutUniswapV4ValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
     address[] pools;
     address[] outputTokens;
-    uint256[] offsets;
     uint160[] sqrtPLowers;
     uint160[] sqrtPUppers;
     uint256[] minRates;
@@ -59,15 +57,24 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
   {
     uint256 index = abi.decode(actionData.validatorData, (uint256));
 
-    ZapOutUniswapV3ValidationData memory validationData =
-      abi.decode(coreData.validationData, (ZapOutUniswapV3ValidationData));
+    ZapOutUniswapV4ValidationData memory validationData =
+      abi.decode(coreData.validationData, (ZapOutUniswapV4ValidationData));
+
+    IPositionManager positionManager = IPositionManager(validationData.nftAddresses[index]);
+    uint256 tokenId = validationData.nftIds[index];
+    address outputToken = validationData.outputTokens[index];
 
     IKSSessionIntentRouter.ERC721Data[] calldata erc721Data = actionData.tokenData.erc721Data;
-    require(erc721Data[0].token == validationData.nftAddresses[index], InvalidTokenData());
-    require(erc721Data[0].tokenId == validationData.nftIds[index], InvalidTokenData());
+    require(erc721Data[0].token == address(positionManager), InvalidTokenData());
+    require(erc721Data[0].tokenId == tokenId, InvalidTokenData());
 
-    uint160 sqrtPriceX96 =
-      _getSqrtPriceX96(validationData.pools[index], validationData.offsets[index] >> 128);
+    bytes32 poolId;
+    {
+      (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
+      poolId = _getPoolId(poolKey);
+    }
+
+    (uint160 sqrtPriceX96,,,) = positionManager.poolManager().getSlot0(poolId);
     require(
       sqrtPriceX96 >= validationData.sqrtPLowers[index]
         && sqrtPriceX96 <= validationData.sqrtPUppers[index],
@@ -76,21 +83,15 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
       )
     );
 
-    uint256 liquidityBefore = _getPositionLiquidity(
-      validationData.nftAddresses[index],
-      validationData.nftIds[index],
-      uint128(validationData.offsets[index])
-    );
-    uint256 tokenBalanceBefore =
-      validationData.outputTokens[index].balanceOf(validationData.recipient);
+    uint256 liquidityBefore = positionManager.getPositionLiquidity(tokenId);
+    uint256 tokenBalanceBefore = outputToken.balanceOf(validationData.recipient);
 
     return abi.encode(
-      validationData.nftAddresses[index],
-      validationData.nftIds[index],
-      validationData.outputTokens[index],
+      positionManager,
+      tokenId,
+      outputToken,
       liquidityBefore,
       tokenBalanceBefore,
-      uint128(validationData.offsets[index]),
       validationData.minRates[index],
       validationData.recipient
     );
@@ -108,31 +109,29 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
     uint256 outputAmount;
 
     {
-      address nftAddress;
-      uint256 nftId;
+      IPositionManager positionManager;
+      uint256 tokenId;
       address outputToken;
       uint256 liquidityBefore;
       uint256 tokenBalanceBefore;
-      uint256 liquidityOffset;
       address recipient;
 
       (
-        nftAddress,
-        nftId,
+        positionManager,
+        tokenId,
         outputToken,
         liquidityBefore,
         tokenBalanceBefore,
-        liquidityOffset,
         minRate,
         recipient
       ) = abi.decode(
         beforeExecutionData,
-        (address, uint256, address, uint256, uint256, uint256, uint256, address)
+        (IPositionManager, uint256, address, uint256, uint256, uint256, address)
       );
 
-      uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
+      uint256 liquidityAfter = positionManager.getPositionLiquidity(tokenId);
       require(
-        liquidityAfter == 0 || IERC721(nftAddress).ownerOf(nftId) == coreData.mainAddress,
+        liquidityAfter == 0 || positionManager.ownerOf(tokenId) == coreData.mainAddress,
         InvalidOwner()
       );
       liquidity = liquidityBefore - liquidityAfter;
@@ -145,29 +144,9 @@ contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
     }
   }
 
-  function _getPositionLiquidity(address nftAddress, uint256 nftId, uint256 liquidityOffset)
-    internal
-    view
-    returns (uint256 liquidity)
-  {
-    (bool success, bytes memory result) =
-      address(nftAddress).staticcall(abi.encodeWithSelector(IUniswapV3PM.positions.selector, nftId));
-    require(success, GetPositionLiquidityFailed());
+  function _getPoolId(PoolKey memory poolKey) internal pure returns (bytes32 poolId) {
     assembly {
-      liquidity := mload(add(result, liquidityOffset))
-    }
-  }
-
-  function _getSqrtPriceX96(address pool, uint256 priceOffset)
-    internal
-    view
-    returns (uint160 sqrtPriceX96)
-  {
-    (bool success, bytes memory result) =
-      address(pool).staticcall(abi.encodeWithSelector(IUniswapV3Pool.slot0.selector));
-    require(success, GetSqrtPriceX96Failed());
-    assembly {
-      sqrtPriceX96 := mload(add(result, priceOffset))
+      poolId := keccak256(poolKey, 0xa0)
     }
   }
 }
