@@ -159,7 +159,8 @@ contract ZapOutUniswapV2Test is BaseTest {
       actionCalldata: zapOutCalldata,
       validatorData: abi.encode(0),
       extraData: '',
-      deadline: block.timestamp + 1 days
+      deadline: block.timestamp + 1 days,
+      nonce: 0
     });
   }
 }

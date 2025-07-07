@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './KSSessionIntentRouterAccounting.sol';
+import './KSSessionIntentRouterNonces.sol';
 import './KSSessionIntentRouterTypeHashes.sol';
 
 import 'openzeppelin-contracts/utils/Address.sol';
@@ -10,6 +11,7 @@ import 'openzeppelin-contracts/utils/cryptography/SignatureChecker.sol';
 
 contract KSSessionIntentRouter is
   KSSessionIntentRouterAccounting,
+  KSSessionIntentRouterNonces,
   KSSessionIntentRouterTypeHashes,
   ReentrancyGuardTransient
 {
@@ -173,6 +175,8 @@ contract KSSessionIntentRouter is
       actionData.actionSelectorId < intent.actionContracts.length,
       InvalidActionSelectorId(actionData.actionSelectorId)
     );
+
+    _useUnorderedNonce(intentHash, actionData.nonce);
 
     bytes32 actionHash = _hashTypedActionData(actionData);
     if (_msgSender() != intent.delegatedAddress) {

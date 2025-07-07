@@ -6,6 +6,8 @@ import './Base.t.sol';
 contract MockActionTest is BaseTest {
   using SafeERC20 for IERC20;
 
+  uint256 nonce = 0;
+
   function testMockActionExecuteSuccess(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
@@ -522,6 +524,7 @@ contract MockActionTest is BaseTest {
 
     actionData.actionSelectorId = 1;
     actionData.actionCalldata = abi.encode(address(erc20Mock), tokenOut, recipient, amountIn);
+    actionData.nonce = nonce++;
 
     vm.warp(block.timestamp + 200);
     (caller, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
@@ -567,6 +570,36 @@ contract MockActionTest is BaseTest {
         assertEq(entries[i].data, abi.encode(actionData, new bytes(0)));
       }
     }
+  }
+
+  function testMockActionExecuteWithSameNonceShouldRevert(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    IKSSessionIntentRouter.TokenData memory newTokenData =
+      _getNewTokenData(intentData.tokenData, seed);
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
+    actionData.nonce = seed;
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IKSSessionIntentRouter.NonceAlreadyUsed.selector, intentHash, actionData.nonce
+      )
+    );
+    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function _getNewTokenData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 seed)
@@ -647,14 +680,15 @@ contract MockActionTest is BaseTest {
   function _getActionData(
     IKSSessionIntentRouter.TokenData memory tokenData,
     bytes memory actionCalldata
-  ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
+  ) internal returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: '',
       extraData: '',
-      deadline: block.timestamp + 1 days
+      deadline: block.timestamp + 1 days,
+      nonce: nonce++
     });
   }
 
