@@ -51,6 +51,9 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when collecting unapproved ERC721
   error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
 
+  /// @notice Thrown when a nonce has already been used
+  error NonceAlreadyUsed(bytes32 intentHash, uint256 nonce);
+
   /// @notice Emitted when the whitelist status of an action is updated
   event WhitelistAction(
     address indexed actionContract, bytes4 indexed actionSelector, bool grantOrRevoke
@@ -72,6 +75,9 @@ interface IKSSessionIntentRouter {
 
   /// @notice Emitted when tokens are collected
   event CollectTokens(bytes32 indexed intentHash, TokenData tokenData);
+
+  /// @notice Emitted when a nonce is consumed
+  event UseNonce(bytes32 indexed intentHash, uint256 nonce);
 
   /**
    * @notice Data structure for ERC20 token
@@ -157,6 +163,7 @@ interface IKSSessionIntentRouter {
    * @param validatorData The data for the validator
    * @param extraData The extra data for the action
    * @param deadline The deadline for the action
+   * @param nonce The nonce for the action
    */
   struct ActionData {
     TokenData tokenData;
@@ -165,6 +172,7 @@ interface IKSSessionIntentRouter {
     bytes validatorData;
     bytes extraData;
     uint256 deadline;
+    uint256 nonce;
   }
 
   /**
@@ -292,4 +300,8 @@ interface IKSSessionIntentRouter {
     external
     view
     returns (bool approved);
+
+  /// @notice mapping of nonces consumed by each intent, where a nonce is a single bit on the 256-bit bitmap
+  /// @dev word is at most type(uint248).max
+  function nonces(bytes32 intentHash, uint256 word) external view returns (uint256 bitmap);
 }

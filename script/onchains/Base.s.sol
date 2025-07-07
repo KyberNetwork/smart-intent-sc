@@ -149,7 +149,8 @@ contract BaseOnchainScript is BaseScript {
       actionCalldata: actionCalldata,
       validatorData: abi.encode(0), //swapNo, but this script only swap once
       extraData: '',
-      deadline: endTime - 100
+      deadline: endTime - 100,
+      nonce: 0
     });
   }
 

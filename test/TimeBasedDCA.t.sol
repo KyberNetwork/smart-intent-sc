@@ -36,6 +36,7 @@ contract TimeBasedDCATest is BaseTest {
   uint32[] timestamps = [firstTimestamp, firstTimestamp + 1 days, firstTimestamp + 2 days];
   uint256 swap;
   uint32 deadline;
+  uint256 nonce = 0;
 
   function setUp() public override {
     super.setUp();
@@ -409,6 +410,8 @@ contract TimeBasedDCATest is BaseTest {
 
       //try to execute again
       if (i == swapNo) {
+        actionData.nonce = nonce++;
+        (, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
         vm.expectRevert(
           abi.encodeWithSelector(KSTimeBasedDCAIntentValidator.SwapAlreadyExecuted.selector)
         );
@@ -465,14 +468,15 @@ contract TimeBasedDCATest is BaseTest {
   function _getActionData(
     IKSSessionIntentRouter.TokenData memory tokenData,
     bytes memory actionCalldata
-  ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
+  ) internal returns (IKSSessionIntentRouter.ActionData memory actionData) {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       validatorData: abi.encode(swap),
       extraData: '',
-      deadline: deadline
+      deadline: deadline,
+      nonce: nonce++
     });
   }
 
