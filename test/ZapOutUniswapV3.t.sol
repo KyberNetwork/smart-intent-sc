@@ -122,7 +122,8 @@ contract ZapOutUniswapV3Test is BaseTest {
     tokenData.erc721Data[0] =
       IKSSessionIntentRouter.ERC721Data({token: address(pm), tokenId: tokenId});
 
-    intentData = IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData});
+    intentData =
+      IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
   }
 
   function _setUpMainAddress(

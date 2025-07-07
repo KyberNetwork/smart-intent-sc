@@ -639,7 +639,8 @@ contract MockActionTest is BaseTest {
     erc721Mock.mint(mainAddress, seed);
     erc721Mock.approve(address(router), seed);
 
-    intentData = IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData});
+    intentData =
+      IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
     vm.stopPrank();
   }
 
