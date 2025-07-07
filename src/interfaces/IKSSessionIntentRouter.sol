@@ -143,10 +143,12 @@ interface IKSSessionIntentRouter {
    * @notice Data structure for intent data
    * @param coreData The core data for the intent
    * @param tokenData The token data for the intent
+   * @param extraData The extra data for the intent
    */
   struct IntentData {
     IntentCoreData coreData;
     TokenData tokenData;
+    bytes extraData;
   }
 
   /**

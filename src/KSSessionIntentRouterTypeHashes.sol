@@ -94,7 +94,10 @@ abstract contract KSSessionIntentRouterTypeHashes is
     return _hashTypedDataV4(
       keccak256(
         abi.encode(
-          INTENT_DATA_TYPEHASH, _hashIntentCoreData(data.coreData), _hashTokenData(data.tokenData)
+          INTENT_DATA_TYPEHASH,
+          _hashIntentCoreData(data.coreData),
+          _hashTokenData(data.tokenData),
+          keccak256(data.extraData)
         )
       )
     );
@@ -148,7 +151,7 @@ abstract contract KSSessionIntentRouterTypeHashes is
     );
     intentDataTypeHash = keccak256(
       abi.encodePacked(
-        'IntentData(IntentCoreData coreData,TokenData tokenData)',
+        'IntentData(IntentCoreData coreData,TokenData tokenData,bytes extraData)',
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
         'ERC20Data(address token,uint256 amount)',
         'ERC721Data(address token,uint256 tokenId)',
