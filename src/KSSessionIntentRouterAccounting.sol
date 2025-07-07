@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './interfaces/IKSSessionIntentValidator.sol';
+import './libraries/TokenLibrary.sol';
 
 import 'ks-growth-utils-sc/KSRescueV2.sol';
 
@@ -9,7 +10,7 @@ import 'openzeppelin-contracts/interfaces/IERC1155Receiver.sol';
 import 'openzeppelin-contracts/interfaces/IERC721Receiver.sol';
 
 abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSRescueV2 {
-  using SafeERC20 for IERC20;
+  using TokenLibrary for address;
 
   mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) internal erc1155Allowances;
 
@@ -87,7 +88,7 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
       unchecked {
         erc20Allowances[intentHash][erc20Data.token] = allowance - erc20Data.amount;
       }
-      IERC20(erc20Data.token).safeTransferFrom(mainAddress, address(this), erc20Data.amount);
+      erc20Data.token.safeTransferFrom(mainAddress, address(this), erc20Data.amount);
       _safeApproveInf(erc20Data.token, actionContract);
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
@@ -136,8 +137,6 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
   }
 
   function _safeApproveInf(address token, address spender) internal {
-    if (IERC20(token).allowance(address(this), spender) == 0) {
-      IERC20(token).forceApprove(spender, type(uint256).max);
-    }
+    token.forceApprove(spender, type(uint256).max);
   }
 }
