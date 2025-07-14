@@ -15,8 +15,7 @@ contract DeployValidatorsCreate3 is BaseScript {
 
   string[] internal _contractNames =
     ['KSPriceBasedDCAIntentValidator', 'KSTimeBasedDCAIntentValidator'];
-
-  string internal _releaseVersion = '250714';
+  string internal _releaseVersion;
 
   function run() external {
     uint256 chainId;
