@@ -30,8 +30,8 @@ contract DeployValidatorsCreate3 is BaseScript {
 
     require(bytes(_releaseVersion).length > 0, 'Release version not set');
 
-    string[] memory keys = new string[](2);
-    address[] memory addresses = new address[](2);
+    string[] memory keys = new string[](_contractNames.length);
+    address[] memory addresses = new address[](_contractNames.length);
 
     vm.startBroadcast();
     for (uint256 i = 0; i < _contractNames.length; i++) {
