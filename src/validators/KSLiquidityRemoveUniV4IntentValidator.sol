@@ -276,7 +276,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     uint256[] memory fees,
     address[] memory outputTokens,
     uint160 sqrtPriceX96
-  ) internal pure returns (bool) {
+  ) internal view returns (bool) {
     YieldBasedCondition memory yieldCondition = abi.decode(conditionData, (YieldBasedCondition));
     uint8 decimals0 = IERC20Metadata(outputTokens[0]).decimals();
     uint8 decimals1 = IERC20Metadata(outputTokens[1]).decimals();
@@ -300,9 +300,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
 
     if (denominator == 0) return false;
 
-    uint256 currentYieldBps = (numerator * YIELD_BPS) / denominator;
-
-    return currentYieldBps >= yieldCondition.targetYieldBps;
+    return yieldBps >= yieldCondition.targetYieldBps;
   }
 
   function _evaluatePriceCondition(bytes memory conditionData, uint160 sqrtPriceX96)
