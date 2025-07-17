@@ -12,8 +12,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
   using StateLibrary for IPoolManager;
   using TokenLibrary for address;
 
-  error InvalidZapOutPosition();
-  error OutsidePriceRange(uint160 sqrtPLower, uint160 sqrtPUpper, uint160 sqrtPriceX96);
   error InvalidOwner();
   error InvalidOutputToken();
   error InvalidOutputAmounts();
