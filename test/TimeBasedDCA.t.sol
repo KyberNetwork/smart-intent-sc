@@ -447,7 +447,8 @@ contract TimeBasedDCATest is BaseTest {
 
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn});
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});

@@ -5,8 +5,6 @@ import '../interfaces/IKSSwapRouter.sol';
 import '../libraries/TokenLibrary.sol';
 import './base/BaseIntentValidator.sol';
 
-import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
-
 contract KSSwapIntentValidator is BaseIntentValidator {
   using TokenLibrary for address;
 

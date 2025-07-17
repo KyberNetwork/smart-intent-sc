@@ -5,9 +5,9 @@ import './KSSessionIntentRouterAccounting.sol';
 import './KSSessionIntentRouterNonces.sol';
 import './KSSessionIntentRouterTypeHashes.sol';
 
-import 'openzeppelin-contracts/utils/Address.sol';
-import 'openzeppelin-contracts/utils/ReentrancyGuardTransient.sol';
-import 'openzeppelin-contracts/utils/cryptography/SignatureChecker.sol';
+import '@openzeppelin-contracts/utils/Address.sol';
+import '@openzeppelin-contracts/utils/ReentrancyGuardTransient.sol';
+import '@openzeppelin-contracts/utils/cryptography/SignatureChecker.sol';
 
 contract KSSessionIntentRouter is
   KSSessionIntentRouterAccounting,
@@ -25,16 +25,18 @@ contract KSSessionIntentRouter is
 
   mapping(address => bool) public whitelistedValidators;
 
-  constructor(address initialOwner, address[] memory initialGuardians)
-    KSSessionIntentRouterAccounting(initialOwner, initialGuardians)
-  {}
+  constructor(
+    address initialAdmin,
+    address[] memory initialGuardians,
+    address[] memory initialRescuers
+  ) KSSessionIntentRouterAccounting(initialAdmin, initialGuardians, initialRescuers) {}
 
   /// @inheritdoc IKSSessionIntentRouter
   function whitelistActions(
     address[] calldata actionContracts,
     bytes4[] calldata actionSelectors,
     bool grantOrRevoke
-  ) public onlyOwner {
+  ) public onlyRole(DEFAULT_ADMIN_ROLE) {
     for (uint256 i = 0; i < actionContracts.length; i++) {
       whitelistedActions[keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]))] =
         grantOrRevoke;
@@ -44,7 +46,10 @@ contract KSSessionIntentRouter is
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function whitelistValidators(address[] calldata validators, bool grantOrRevoke) public onlyOwner {
+  function whitelistValidators(address[] calldata validators, bool grantOrRevoke)
+    public
+    onlyRole(DEFAULT_ADMIN_ROLE)
+  {
     for (uint256 i = 0; i < validators.length; i++) {
       whitelistedValidators[validators[i]] = grantOrRevoke;
 
@@ -151,7 +156,7 @@ contract KSSessionIntentRouter is
 
     intents[intentHash] = intentData.coreData;
 
-    _approveTokens(intentHash, intentData.tokenData);
+    _approveTokens(intentHash, intentData.tokenData, mainAddress);
 
     emit DelegateIntent(
       intentData.coreData.mainAddress, intentData.coreData.delegatedAddress, intentData
@@ -170,11 +175,11 @@ contract KSSessionIntentRouter is
     require(block.timestamp >= intent.startTime, ExecuteTooEarly());
     require(block.timestamp <= intent.endTime, ExecuteTooLate());
     require(block.timestamp <= actionData.deadline, ExecuteTooLate());
-    require(guardians[guardian], KyberSwapRole.KSRoleNotGuardian(guardian));
     require(
       actionData.actionSelectorId < intent.actionContracts.length,
       InvalidActionSelectorId(actionData.actionSelectorId)
     );
+    _checkRole(KSRoles.GUARDIAN_ROLE, guardian);
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 

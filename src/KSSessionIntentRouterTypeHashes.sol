@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import './interfaces/IKSSessionIntentValidator.sol';
 
-import 'openzeppelin-contracts/utils/cryptography/EIP712.sol';
+import '@openzeppelin-contracts/utils/cryptography/EIP712.sol';
 
 abstract contract KSSessionIntentRouterTypeHashes is
   IKSSessionIntentRouter,
@@ -41,11 +41,15 @@ abstract contract KSSessionIntentRouterTypeHashes is
   }
 
   function _hashERC20Data(ERC20Data calldata data) internal view returns (bytes32) {
-    return keccak256(abi.encode(ERC20_DATA_TYPEHASH, data.token, data.amount));
+    return keccak256(
+      abi.encode(ERC20_DATA_TYPEHASH, data.token, data.amount, keccak256(data.permitData))
+    );
   }
 
   function _hashERC721Data(ERC721Data calldata data) internal view returns (bytes32) {
-    return keccak256(abi.encode(ERC721_DATA_TYPEHASH, data.token, data.tokenId));
+    return keccak256(
+      abi.encode(ERC721_DATA_TYPEHASH, data.token, data.tokenId, keccak256(data.permitData))
+    );
   }
 
   function _hashTokenData(TokenData calldata data) internal view returns (bytes32) {
@@ -135,14 +139,16 @@ abstract contract KSSessionIntentRouterTypeHashes is
   {
     erc1155DataTypeHash =
       keccak256(abi.encodePacked('ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)'));
-    erc20DataTypeHash = keccak256(abi.encodePacked('ERC20Data(address token,uint256 amount)'));
-    erc721DataTypeHash = keccak256(abi.encodePacked('ERC721Data(address token,uint256 tokenId)'));
+    erc20DataTypeHash =
+      keccak256(abi.encodePacked('ERC20Data(address token,uint256 amount,bytes permitData)'));
+    erc721DataTypeHash =
+      keccak256(abi.encodePacked('ERC721Data(address token,uint256 tokenId,bytes permitData)'));
     tokenDataTypeHash = keccak256(
       abi.encodePacked(
         'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)',
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
-        'ERC20Data(address token,uint256 amount)',
-        'ERC721Data(address token,uint256 tokenId)'
+        'ERC20Data(address token,uint256 amount,bytes permitData)',
+        'ERC721Data(address token,uint256 tokenId,bytes permitData)'
       )
     );
     intentCoreDataTypeHash = keccak256(
@@ -154,8 +160,8 @@ abstract contract KSSessionIntentRouterTypeHashes is
       abi.encodePacked(
         'IntentData(IntentCoreData coreData,TokenData tokenData,bytes extraData)',
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
-        'ERC20Data(address token,uint256 amount)',
-        'ERC721Data(address token,uint256 tokenId)',
+        'ERC20Data(address token,uint256 amount,bytes permitData)',
+        'ERC721Data(address token,uint256 tokenId,bytes permitData)',
         'IntentCoreData(address mainAddress,address delegatedAddress,uint256 startTime,uint256 endTime,address[] actionContracts,bytes4[] actionSelectors,address validator,bytes validationData)',
         'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
       )
@@ -164,8 +170,8 @@ abstract contract KSSessionIntentRouterTypeHashes is
       abi.encodePacked(
         'ActionData(TokenData tokenData,uint256 actionSelectorId,bytes actionCalldata,bytes validatorData,bytes extraData,uint256 deadline,uint256 nonce)',
         'ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)',
-        'ERC20Data(address token,uint256 amount)',
-        'ERC721Data(address token,uint256 tokenId)',
+        'ERC20Data(address token,uint256 amount,bytes permitData)',
+        'ERC721Data(address token,uint256 tokenId,bytes permitData)',
         'TokenData(ERC1155Data[] erc1155Data,ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
       )
     );

@@ -20,9 +20,13 @@ contract DeployRouter is BaseScript {
       string(abi.encodePacked(root, '/script/configs/router-guardians.json')), chainId
     );
 
+    address[] memory rescuers = _readAddressArray(
+      string(abi.encodePacked(root, '/script/configs/router-rescuers.json')), chainId
+    );
+
     vm.startBroadcast();
 
-    KSSessionIntentRouter router = new KSSessionIntentRouter(owner, guardians);
+    KSSessionIntentRouter router = new KSSessionIntentRouter(owner, guardians, rescuers);
 
     string memory path = string(abi.encodePacked(root, '/script/deployedAddresses/'));
     _writeAddress(path, 'router', chainId, address(router));

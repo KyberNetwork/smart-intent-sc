@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './Base.s.sol';
+import {SafeERC20} from '@openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol';
 
 contract DCAScript is BaseOnchainScript {
   using SafeERC20 for IERC20;

@@ -73,7 +73,7 @@ contract BaseOnchainScript is BaseScript {
       address owner =
         _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
       vm.startBroadcast(owner);
-      router.updateGuardian(guardian, true);
+      router.grantRole(KSRoles.GUARDIAN_ROLE, guardian);
       vm.stopBroadcast();
     }
 
@@ -134,7 +134,8 @@ contract BaseOnchainScript is BaseScript {
 
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn});
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});

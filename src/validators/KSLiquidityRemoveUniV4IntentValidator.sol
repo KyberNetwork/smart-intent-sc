@@ -2,10 +2,9 @@
 pragma solidity ^0.8.0;
 
 import './base/BaseIntentValidator.sol';
-
-import 'openzeppelin-contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
-import {FullMath} from 'src/libraries/FullMath.sol';
+
+import {Math} from '@openzeppelin-contracts/utils/math/Math.sol';
 import 'src/libraries/StateLibrary.sol';
 import 'src/libraries/TokenLibrary.sol';
 
@@ -66,7 +65,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     uint160 sqrtPriceX96;
   }
 
-  struct ZapOutUniswapV4ValidationData {
+  struct RemoveLiquidityValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
     address[][] outputTokens;
@@ -99,7 +98,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     LocalVar memory localVar;
     Condition[][] calldata conditions =
       _cacheAndDecodeValidationData(coreData.validationData, localVar, index);
-
     _validateTokenData(actionData.tokenData, localVar);
     _validateConditions(conditions, feesCollected, localVar.sqrtPriceX96);
 
@@ -119,11 +117,10 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     require(
       localVar.positionManager.ownerOf(localVar.tokenId) == coreData.mainAddress, InvalidOwner()
     );
-    uint256 liquidityRemoved = localVar.liquidityBefore - liquidityAfter;
-    require(liquidityRemoved > 0, InvalidLiquidity());
+    require(localVar.liquidityBefore - liquidityAfter > 0, InvalidLiquidity());
 
     uint256[] memory outputAmounts = new uint256[](localVar.outputTokens.length);
-    for (uint256 i = 0; i < localVar.outputTokens.length; i++) {
+    for (uint256 i; i < localVar.outputTokens.length; ++i) {
       outputAmounts[i] =
         localVar.outputTokens[i].balanceOf(localVar.recipient) - localVar.tokenBalanceBefore[i];
     }
@@ -138,7 +135,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     require(tokenData.erc721Data.length == 1, InvalidTokenData());
     require(
       localVar.outputTokens[0] != localVar.outputTokens[1]
-        && localVar.outputTokens[0] < localVar.outputTokens[1]
         && localVar.outputTokens.length == OUTPUT_TOKENS
         && localVar.outputTokens.length == localVar.minAmountsOut.length,
       InvalidOutputToken()
@@ -167,14 +163,14 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
   }
 
   function _evaluateConjunction(
-    Condition[] memory conjunction,
+    Condition[] calldata conjunction,
     uint256 feesCollected,
     uint160 sqrtPriceX96
   ) internal pure returns (bool) {
     if (conjunction.length == 0) return true;
 
     bool meetCondition;
-    for (uint256 i = 0; i < conjunction.length; i++) {
+    for (uint256 i; i < conjunction.length; ++i) {
       if (conjunction[i].conditionType == ConditionType.YIELD_BASED) {
         meetCondition =
           _evaluateYieldCondition(conjunction[i].conditionData, feesCollected, sqrtPriceX96);
@@ -189,11 +185,12 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
   }
 
   function _evaluateYieldCondition(
-    bytes memory conditionData,
+    bytes calldata conditionData,
     uint256 feesCollected,
     uint160 sqrtPriceX96
   ) internal pure returns (bool) {
-    YieldBasedCondition memory yieldCondition = abi.decode(conditionData, (YieldBasedCondition));
+    YieldBasedCondition calldata yieldCondition = _decodeYieldCondition(conditionData);
+
     uint256 fee0Collected = feesCollected >> 128;
     uint256 fee1Collected = uint256(uint128(feesCollected));
 
@@ -202,22 +199,22 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
 
     uint256 numerator = fee0Collected + _convertToken1ToToken0(sqrtPriceX96, fee1Collected);
     uint256 denominator = initialAmount0 + _convertToken1ToToken0(sqrtPriceX96, initialAmount1);
-    uint256 yieldBps = (numerator * YIELD_BPS) / denominator;
-
     if (denominator == 0) return false;
+
+    uint256 yieldBps = (numerator * YIELD_BPS) / denominator;
 
     return yieldBps >= yieldCondition.targetYieldBps;
   }
 
-  function _evaluatePriceCondition(bytes memory conditionData, uint160 sqrtPriceX96)
+  function _evaluatePriceCondition(bytes calldata conditionData, uint160 sqrtPriceX96)
     internal
     pure
     returns (bool)
   {
-    PriceBasedCondition memory priceCondition = abi.decode(conditionData, (PriceBasedCondition));
+    PriceBasedCondition calldata priceCondition = _decodePriceCondition(conditionData);
 
-    return
-      sqrtPriceX96 >= priceCondition.minSqrtPrice && sqrtPriceX96 <= priceCondition.maxSqrtPrice;
+    return priceCondition.minSqrtPrice < priceCondition.maxSqrtPrice
+      && sqrtPriceX96 >= priceCondition.minSqrtPrice && sqrtPriceX96 <= priceCondition.maxSqrtPrice;
   }
 
   function _validateOutputAmounts(uint256[] memory outputAmounts, uint256[] memory minAmountsOut)
@@ -243,9 +240,8 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
   {
     // Calculate (sqrtPriceX96)^2
     uint256 sqrtPriceX96Squared = sqrtPriceX96 * sqrtPriceX96;
-
     // amount0 = amount1 * Q192 / sqrtPriceX96Squared
-    amount0 = (amount1 * Q192) / sqrtPriceX96Squared;
+    amount0 = Math.mulDiv(amount1, Q192, sqrtPriceX96Squared);
   }
 
   function _decodeValidatorData(bytes calldata data)
@@ -259,14 +255,34 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     }
   }
 
+  function _decodePriceCondition(bytes calldata data)
+    internal
+    pure
+    returns (PriceBasedCondition calldata priceCondition)
+  {
+    assembly ("memory-safe") {
+      priceCondition := data.offset
+    }
+  }
+
+  function _decodeYieldCondition(bytes calldata data)
+    internal
+    pure
+    returns (YieldBasedCondition calldata yieldCondition)
+  {
+    assembly ("memory-safe") {
+      yieldCondition := data.offset
+    }
+  }
+
   function _cacheAndDecodeValidationData(
     bytes calldata data,
     LocalVar memory localVar,
     uint256 index
   ) internal view returns (Condition[][] calldata conditions) {
-    ZapOutUniswapV4ValidationData calldata validationData;
+    RemoveLiquidityValidationData calldata validationData;
     assembly ("memory-safe") {
-      validationData := add(data.offset, calldataload(add(data.offset, 0x20)))
+      validationData := add(data.offset, calldataload(data.offset))
     }
     conditions = validationData.conditions[index].conditions;
 
@@ -296,7 +312,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     returns (LocalVar calldata localVar)
   {
     assembly ("memory-safe") {
-      localVar := add(data.offset, calldataload(add(data.offset, 0x20)))
+      localVar := add(data.offset, calldataload(data.offset))
     }
   }
 }

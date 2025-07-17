@@ -518,7 +518,8 @@ contract MockActionTest is BaseTest {
     newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
     newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
       token: address(erc20Mock),
-      amount: newTokenData.erc20Data[0].amount
+      amount: newTokenData.erc20Data[0].amount,
+      permitData: ''
     });
     newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](0);
 
@@ -621,12 +622,13 @@ contract MockActionTest is BaseTest {
     newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
     newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
       token: address(erc20Mock),
-      amount: bound(seed, 1, tokenData.erc20Data[0].amount)
+      amount: bound(seed, 1, tokenData.erc20Data[0].amount),
+      permitData: ''
     });
 
     newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
     newTokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed});
+      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed, permitData: ''});
   }
 
   function _getIntentData(uint256 seed)
@@ -661,14 +663,17 @@ contract MockActionTest is BaseTest {
     erc1155Mock.setApprovalForAll(address(router), true);
 
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] =
-      IKSSessionIntentRouter.ERC20Data({token: address(erc20Mock), amount: bound(seed, 1, 1e18)});
+    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
+      token: address(erc20Mock),
+      amount: bound(seed, 1, 1e18),
+      permitData: ''
+    });
     erc20Mock.mint(mainAddress, tokenData.erc20Data[0].amount);
     erc20Mock.approve(address(router), tokenData.erc20Data[0].amount);
 
     tokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
     tokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed});
+      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed, permitData: ''});
     erc721Mock.mint(mainAddress, seed);
     erc721Mock.approve(address(router), seed);
 

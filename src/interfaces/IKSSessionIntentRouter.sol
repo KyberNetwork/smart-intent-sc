@@ -83,20 +83,24 @@ interface IKSSessionIntentRouter {
    * @notice Data structure for ERC20 token
    * @param token The address of the ERC20 token
    * @param amount The amount of the ERC20 token
+   * @param permitData The permit data for the ERC20 token
    */
   struct ERC20Data {
     address token;
     uint256 amount;
+    bytes permitData;
   }
 
   /**
    * @notice Data structure for ERC721 token
    * @param token The address of the ERC721 token
    * @param tokenId The ID of the ERC721 token
+   * @param permitData The permit data for the ERC721 token
    */
   struct ERC721Data {
     address token;
     uint256 tokenId;
+    bytes permitData;
   }
 
   /**

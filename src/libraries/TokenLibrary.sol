@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import './CustomRevert.sol';
-import 'openzeppelin-contracts/interfaces/IERC20.sol';
+import '@openzeppelin-contracts/interfaces/IERC20.sol';
 
 /// @title TokenLibrary
 /// @dev This library allows for transferring, approving and holding native tokens and ERC20 tokens
