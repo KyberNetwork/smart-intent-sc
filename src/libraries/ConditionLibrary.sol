@@ -136,7 +136,7 @@ library ConditionLibrary {
       // amount0 = amount1 * Q192 / sqrtPriceX96^2
       amount0 = Math.mulDiv(amount1, Q192, sqrtPriceX96Squared);
     } else {
-      // amount0 = (amount1 * Q192 / sqrtPriceX96) / sqrtPriceX96 
+      // amount0 = (amount1 * Q192 / sqrtPriceX96) / sqrtPriceX96
       amount0 = Math.mulDiv(Math.mulDiv(amount1, Q192, sqrtPriceX96), 1, sqrtPriceX96);
     }
   }

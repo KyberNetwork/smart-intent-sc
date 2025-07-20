@@ -2,13 +2,13 @@
 pragma solidity ^0.8.0;
 
 import './base/BaseIntentValidator.sol';
-import 'src/interfaces/uniswapv4/IPositionManager.sol';
 
 import 'src/interfaces/IKSConditionBasedValidator.sol';
+import 'src/interfaces/uniswapv4/IPositionManager.sol';
 import 'src/libraries/ConditionLibrary.sol';
 import 'src/libraries/StateLibrary.sol';
 import 'src/libraries/TokenLibrary.sol';
-import 'forge-std/console.sol';
+
 contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSConditionBasedValidator {
   using StateLibrary for IPoolManager;
   using TokenLibrary for address;
@@ -104,9 +104,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     for (uint256 i; i < localVar.outputTokens.length; ++i) {
       outputAmounts[i] =
         localVar.outputTokens[i].balanceOf(localVar.recipient) - localVar.tokenBalanceBefore[i];
-
-      console.log('outputAmounts[i]', outputAmounts[i]);
-      console.log('balanceOf', localVar.outputTokens[i].balanceOf(localVar.recipient));
     }
     _validateOutputAmounts(liquidity, localVar.outputTokens, outputAmounts, localVar.minRates);
   }

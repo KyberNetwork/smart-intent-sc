@@ -119,10 +119,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     conditions[0][1] = IKSConditionBasedValidator.Condition({
       conditionType: ConditionLibrary.TIME_BASED,
       data: abi.encode(
-        TimeCondition({
-          startTimestamp: block.timestamp + 100,
-          endTimestamp: block.timestamp + 200
-        })
+        TimeCondition({startTimestamp: block.timestamp + 100, endTimestamp: block.timestamp + 200})
       )
     });
 
