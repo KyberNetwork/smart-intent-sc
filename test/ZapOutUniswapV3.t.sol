@@ -109,8 +109,6 @@ contract ZapOutUniswapV3Test is BaseTest {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp,
-      endTime: block.timestamp + 1 days,
       actionContracts: _toArray(zapRouter),
       actionSelectors: _toArray(IKSZapRouter.zap.selector),
       validator: address(zapOutValidator),

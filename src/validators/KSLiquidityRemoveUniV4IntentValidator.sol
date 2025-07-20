@@ -4,71 +4,51 @@ pragma solidity ^0.8.0;
 import './base/BaseIntentValidator.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
 
-import {Math} from '@openzeppelin-contracts/utils/math/Math.sol';
+import 'src/interfaces/IKSConditionBasedValidator.sol';
+import 'src/libraries/ConditionLibrary.sol';
 import 'src/libraries/StateLibrary.sol';
 import 'src/libraries/TokenLibrary.sol';
-
-contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
+import 'forge-std/console.sol';
+contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSConditionBasedValidator {
   using StateLibrary for IPoolManager;
   using TokenLibrary for address;
+  using ConditionLibrary for Condition;
 
   error InvalidOwner();
   error InvalidOutputToken();
-  error InvalidOutputAmounts();
-  error ConditionsNotMet();
   error LengthMismatch();
   error InvalidLiquidity();
+  error BelowMinRate(address outputToken, uint256 liquidity, uint256 minRate, uint256 outputAmount);
 
   uint256 public constant OUTPUT_TOKENS = 2;
-  uint256 public constant YIELD_BPS = 10_000;
-  uint256 public constant Q192 = 1 << 192;
-
-  // the time condition is already validated in the router
-  enum ConditionType {
-    YIELD_BASED,
-    PRICE_BASED
-  }
-
-  struct Condition {
-    ConditionType conditionType;
-    bytes conditionData;
-  }
-
-  struct YieldBasedCondition {
-    uint256 targetYieldBps; // Basis points (10000 = 100%)
-    uint256 initialAmounts; // [token0, token1]
-  }
-
-  struct PriceBasedCondition {
-    uint160 minSqrtPrice;
-    uint160 maxSqrtPrice;
-  }
-
-  /**
-   * @dev 2D array for logical expressions represented in Disjunctive Normal Form
-   * Example: (A and B) or (C and D and E) = [[A,B], [C,D,E]]
-   */
-  struct ConditionData {
-    Condition[][] conditions;
-  }
+  uint256 public constant RATE_DENOMINATOR = 1e18;
 
   struct LocalVar {
     address recipient;
     IPositionManager positionManager;
     uint256 tokenId;
     address[] outputTokens;
-    uint256[] minAmountsOut;
+    uint256[] minRates;
     uint256 liquidityBefore;
     uint256[] tokenBalanceBefore;
     uint160 sqrtPriceX96;
   }
 
+  /**
+   * @notice Data structure for remove liquidity validation
+   * @param nftAddresses The NFT addresses
+   * @param nftIds The NFT IDs
+   * @param outputTokens The tokens received after removing liquidity
+   * @param minRates The minimum rates, denominated in 1e18 for each token
+   * @param dnfExpressions The DNF expressions for conditions
+   * @param recipient The recipient
+   */
   struct RemoveLiquidityValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
     address[][] outputTokens;
-    uint256[][] minAmountsOut;
-    ConditionData[] conditions;
+    uint256[][] minRates;
+    DNFExpression[] dnfExpressions;
     address recipient;
   }
 
@@ -96,8 +76,10 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     LocalVar memory localVar;
     Condition[][] calldata conditions =
       _cacheAndDecodeValidationData(coreData.validationData, localVar, index);
-    _validateTokenData(actionData.tokenData, localVar);
-    _validateConditions(conditions, feesCollected, localVar.sqrtPriceX96);
+    _validateLPData(localVar);
+    require(
+      _evaluateConditions(conditions, feesCollected, localVar.sqrtPriceX96), ConditionsNotMet()
+    );
 
     return abi.encode(localVar);
   }
@@ -115,65 +97,82 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     require(
       localVar.positionManager.ownerOf(localVar.tokenId) == coreData.mainAddress, InvalidOwner()
     );
-    require(localVar.liquidityBefore - liquidityAfter > 0, InvalidLiquidity());
+    uint256 liquidity = localVar.liquidityBefore - liquidityAfter;
+    require(liquidity > 0, InvalidLiquidity());
 
     uint256[] memory outputAmounts = new uint256[](localVar.outputTokens.length);
     for (uint256 i; i < localVar.outputTokens.length; ++i) {
       outputAmounts[i] =
         localVar.outputTokens[i].balanceOf(localVar.recipient) - localVar.tokenBalanceBefore[i];
+
+      console.log('outputAmounts[i]', outputAmounts[i]);
+      console.log('balanceOf', localVar.outputTokens[i].balanceOf(localVar.recipient));
     }
-    _validateOutputAmounts(outputAmounts, localVar.minAmountsOut);
+    _validateOutputAmounts(liquidity, localVar.outputTokens, outputAmounts, localVar.minRates);
   }
 
-  function _validateTokenData(
-    IKSSessionIntentRouter.TokenData calldata tokenData,
-    LocalVar memory localVar
-  ) internal view {
-    require(tokenData.erc20Data.length == 0, InvalidTokenData());
-    require(tokenData.erc721Data.length == 1, InvalidTokenData());
+  /// @inheritdoc IKSConditionBasedValidator
+  function validateConditions(DNFExpression calldata dnfExpression, bytes calldata additionalData)
+    external
+    view
+    returns (bool)
+  {
+    uint256 feesCollected;
+    uint160 sqrtPriceX96;
+    assembly ("memory-safe") {
+      feesCollected := calldataload(additionalData.offset)
+      sqrtPriceX96 := calldataload(add(additionalData.offset, 0x20))
+    }
+    return _evaluateConditions(dnfExpression.conditions, feesCollected, sqrtPriceX96);
+  }
+
+  function _validateLPData(LocalVar memory localVar) internal view {
     require(
       localVar.outputTokens[0] != localVar.outputTokens[1]
-        && localVar.outputTokens.length == OUTPUT_TOKENS
-        && localVar.outputTokens.length == localVar.minAmountsOut.length,
+        && localVar.outputTokens.length <= OUTPUT_TOKENS
+        && localVar.outputTokens.length == localVar.minRates.length,
       InvalidOutputToken()
     );
     require(localVar.liquidityBefore > 0, InvalidLiquidity());
   }
 
-  function _validateConditions(
+  function _evaluateConditions(
     Condition[][] calldata conditions,
     uint256 feesCollected,
     uint160 sqrtPriceX96
-  ) internal pure {
-    if (conditions.length == 0) return;
+  ) internal view returns (bool) {
+    if (conditions.length == 0) return true;
 
     // each condition is a disjunction (or) of conjunctions (and)
     for (uint256 i; i < conditions.length; ++i) {
       if (_evaluateConjunction(conditions[i], feesCollected, sqrtPriceX96)) {
-        return;
+        return true;
       } else {
         // if false, continue to the next condition
         continue;
       }
     }
 
-    revert ConditionsNotMet();
+    return false;
   }
 
   function _evaluateConjunction(
     Condition[] calldata conjunction,
     uint256 feesCollected,
     uint160 sqrtPriceX96
-  ) internal pure returns (bool) {
+  ) internal view returns (bool) {
     if (conjunction.length == 0) return true;
 
     bool meetCondition;
     for (uint256 i; i < conjunction.length; ++i) {
-      if (conjunction[i].conditionType == ConditionType.YIELD_BASED) {
-        meetCondition =
-          _evaluateYieldCondition(conjunction[i].conditionData, feesCollected, sqrtPriceX96);
-      } else if (conjunction[i].conditionType == ConditionType.PRICE_BASED) {
-        meetCondition = _evaluatePriceCondition(conjunction[i].conditionData, sqrtPriceX96);
+      if (conjunction[i].isType(ConditionLibrary.YIELD_BASED)) {
+        meetCondition = conjunction[i].evaluateUniV4YieldCondition(feesCollected, sqrtPriceX96);
+      } else if (conjunction[i].isType(ConditionLibrary.PRICE_BASED)) {
+        meetCondition = conjunction[i].evaluateUniV4PriceCondition(sqrtPriceX96);
+      } else if (conjunction[i].isType(ConditionLibrary.TIME_BASED)) {
+        meetCondition = conjunction[i].evaluateTimeCondition();
+      } else {
+        revert ConditionLibrary.WrongConditionType();
       }
       if (!meetCondition) {
         return false;
@@ -182,46 +181,18 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     return true;
   }
 
-  function _evaluateYieldCondition(
-    bytes calldata conditionData,
-    uint256 feesCollected,
-    uint160 sqrtPriceX96
-  ) internal pure returns (bool) {
-    YieldBasedCondition calldata yieldCondition = _decodeYieldCondition(conditionData);
-
-    uint256 fee0Collected = feesCollected >> 128;
-    uint256 fee1Collected = uint256(uint128(feesCollected));
-
-    uint256 initialAmount0 = yieldCondition.initialAmounts >> 128;
-    uint256 initialAmount1 = uint256(uint128(yieldCondition.initialAmounts));
-
-    uint256 numerator = fee0Collected + _convertToken1ToToken0(sqrtPriceX96, fee1Collected);
-    uint256 denominator = initialAmount0 + _convertToken1ToToken0(sqrtPriceX96, initialAmount1);
-    if (denominator == 0) return false;
-
-    uint256 yieldBps = (numerator * YIELD_BPS) / denominator;
-
-    return yieldBps >= yieldCondition.targetYieldBps;
-  }
-
-  function _evaluatePriceCondition(bytes calldata conditionData, uint160 sqrtPriceX96)
-    internal
-    pure
-    returns (bool)
-  {
-    PriceBasedCondition calldata priceCondition = _decodePriceCondition(conditionData);
-
-    return priceCondition.minSqrtPrice < priceCondition.maxSqrtPrice
-      && sqrtPriceX96 >= priceCondition.minSqrtPrice && sqrtPriceX96 <= priceCondition.maxSqrtPrice;
-  }
-
-  function _validateOutputAmounts(uint256[] memory outputAmounts, uint256[] memory minAmountsOut)
-    internal
-    pure
-  {
-    require(outputAmounts.length == minAmountsOut.length, LengthMismatch());
+  function _validateOutputAmounts(
+    uint256 liquidity,
+    address[] calldata outputTokens,
+    uint256[] memory outputAmounts,
+    uint256[] calldata minRates
+  ) internal pure {
+    require(outputAmounts.length == minRates.length, LengthMismatch());
     for (uint256 i; i < outputAmounts.length; ++i) {
-      require(outputAmounts[i] >= minAmountsOut[i], InvalidOutputAmounts());
+      require(
+        outputAmounts[i] * RATE_DENOMINATOR >= minRates[i] * liquidity,
+        BelowMinRate(outputTokens[i], liquidity, minRates[i], outputAmounts[i])
+      );
     }
   }
 
@@ -229,17 +200,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     assembly {
       poolId := keccak256(poolKey, 0xa0)
     }
-  }
-
-  function _convertToken1ToToken0(uint256 sqrtPriceX96, uint256 amount1)
-    internal
-    pure
-    returns (uint256 amount0)
-  {
-    // Calculate (sqrtPriceX96)^2
-    uint256 sqrtPriceX96Squared = sqrtPriceX96 * sqrtPriceX96;
-    // amount0 = amount1 * Q192 / sqrtPriceX96Squared
-    amount0 = Math.mulDiv(amount1, Q192, sqrtPriceX96Squared);
   }
 
   function _decodeValidatorData(bytes calldata data)
@@ -253,26 +213,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     }
   }
 
-  function _decodePriceCondition(bytes calldata data)
-    internal
-    pure
-    returns (PriceBasedCondition calldata priceCondition)
-  {
-    assembly ("memory-safe") {
-      priceCondition := data.offset
-    }
-  }
-
-  function _decodeYieldCondition(bytes calldata data)
-    internal
-    pure
-    returns (YieldBasedCondition calldata yieldCondition)
-  {
-    assembly ("memory-safe") {
-      yieldCondition := data.offset
-    }
-  }
-
   function _cacheAndDecodeValidationData(
     bytes calldata data,
     LocalVar memory localVar,
@@ -282,13 +222,13 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator {
     assembly ("memory-safe") {
       validationData := add(data.offset, calldataload(data.offset))
     }
-    conditions = validationData.conditions[index].conditions;
+    conditions = validationData.dnfExpressions[index].conditions;
 
     localVar.recipient = validationData.recipient;
     localVar.positionManager = IPositionManager(validationData.nftAddresses[index]);
     localVar.tokenId = validationData.nftIds[index];
     localVar.outputTokens = validationData.outputTokens[index];
-    localVar.minAmountsOut = validationData.minAmountsOut[index];
+    localVar.minRates = validationData.minRates[index];
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
     localVar.tokenBalanceBefore = new uint256[](localVar.outputTokens.length);
     for (uint256 i; i < localVar.outputTokens.length; ++i) {

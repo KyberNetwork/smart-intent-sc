@@ -70,8 +70,6 @@ contract SwapTest is BaseTest {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp + 10,
-      endTime: block.timestamp + 1 days,
       actionContracts: _toArray(swapRouter),
       actionSelectors: _toArray(IKSSwapRouter.swap.selector),
       validator: address(swapValidator),

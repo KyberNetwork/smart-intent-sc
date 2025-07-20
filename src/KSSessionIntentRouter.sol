@@ -172,9 +172,7 @@ contract KSSessionIntentRouter is
   ) internal nonReentrant {
     IntentCoreData storage intent = intents[intentHash];
     require(intent.mainAddress != DEAD_ADDRESS, IntentRevoked());
-    require(block.timestamp >= intent.startTime, ExecuteTooEarly());
-    require(block.timestamp <= intent.endTime, ExecuteTooLate());
-    require(block.timestamp <= actionData.deadline, ExecuteTooLate());
+    require(block.timestamp <= actionData.deadline, ActionExpired());
     require(
       actionData.actionSelectorId < intent.actionContracts.length,
       InvalidActionSelectorId(actionData.actionSelectorId)

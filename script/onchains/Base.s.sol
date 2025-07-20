@@ -124,8 +124,6 @@ contract BaseOnchainScript is BaseScript {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainWallet,
       delegatedAddress: sessionWallet,
-      startTime: startTime,
-      endTime: endTime,
       actionContracts: _toArray(swapRouter),
       actionSelectors: _toArray(selector),
       validator: validator,

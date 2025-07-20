@@ -71,23 +71,18 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
   function testRevert_NotMeetConditions_YieldBased(bool withPermit) public {
     // pass price based condition, but fail yield based condition
-    KSLiquidityRemoveUniV4IntentValidator.Condition[][] memory conditions =
-      new KSLiquidityRemoveUniV4IntentValidator.Condition[][](1);
-    conditions[0] = new KSLiquidityRemoveUniV4IntentValidator.Condition[](2);
-    conditions[0][0] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-      conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.PRICE_BASED,
-      conditionData: abi.encode(
-        KSLiquidityRemoveUniV4IntentValidator.PriceBasedCondition({
-          minSqrtPrice: 0,
-          maxSqrtPrice: type(uint160).max
-        })
-      )
+    IKSConditionBasedValidator.Condition[][] memory conditions =
+      new IKSConditionBasedValidator.Condition[][](1);
+    conditions[0] = new IKSConditionBasedValidator.Condition[](2);
+    conditions[0][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.PRICE_BASED,
+      data: abi.encode(PriceCondition({minPrice: 0, maxPrice: type(uint160).max}))
     });
 
-    conditions[0][1] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-      conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.YIELD_BASED,
-      conditionData: abi.encode(
-        KSLiquidityRemoveUniV4IntentValidator.YieldBasedCondition({
+    conditions[0][1] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.YIELD_BASED,
+      data: abi.encode(
+        YieldCondition({
           targetYieldBps: 10_000,
           initialAmounts: uint256(10_000 ether) << 128 | uint256(10_000e6)
         })
@@ -107,30 +102,26 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     vm.warp(block.timestamp + 100);
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.ConditionsNotMet.selector);
+    vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testRevert_NotMeetConditions_PriceBased(bool withPermit) public {
-    KSLiquidityRemoveUniV4IntentValidator.Condition[][] memory conditions =
-      new KSLiquidityRemoveUniV4IntentValidator.Condition[][](1);
-    conditions[0] = new KSLiquidityRemoveUniV4IntentValidator.Condition[](2);
-    conditions[0][0] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-      conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.PRICE_BASED,
-      conditionData: abi.encode(
-        KSLiquidityRemoveUniV4IntentValidator.PriceBasedCondition({
-          minSqrtPrice: currentPrice + 100,
-          maxSqrtPrice: currentPrice + 1000
-        })
-      )
+  function testRevert_NotMeetConditions_TimeBased(bool withPermit) public {
+    // pass price based condition, but fail time based condition
+    IKSConditionBasedValidator.Condition[][] memory conditions =
+      new IKSConditionBasedValidator.Condition[][](1);
+    conditions[0] = new IKSConditionBasedValidator.Condition[](2);
+    conditions[0][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.PRICE_BASED,
+      data: abi.encode(PriceCondition({minPrice: 0, maxPrice: type(uint160).max}))
     });
 
-    conditions[0][1] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-      conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.YIELD_BASED,
-      conditionData: abi.encode(
-        KSLiquidityRemoveUniV4IntentValidator.YieldBasedCondition({
-          targetYieldBps: 0,
-          initialAmounts: uint256(1 ether) << 128 | uint256(1000e6)
+    conditions[0][1] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.TIME_BASED,
+      data: abi.encode(
+        TimeCondition({
+          startTimestamp: block.timestamp + 100,
+          endTimestamp: block.timestamp + 200
         })
       )
     });
@@ -145,31 +136,57 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    vm.warp(block.timestamp + 100);
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.ConditionsNotMet.selector);
+    vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testRevert_NotMeetConditions_PriceBased(bool withPermit) public {
+    IKSConditionBasedValidator.Condition[][] memory conditions =
+      new IKSConditionBasedValidator.Condition[][](1);
+    conditions[0] = new IKSConditionBasedValidator.Condition[](2);
+    conditions[0][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.PRICE_BASED,
+      data: abi.encode(PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000}))
+    });
+
+    conditions[0][1] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.YIELD_BASED,
+      data: abi.encode(
+        YieldCondition({targetYieldBps: 0, initialAmounts: uint256(1 ether) << 128 | uint256(1000e6)})
+      )
+    });
+
+    IKSSessionIntentRouter.IntentData memory intentData =
+      _getIntentData(withPermit, abi.encode(conditions), '');
+
+    _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+    vm.startPrank(caller);
+    vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_FailFirstConjunction_PassSecondOne() public {
-    KSLiquidityRemoveUniV4IntentValidator.Condition[][] memory conditions =
-      new KSLiquidityRemoveUniV4IntentValidator.Condition[][](2);
-    conditions[0] = new KSLiquidityRemoveUniV4IntentValidator.Condition[](1);
-    conditions[0][0] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-      conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.PRICE_BASED,
-      conditionData: abi.encode(
-        KSLiquidityRemoveUniV4IntentValidator.PriceBasedCondition({
-          minSqrtPrice: currentPrice + 100,
-          maxSqrtPrice: currentPrice + 1000
-        })
-      )
+    IKSConditionBasedValidator.Condition[][] memory conditions =
+      new IKSConditionBasedValidator.Condition[][](2);
+    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
+    conditions[0][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.PRICE_BASED,
+      data: abi.encode(PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000}))
     });
-    conditions[1] = new KSLiquidityRemoveUniV4IntentValidator.Condition[](1);
-    conditions[1][0] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-      conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.YIELD_BASED,
-      conditionData: abi.encode(
-        KSLiquidityRemoveUniV4IntentValidator.YieldBasedCondition({
+    conditions[1] = new IKSConditionBasedValidator.Condition[](1);
+    conditions[1][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.YIELD_BASED,
+      data: abi.encode(
+        YieldCondition({
           targetYieldBps: 1000, //10%
           initialAmounts: uint256(1 ether) << 128 | uint256(1000e6) //3435
         })
@@ -186,7 +203,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    vm.warp(block.timestamp + 100);
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
@@ -201,7 +217,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     bytes memory maSignature = _getMASignature(intentData);
 
-    vm.warp(block.timestamp + 100);
     vm.startPrank(caller);
     router.executeWithSignedIntent(
       intentData, maSignature, daSignature, guardian, gdSignature, actionData
@@ -209,26 +224,33 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function testRevert_validationAfterExecution_fail() public {
-    uint256[] memory minAmountsOut = new uint256[](2);
-    minAmountsOut[0] = type(uint256).max;
-    minAmountsOut[1] = type(uint256).max;
+    uint256[] memory minRates = new uint256[](2);
+    minRates[0] = 1000e18;
+    minRates[1] = 1000e18;
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(true, '', abi.encode(minAmountsOut));
+      _getIntentData(true, '', abi.encode(minRates));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    vm.warp(block.timestamp + 100);
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmounts.selector);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        KSLiquidityRemoveUniV4IntentValidator.BelowMinRate.selector,
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
+        462_184_977_316_107,
+        1_000_000_000_000_000_000_000,
+        896_297_942_674_629
+      )
+    );
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function _getIntentData(bool withPermit, bytes memory conditions, bytes memory minAmountsOut)
+  function _getIntentData(bool withPermit, bytes memory conditions, bytes memory minRates)
     internal
     returns (IKSSessionIntentRouter.IntentData memory intentData)
   {
@@ -241,57 +263,50 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     validationData.outputTokens[0] = new address[](2);
     validationData.outputTokens[0][0] = token0;
     validationData.outputTokens[0][1] = token1;
-    if (minAmountsOut.length > 0) {
-      uint256[] memory minAmountsOut = abi.decode(minAmountsOut, (uint256[]));
-      validationData.minAmountsOut = new uint256[][](1);
-      validationData.minAmountsOut[0] = minAmountsOut;
+    if (minRates.length > 0) {
+      uint256[] memory minRates = abi.decode(minRates, (uint256[]));
+      validationData.minRates = new uint256[][](1);
+      validationData.minRates[0] = minRates;
     } else {
-      validationData.minAmountsOut = new uint256[][](1);
-      validationData.minAmountsOut[0] = new uint256[](2);
-      validationData.minAmountsOut[0][0] = 1000;
-      validationData.minAmountsOut[0][1] = 1000;
+      validationData.minRates = new uint256[][](1);
+      validationData.minRates[0] = new uint256[](2);
+      validationData.minRates[0][0] = 1;
+      validationData.minRates[0][1] = 1;
     }
 
     validationData.recipient = mainAddress;
 
     if (conditions.length == 0) {
-      KSLiquidityRemoveUniV4IntentValidator.Condition[][] memory conditions =
-        new KSLiquidityRemoveUniV4IntentValidator.Condition[][](1);
+      IKSConditionBasedValidator.Condition[][] memory conditions =
+        new IKSConditionBasedValidator.Condition[][](1);
 
-      conditions[0] = new KSLiquidityRemoveUniV4IntentValidator.Condition[](2);
-      conditions[0][0] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-        conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.YIELD_BASED,
-        conditionData: abi.encode(
-          KSLiquidityRemoveUniV4IntentValidator.YieldBasedCondition({
+      conditions[0] = new IKSConditionBasedValidator.Condition[](2);
+      conditions[0][0] = IKSConditionBasedValidator.Condition({
+        conditionType: ConditionLibrary.YIELD_BASED,
+        data: abi.encode(
+          YieldCondition({
             targetYieldBps: 0,
             initialAmounts: uint256(0.5 ether) << 128 | uint256(100e6)
           })
         )
       });
 
-      conditions[0][1] = KSLiquidityRemoveUniV4IntentValidator.Condition({
-        conditionType: KSLiquidityRemoveUniV4IntentValidator.ConditionType.PRICE_BASED,
-        conditionData: abi.encode(
-          KSLiquidityRemoveUniV4IntentValidator.PriceBasedCondition({
-            minSqrtPrice: 0,
-            maxSqrtPrice: type(uint160).max
-          })
-        )
+      conditions[0][1] = IKSConditionBasedValidator.Condition({
+        conditionType: ConditionLibrary.PRICE_BASED,
+        data: abi.encode(PriceCondition({minPrice: 0, maxPrice: type(uint160).max}))
       });
-      validationData.conditions = new KSLiquidityRemoveUniV4IntentValidator.ConditionData[](1);
-      validationData.conditions[0].conditions = conditions;
+      validationData.dnfExpressions = new IKSConditionBasedValidator.DNFExpression[](1);
+      validationData.dnfExpressions[0].conditions = conditions;
     } else {
-      KSLiquidityRemoveUniV4IntentValidator.Condition[][] memory conditions =
-        abi.decode(conditions, (KSLiquidityRemoveUniV4IntentValidator.Condition[][]));
-      validationData.conditions = new KSLiquidityRemoveUniV4IntentValidator.ConditionData[](1);
-      validationData.conditions[0].conditions = conditions;
+      IKSConditionBasedValidator.Condition[][] memory conditions =
+        abi.decode(conditions, (IKSConditionBasedValidator.Condition[][]));
+      validationData.dnfExpressions = new IKSConditionBasedValidator.DNFExpression[](1);
+      validationData.dnfExpressions[0].conditions = conditions;
     }
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp + 10,
-      endTime: block.timestamp + 1 days,
       actionContracts: _toArray(address(mockActionContract)),
       actionSelectors: _toArray(MockActionContract.removeUniswapV4.selector),
       validator: address(rmLqValidator),

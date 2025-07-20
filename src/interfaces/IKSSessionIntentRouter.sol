@@ -5,11 +5,8 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when the caller is not the main address
   error NotMainAddress();
 
-  /// @notice Thrown when executing the intent before the start time
-  error ExecuteTooEarly();
-
-  /// @notice Thrown when executing the intent after the end time
-  error ExecuteTooLate();
+  /// @notice Thrown when the action is expired
+  error ActionExpired();
 
   /// @notice Thrown when the intent has already existed or has been revoked
   error IntentExistedOrRevoked();
@@ -131,8 +128,6 @@ interface IKSSessionIntentRouter {
    * @notice Data structure for core components of intent
    * @param mainAddress The main address
    * @param delegatedAddress The delegated address
-   * @param startTime The start time of the intent
-   * @param endTime The end time of the intent
    * @param actionContracts The addresses of the action contracts
    * @param actionSelectors The selectors of the action functions
    * @param validator The address of the validator
@@ -141,8 +136,6 @@ interface IKSSessionIntentRouter {
   struct IntentCoreData {
     address mainAddress;
     address delegatedAddress;
-    uint256 startTime;
-    uint256 endTime;
     address[] actionContracts;
     bytes4[] actionSelectors;
     address validator;
