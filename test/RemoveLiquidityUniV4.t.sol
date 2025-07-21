@@ -171,6 +171,78 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
+  function test_RemoveSuccess_PriceBased(bool withPermit) public {
+    IKSConditionBasedValidator.Condition[][] memory conditions =
+      new IKSConditionBasedValidator.Condition[][](2);
+    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
+    conditions[0][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.YIELD_BASED,
+      data: abi.encode(
+        YieldCondition({
+          targetYieldBps: 0,
+          initialAmounts: uint256(1 ether) << 128 | uint256(1000e6) //3435
+        })
+      )
+    });
+
+    conditions[1] = new IKSConditionBasedValidator.Condition[](1);
+    conditions[1][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.PRICE_BASED,
+      data: abi.encode(PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000}))
+    });
+
+    IKSSessionIntentRouter.IntentData memory intentData =
+      _getIntentData(withPermit, abi.encode(conditions), '');
+
+    _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+    vm.startPrank(caller);
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function test_RemoveSuccess_TimeBased(bool withPermit) public {
+    IKSConditionBasedValidator.Condition[][] memory conditions =
+      new IKSConditionBasedValidator.Condition[][](2);
+    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
+    conditions[0][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.YIELD_BASED,
+      data: abi.encode(
+        YieldCondition({
+          targetYieldBps: 0,
+          initialAmounts: uint256(1 ether) << 128 | uint256(1000e6) //3435
+        })
+      )
+    });
+
+    conditions[1] = new IKSConditionBasedValidator.Condition[](1);
+    conditions[1][0] = IKSConditionBasedValidator.Condition({
+      conditionType: ConditionLibrary.TIME_BASED,
+      data: abi.encode(
+        TimeCondition({startTimestamp: block.timestamp - 100, endTimestamp: block.timestamp + 200})
+      )
+    });
+
+    IKSSessionIntentRouter.IntentData memory intentData =
+      _getIntentData(withPermit, abi.encode(conditions), '');
+
+    _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+    vm.startPrank(caller);
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
   function test_RemoveSuccess_FailFirstConjunction_PassSecondOne() public {
     IKSConditionBasedValidator.Condition[][] memory conditions =
       new IKSConditionBasedValidator.Condition[][](2);

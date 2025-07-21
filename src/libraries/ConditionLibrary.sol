@@ -43,7 +43,7 @@ library ConditionLibrary {
   ConditionType public constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
 
   uint256 public constant YIELD_BPS = 10_000;
-  uint256 public constant Q192 = 1 << 192;
+  uint256 public constant Q96 = 1 << 96;
 
   function evaluateTimeCondition(IKSConditionBasedValidator.Condition calldata condition)
     internal
@@ -130,14 +130,6 @@ library ConditionLibrary {
     pure
     returns (uint256 amount0)
   {
-    // Calculate (sqrtPriceX96)^2
-    (bool success, uint256 sqrtPriceX96Squared) = Math.tryMul(sqrtPriceX96, sqrtPriceX96);
-    if (success) {
-      // amount0 = amount1 * Q192 / sqrtPriceX96^2
-      amount0 = Math.mulDiv(amount1, Q192, sqrtPriceX96Squared);
-    } else {
-      // amount0 = (amount1 * Q192 / sqrtPriceX96) / sqrtPriceX96
-      amount0 = Math.mulDiv(Math.mulDiv(amount1, Q192, sqrtPriceX96), 1, sqrtPriceX96);
-    }
+    amount0 = Math.mulDiv(Math.mulDiv(amount1, Q96, sqrtPriceX96), Q96, sqrtPriceX96);
   }
 }
