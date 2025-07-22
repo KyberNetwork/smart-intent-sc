@@ -3,11 +3,11 @@ pragma solidity ^0.8.0;
 
 import '@openzeppelin-contracts/token/ERC20/IERC20.sol';
 
-import '../libraries/TokenLibrary.sol';
 import './base/BaseStatefulIntentValidator.sol';
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
 contract KSTimeBasedDCAIntentValidator is BaseStatefulIntentValidator {
-  using TokenLibrary for address;
+  using TokenHelper for address;
 
   error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
   error InvalidExecutionTime(uint256 startTime, uint256 endTime, uint256 currentTime);

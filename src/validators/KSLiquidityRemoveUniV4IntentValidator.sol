@@ -2,22 +2,20 @@
 pragma solidity ^0.8.0;
 
 import './base/BaseIntentValidator.sol';
+
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
 import 'src/interfaces/IKSConditionBasedValidator.sol';
 import 'src/libraries/ConditionLibrary.sol';
-import 'src/libraries/TokenLibrary.sol';
 import 'src/libraries/univ4/StateLibrary.sol';
 
 contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSConditionBasedValidator {
   using StateLibrary for IPoolManager;
-  using TokenLibrary for address;
+  using TokenHelper for address;
   using ConditionLibrary for Condition;
 
   error InvalidOwner();
   error InvalidLiquidity();
   error InvalidOutputAmount();
-
-  uint256 public constant MIN_PERCENT = 99;
-  uint256 public constant MAX_PERCENT = 100;
 
   /**
    * @notice Local variables for remove liquidity validation
@@ -26,6 +24,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
    * @param tokenId The token ID
    * @param outputTokens The tokens received after removing liquidity
    * @param tokenBalanceBefore The token balance before removing liquidity
+   * @param minPercentsBps The minimum percents for the output tokens compared to the expected amounts (10000 = 100%)
    * @param liquidity The liquidity to remove
    * @param liquidityBefore The liquidity before removing liquidity
    * @param sqrtPriceX96 The sqrt price X96 of the pool
@@ -38,6 +37,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     uint256 tokenId;
     address[] outputTokens;
     uint256[] tokenBalanceBefore;
+    uint256 minPercentsBps;
     uint256 liquidity;
     uint256 liquidityBefore;
     uint160 sqrtPriceX96;
@@ -51,6 +51,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
    * @param nftIds The NFT IDs
    * @param outputTokens The tokens received after removing liquidity
    * @param dnfExpressions The DNF expressions for conditions
+   * @param minPercentsBps The minimum percents for the output tokens compared to the expected amounts (10000 = 100%)
    * @param recipient The recipient
    */
   struct RemoveLiquidityValidationData {
@@ -58,6 +59,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     uint256[] nftIds;
     address[][] outputTokens;
     DNFExpression[] dnfExpressions;
+    uint256[] minPercentsBps;
     address recipient;
   }
 
@@ -101,12 +103,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     );
 
     require(
-      _evaluateConditions(
-        conditions,
-        fee0Unclaimed + fee0Collected,
-        fee1Unclaimed + fee1Collected,
-        localVar.sqrtPriceX96
-      ),
+      _evaluateConditions(conditions, fee0Collected, fee1Collected, localVar.sqrtPriceX96),
       ConditionsNotMet()
     );
     localVar.amount0 += fee0Unclaimed;
@@ -207,15 +204,18 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
   {
     (PoolKey memory poolKey,) = localVar.positionManager.getPoolAndPositionInfo(localVar.tokenId);
     poolKey.currency0 =
-      poolKey.currency0 == address(0) ? TokenLibrary.NATIVE_ADDRESS : poolKey.currency0;
+      poolKey.currency0 == address(0) ? TokenHelper.NATIVE_ADDRESS : poolKey.currency0;
     poolKey.currency1 =
-      poolKey.currency1 == address(0) ? TokenLibrary.NATIVE_ADDRESS : poolKey.currency1;
+      poolKey.currency1 == address(0) ? TokenHelper.NATIVE_ADDRESS : poolKey.currency1;
 
     for (uint256 i; i < localVar.outputTokens.length; ++i) {
       uint256 amount =
         localVar.outputTokens[i] == poolKey.currency0 ? localVar.amount0 : localVar.amount1;
 
-      require(outputAmounts[i] * MAX_PERCENT >= amount * MIN_PERCENT, InvalidOutputAmount());
+      require(
+        outputAmounts[i] * ConditionLibrary.BPS >= amount * localVar.minPercentsBps,
+        InvalidOutputAmount()
+      );
     }
   }
 
@@ -232,6 +232,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     localVar.tokenId = validationData.nftIds[index];
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
     localVar.outputTokens = validationData.outputTokens[index];
+    localVar.minPercentsBps = validationData.minPercentsBps[index];
     localVar.tokenBalanceBefore = new uint256[](localVar.outputTokens.length);
     for (uint256 i; i < localVar.outputTokens.length; ++i) {
       localVar.tokenBalanceBefore[i] = localVar.outputTokens[i].balanceOf(localVar.recipient);

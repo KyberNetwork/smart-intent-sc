@@ -52,7 +52,7 @@ library StateLibrary {
       uint160 sqrtPriceLower = TickMath.getSqrtRatioAtTick(tickLower);
       uint160 sqrtPriceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
       (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96, sqrtPriceLower, sqrtPriceUpper, liquidityToRemove
+        sqrtPriceX96, sqrtPriceLower, sqrtPriceUpper, uint128(liquidityToRemove)
       );
     }
     bytes32 positionKey = StateLibrary.calculatePositionKey(

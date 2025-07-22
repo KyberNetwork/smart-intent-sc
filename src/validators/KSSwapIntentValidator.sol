@@ -2,11 +2,12 @@
 pragma solidity ^0.8.0;
 
 import '../interfaces/IKSSwapRouter.sol';
-import '../libraries/TokenLibrary.sol';
+
 import './base/BaseIntentValidator.sol';
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
 contract KSSwapIntentValidator is BaseIntentValidator {
-  using TokenLibrary for address;
+  using TokenHelper for address;
 
   error InvalidSwapPair();
 

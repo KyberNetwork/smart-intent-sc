@@ -3,13 +3,14 @@ pragma solidity ^0.8.0;
 
 import '../interfaces/IKSSwapRouter.sol';
 import '../interfaces/uniswapv2/IUniswapV2Pair.sol';
-import '../libraries/TokenLibrary.sol';
+
 import './base/BaseIntentValidator.sol';
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
 import '@openzeppelin-contracts/token/ERC20/IERC20.sol';
 
 contract KSZapOutUniswapV2IntentValidator is BaseIntentValidator {
-  using TokenLibrary for address;
+  using TokenHelper for address;
 
   error InvalidSwapPair();
 

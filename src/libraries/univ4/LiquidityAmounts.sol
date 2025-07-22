@@ -32,19 +32,6 @@ library LiquidityAmounts {
     return toUint128(Math.mulDiv(amount0, intermediate, sqrtRatioBX96 - sqrtRatioAX96));
   }
 
-  /// @notice Computes the amount
-  function getLiquidityForAmount0Uint256(
-    uint160 sqrtRatioAX96,
-    uint160 sqrtRatioBX96,
-    uint256 amount0
-  ) internal pure returns (uint256 liquidity) {
-    if (sqrtRatioAX96 > sqrtRatioBX96) {
-      (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
-    }
-    uint256 intermediate = Math.mulDiv(sqrtRatioAX96, sqrtRatioBX96, FixedPoint96.Q96);
-    return Math.mulDiv(amount0, intermediate, sqrtRatioBX96 - sqrtRatioAX96);
-  }
-
   /// @notice Computes the amount of liquidity received for a given amount of token1 and price range
   /// @dev Calculates amount1 / (sqrt(upper) - sqrt(lower)).
   /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
@@ -60,17 +47,6 @@ library LiquidityAmounts {
       (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
     }
     return toUint128(Math.mulDiv(amount1, FixedPoint96.Q96, sqrtRatioBX96 - sqrtRatioAX96));
-  }
-
-  function getLiquidityForAmount1Uint256(
-    uint160 sqrtRatioAX96,
-    uint160 sqrtRatioBX96,
-    uint256 amount1
-  ) internal pure returns (uint256 liquidity) {
-    if (sqrtRatioAX96 > sqrtRatioBX96) {
-      (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
-    }
-    return Math.mulDiv(amount1, FixedPoint96.Q96, sqrtRatioBX96 - sqrtRatioAX96);
   }
 
   /// @notice Computes the maximum amount of liquidity received for a given amount of token0, token1, the current
@@ -109,7 +85,7 @@ library LiquidityAmounts {
   /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
   /// @param liquidity The liquidity being valued
   /// @return amount0 The amount of token0
-  function getAmount0ForLiquidity(uint160 sqrtRatioAX96, uint160 sqrtRatioBX96, uint256 liquidity)
+  function getAmount0ForLiquidity(uint160 sqrtRatioAX96, uint160 sqrtRatioBX96, uint128 liquidity)
     internal
     pure
     returns (uint256 amount0)
@@ -119,7 +95,7 @@ library LiquidityAmounts {
     }
 
     return Math.mulDiv(
-      liquidity << FixedPoint96.RESOLUTION, sqrtRatioBX96 - sqrtRatioAX96, sqrtRatioBX96
+      uint256(liquidity) << FixedPoint96.RESOLUTION, sqrtRatioBX96 - sqrtRatioAX96, sqrtRatioBX96
     ) / sqrtRatioAX96;
   }
 
@@ -128,7 +104,7 @@ library LiquidityAmounts {
   /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
   /// @param liquidity The liquidity being valued
   /// @return amount1 The amount of token1
-  function getAmount1ForLiquidity(uint160 sqrtRatioAX96, uint160 sqrtRatioBX96, uint256 liquidity)
+  function getAmount1ForLiquidity(uint160 sqrtRatioAX96, uint160 sqrtRatioBX96, uint128 liquidity)
     internal
     pure
     returns (uint256 amount1)
@@ -152,7 +128,7 @@ library LiquidityAmounts {
     uint160 sqrtRatioX96,
     uint160 sqrtRatioAX96,
     uint160 sqrtRatioBX96,
-    uint256 liquidity
+    uint128 liquidity
   ) internal pure returns (uint256 amount0, uint256 amount1) {
     if (sqrtRatioAX96 > sqrtRatioBX96) {
       (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);

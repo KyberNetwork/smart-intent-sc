@@ -42,7 +42,7 @@ library ConditionLibrary {
   ConditionType public constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));
   ConditionType public constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
 
-  uint256 public constant YIELD_BPS = 10_000;
+  uint256 public constant BPS = 10_000;
   uint256 public constant Q96 = 1 << 96;
 
   function evaluateTimeCondition(IKSConditionBasedValidator.Condition calldata condition)
@@ -71,7 +71,7 @@ library ConditionLibrary {
     uint256 denominator = initialAmount0 + convertToken1ToToken0(sqrtPriceX96, initialAmount1);
     if (denominator == 0) return false;
 
-    uint256 yieldBps = (numerator * YIELD_BPS) / denominator;
+    uint256 yieldBps = (numerator * BPS) / denominator;
 
     return yieldBps >= yieldCondition.targetYieldBps;
   }
