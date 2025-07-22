@@ -18,9 +18,16 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   int24 tickUpper;
   int24 currentTick;
   uint160 currentPrice;
-
+  uint256 liquidity;
   address token0 = TokenHelper.NATIVE_ADDRESS;
   address token1 = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+  uint256 fee0 = 0.1 ether;
+  uint256 fee1 = 400e6;
+  address nftOwner;
+  uint256 constant MAGIC_NUMBER_NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
+  uint256 constant MAGIC_NUMBER_TRANSFER_99PERCENT = uint256(keccak256('99PERCENT'));
+  uint256 constant MAGIC_NUMBER_TRANSFER_98PERCENT = uint256(keccak256('98PERCENT'));
+  uint256 magicNumber;
 
   KSLiquidityRemoveUniV4IntentValidator rmLqValidator;
 
@@ -31,6 +38,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     rmLqValidator = new KSLiquidityRemoveUniV4IntentValidator();
     address[] memory validators = new address[](1);
     validators[0] = address(rmLqValidator);
+    nftOwner = mainAddress;
     vm.prank(owner);
     router.whitelistValidators(validators, true);
 
@@ -49,14 +57,16 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (tickLower, tickUpper) = _getTickRange(positionIn);
     console.log('tickLower', tickLower);
     console.log('tickUpper', tickUpper);
+    liquidity = IPositionManager(pm).getPositionLiquidity(uniV4TokenId);
   }
 
   function test_RemoveSuccess_DefaultConditions(bool withPermit) public {
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, '', '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, '');
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -83,18 +93,19 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       conditionType: ConditionLibrary.YIELD_BASED,
       data: abi.encode(
         YieldCondition({
-          targetYieldBps: 10_000,
+          targetYieldBps: 1e18,
           initialAmounts: uint256(10_000 ether) << 128 | uint256(10_000e6)
         })
       )
     });
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions), '');
+      _getIntentData(withPermit, abi.encode(conditions));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -124,11 +135,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     });
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions), '');
+      _getIntentData(withPermit, abi.encode(conditions));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -156,11 +168,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     });
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions), '');
+      _getIntentData(withPermit, abi.encode(conditions));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -192,11 +205,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     });
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions), '');
+      _getIntentData(withPermit, abi.encode(conditions));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -229,11 +243,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     });
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions), '');
+      _getIntentData(withPermit, abi.encode(conditions));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -241,6 +256,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    vm.snapshotGasLastCall('RemoveLiquidityUniV4TimeBasedSuccess');
   }
 
   function test_RemoveSuccess_FailFirstConjunction_PassSecondOne() public {
@@ -263,11 +279,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     });
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(false, abi.encode(conditions), '');
+      _getIntentData(false, abi.encode(conditions));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, true);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -275,12 +292,14 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    vm.snapshotGasLastCall('RemoveLiquidityUniV4FailFirstConjunction_PassSecondOneSuccess');
   }
 
   function test_executeSignedIntent_RemoveSuccess() public {
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '', '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
     _setUpMainAddress(intentData, true, uniV4TokenId, false);
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    IKSSessionIntentRouter.ActionData memory actionData =
+      _getActionData(intentData.tokenData, liquidity);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -290,36 +309,77 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     router.executeWithSignedIntent(
       intentData, maSignature, daSignature, guardian, gdSignature, actionData
     );
+    vm.snapshotGasLastCall('RemoveLiquidityUniV4ExecuteSignedIntentSuccess');
   }
 
-  function testRevert_validationAfterExecution_fail() public {
-    uint256[] memory minRates = new uint256[](2);
-    minRates[0] = 1000e18;
-    minRates[1] = 1000e18;
-
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(true, '', abi.encode(minRates));
+  function testRevert_validationAfterExecution_fail(uint256 liq) public {
+    liq = bound(liq, 0, liquidity);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    magicNumber = MAGIC_NUMBER_NOT_TRANSFER;
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        KSLiquidityRemoveUniV4IntentValidator.BelowMinRate.selector,
-        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,
-        462_184_977_316_107,
-        1_000_000_000_000_000_000_000,
-        896_297_942_674_629
-      )
-    );
+    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function _getIntentData(bool withPermit, bytes memory conditions, bytes memory minRates)
+  function testRevert_validationAfterExecution_InvalidOwner(uint256 liq) public {
+    liq = bound(liq, 0, liquidity);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    _setUpMainAddress(intentData, false, uniV4TokenId, false);
+
+    nftOwner = address(0);
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+    vm.startPrank(caller);
+    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOwner.selector);
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function test_RemoveSuccess_Transfer99Percent(uint256 liq) public {
+    liq = bound(liq, 0, liquidity);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    _setUpMainAddress(intentData, false, uniV4TokenId, false);
+
+    magicNumber = MAGIC_NUMBER_TRANSFER_99PERCENT;
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+    vm.startPrank(caller);
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testRevert_Transfer98Percent(uint256 liq) public {
+    liq = bound(liq, 0, liquidity);
+    KSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    _setUpMainAddress(intentData, false, uniV4TokenId, false);
+
+    magicNumber = MAGIC_NUMBER_TRANSFER_98PERCENT;
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+    vm.startPrank(caller);
+    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function _getIntentData(bool withPermit, bytes memory conditions)
     internal
     returns (IKSSessionIntentRouter.IntentData memory intentData)
   {
@@ -332,16 +392,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     validationData.outputTokens[0] = new address[](2);
     validationData.outputTokens[0][0] = token0;
     validationData.outputTokens[0][1] = token1;
-    if (minRates.length > 0) {
-      uint256[] memory minRates = abi.decode(minRates, (uint256[]));
-      validationData.minRates = new uint256[][](1);
-      validationData.minRates[0] = minRates;
-    } else {
-      validationData.minRates = new uint256[][](1);
-      validationData.minRates[0] = new uint256[](2);
-      validationData.minRates[0][0] = 1;
-      validationData.minRates[0][1] = 1;
-    }
 
     validationData.recipient = mainAddress;
 
@@ -399,19 +449,16 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
   }
 
-  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData)
+  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 liquidity)
     internal
     view
     returns (IKSSessionIntentRouter.ActionData memory actionData)
   {
-    uint256 fee0 = 0.1 ether;
-    uint256 fee1 = 400e6;
-
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
-      actionCalldata: abi.encode(pm, uniV4TokenId, mainAddress, token0, token1),
-      validatorData: abi.encode(0, uint256(fee0 << 128) | uint256(fee1)),
+      actionCalldata: abi.encode(pm, uniV4TokenId, nftOwner, token0, token1, liquidity, magicNumber),
+      validatorData: abi.encode(0, fee0, fee1, liquidity),
       extraData: '',
       deadline: block.timestamp + 1 days,
       nonce: 0

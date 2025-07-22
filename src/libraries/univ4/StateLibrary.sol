@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import '@openzeppelin-contracts/utils/math/Math.sol';
 import 'src/interfaces/uniswapv4/IPoolManager.sol';
+import 'src/interfaces/uniswapv4/IPositionManager.sol';
+import 'src/libraries/univ4/LiquidityAmounts.sol';
+import 'src/libraries/univ4/TickMath.sol';
 
 /// @notice A helper library to provide state getters that use extsload
 library StateLibrary {
+  using StateLibrary for IPoolManager;
+
   /// @notice index of pools mapping in the PoolManager
   bytes32 public constant POOLS_SLOT = bytes32(uint256(6));
 
@@ -24,6 +30,92 @@ library StateLibrary {
 
   /// @notice index of Position.State mapping in Pool.State: mapping(bytes32 => Position.State) positions;
   uint256 public constant POSITIONS_OFFSET = 6;
+
+  uint256 public constant Q128 = 1 << 128;
+
+  function computePositionValues(
+    IPoolManager poolManager,
+    IPositionManager positionManager,
+    uint256 tokenId,
+    uint256 liquidityToRemove
+  )
+    internal
+    view
+    returns (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1)
+  {
+    (PoolKey memory poolKey, uint256 positionInfo) = positionManager.getPoolAndPositionInfo(tokenId);
+    bytes32 poolId = getPoolId(poolKey);
+    (uint160 sqrtPriceX96, int24 tickCurrent,,) = poolManager.getSlot0(poolId);
+    (int24 tickLower, int24 tickUpper) = StateLibrary.getTickRange(positionInfo);
+
+    if (liquidityToRemove != 0) {
+      uint160 sqrtPriceLower = TickMath.getSqrtRatioAtTick(tickLower);
+      uint160 sqrtPriceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+      (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
+        sqrtPriceX96, sqrtPriceLower, sqrtPriceUpper, liquidityToRemove
+      );
+    }
+    bytes32 positionKey = StateLibrary.calculatePositionKey(
+      address(positionManager), tickLower, tickUpper, bytes32(tokenId)
+    );
+
+    (uint256 positionLiquidity, uint256 feeGrowthInside0Last, uint256 feeGrowthInside1Last) =
+      poolManager.getPositionInfo(poolId, positionKey);
+
+    (uint256 feeGrowthInside0, uint256 feeGrowthInside1) =
+      poolManager.getFeeGrowthInside(poolId, tickLower, tickUpper, tickCurrent);
+
+    unchecked {
+      unclaimedFee0 = Math.mulDiv(feeGrowthInside0 - feeGrowthInside0Last, positionLiquidity, Q128);
+      unclaimedFee1 = Math.mulDiv(feeGrowthInside1 - feeGrowthInside1Last, positionLiquidity, Q128);
+    }
+  }
+
+  function getFeeGrowthInside(
+    IPoolManager poolManager,
+    bytes32 poolId,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 tickCurrent
+  ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+    (uint256 feeGrowthGlobal0X128, uint256 feeGrowthGlobal1X128) =
+      poolManager.getFeeGrowthGlobals(poolId);
+    (uint256 feeGrowthOutside0X128Lower, uint256 feeGrowthOutside1X128Lower) =
+      poolManager.getTickFeeGrowthOutside(poolId, tickLower);
+    (uint256 feeGrowthOutside0X128Upper, uint256 feeGrowthOutside1X128Upper) =
+      poolManager.getTickFeeGrowthOutside(poolId, tickUpper);
+
+    uint256 feeGrowthBelow0X128;
+    uint256 feeGrowthBelow1X128;
+    unchecked {
+      if (tickCurrent >= tickLower) {
+        feeGrowthBelow0X128 = feeGrowthOutside0X128Lower;
+        feeGrowthBelow1X128 = feeGrowthOutside1X128Lower;
+      } else {
+        feeGrowthBelow0X128 = feeGrowthGlobal0X128 - feeGrowthOutside0X128Lower;
+        feeGrowthBelow1X128 = feeGrowthGlobal1X128 - feeGrowthOutside1X128Lower;
+      }
+
+      uint256 feeGrowthAbove0X128;
+      uint256 feeGrowthAbove1X128;
+      if (tickCurrent < tickUpper) {
+        feeGrowthAbove0X128 = feeGrowthOutside0X128Upper;
+        feeGrowthAbove1X128 = feeGrowthOutside1X128Upper;
+      } else {
+        feeGrowthAbove0X128 = feeGrowthGlobal0X128 - feeGrowthOutside0X128Upper;
+        feeGrowthAbove1X128 = feeGrowthGlobal1X128 - feeGrowthOutside1X128Upper;
+      }
+
+      feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthBelow0X128 - feeGrowthAbove0X128;
+      feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthBelow1X128 - feeGrowthAbove1X128;
+    }
+  }
+
+  function getPoolId(PoolKey memory poolKey) internal pure returns (bytes32 poolId) {
+    assembly {
+      poolId := keccak256(poolKey, 0xa0)
+    }
+  }
 
   /**
    * @notice Get Slot0 of the pool: sqrtPriceX96, tick, protocolFee, lpFee
@@ -188,5 +280,12 @@ library StateLibrary {
 
   function _getPoolStateSlot(bytes32 poolId) internal pure returns (bytes32) {
     return keccak256(abi.encodePacked(poolId, POOLS_SLOT));
+  }
+
+  function getTickRange(uint256 posInfo) internal pure returns (int24 _tickLower, int24 _tickUpper) {
+    assembly {
+      _tickLower := signextend(2, shr(8, posInfo))
+      _tickUpper := signextend(2, shr(32, posInfo))
+    }
   }
 }

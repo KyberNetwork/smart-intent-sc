@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {console} from 'forge-std/console.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
 
@@ -18,6 +19,9 @@ contract MockActionContract {
 
   uint256 constant DECREASE_LIQUIDITY = 0x01;
   uint256 constant TAKE_PAIR = 0x11;
+  uint256 constant MAGIC_NUMBER_NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
+  uint256 constant MAGIC_NUMBER_TRANSFER_99PERCENT = uint256(keccak256('99PERCENT'));
+  uint256 constant MAGIC_NUMBER_TRANSFER_98PERCENT = uint256(keccak256('98PERCENT'));
 
   function doNothing() external pure {}
 
@@ -26,9 +30,10 @@ contract MockActionContract {
     uint256 tokenId,
     address owner,
     address token0,
-    address token1
+    address token1,
+    uint256 liquidity,
+    uint256 magicNumber
   ) external {
-    uint128 liquidity = posManager.getPositionLiquidity(tokenId);
     (PoolKey memory poolKey,) = posManager.getPoolAndPositionInfo(tokenId);
     bytes memory actions = new bytes(2);
     bytes[] memory params = new bytes[](2);
@@ -40,8 +45,31 @@ contract MockActionContract {
     if (owner != address(0)) {
       posManager.transferFrom(msg.sender, owner, tokenId);
     }
-    token0.safeTransfer(owner, token0.balanceOf(address(this)));
-    token1.safeTransfer(owner, token1.balanceOf(address(this)));
+
+    uint256 amount0 = token0.balanceOf(address(this));
+    uint256 amount1 = token1.balanceOf(address(this));
+    console.log('amount0', amount0);
+    console.log('amount1', amount1);
+
+    if (magicNumber == MAGIC_NUMBER_NOT_TRANSFER) {
+      // not transfer back to owner
+      return;
+    }
+
+    if (magicNumber == MAGIC_NUMBER_TRANSFER_99PERCENT) {
+      token0.safeTransfer(owner, amount0 * 0.991e18 / 1e18);
+      token1.safeTransfer(owner, amount1 * 0.991e18 / 1e18);
+      return;
+    }
+
+    if (magicNumber == MAGIC_NUMBER_TRANSFER_98PERCENT) {
+      token0.safeTransfer(owner, amount0 * 0.98e18 / 1e18);
+      token1.safeTransfer(owner, amount1 * 0.98e18 / 1e18);
+      return;
+    }
+
+    token0.safeTransfer(owner, amount0);
+    token1.safeTransfer(owner, amount1);
   }
 
   fallback() external payable {}

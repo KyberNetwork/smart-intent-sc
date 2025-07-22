@@ -27,8 +27,8 @@ struct YieldCondition {
 }
 
 /**
- * @param minPrice the minimum price of the token
- * @param maxPrice the maximum price of the token
+ * @param minPrice the minimum price of the token (would be in sqrtPriceX96 if uni v3 pool type)
+ * @param maxPrice the maximum price of the token (would be in sqrtPriceX96 if uni v3 pool type)
  */
 struct PriceCondition {
   uint256 minPrice;
@@ -58,18 +58,16 @@ library ConditionLibrary {
 
   function evaluateUniV4YieldCondition(
     IKSConditionBasedValidator.Condition calldata condition,
-    uint256 feesCollected,
+    uint256 fee0,
+    uint256 fee1,
     uint160 sqrtPriceX96
   ) internal pure returns (bool) {
     YieldCondition calldata yieldCondition = condition.data.decodeYieldCondition();
 
-    uint256 fee0Collected = feesCollected >> 128;
-    uint256 fee1Collected = uint256(uint128(feesCollected));
-
     uint256 initialAmount0 = yieldCondition.initialAmounts >> 128;
     uint256 initialAmount1 = uint256(uint128(yieldCondition.initialAmounts));
 
-    uint256 numerator = fee0Collected + convertToken1ToToken0(sqrtPriceX96, fee1Collected);
+    uint256 numerator = fee0 + convertToken1ToToken0(sqrtPriceX96, fee1);
     uint256 denominator = initialAmount0 + convertToken1ToToken0(sqrtPriceX96, initialAmount1);
     if (denominator == 0) return false;
 
@@ -78,14 +76,13 @@ library ConditionLibrary {
     return yieldBps >= yieldCondition.targetYieldBps;
   }
 
-  function evaluateUniV4PriceCondition(
+  function evaluatePriceCondition(
     IKSConditionBasedValidator.Condition calldata condition,
-    uint160 sqrtPriceX96
+    uint256 price
   ) internal pure returns (bool) {
     PriceCondition calldata priceCondition = condition.data.decodePriceCondition();
 
-    return priceCondition.minPrice < priceCondition.maxPrice
-      && priceCondition.minPrice <= sqrtPriceX96 && priceCondition.maxPrice >= sqrtPriceX96;
+    return priceCondition.minPrice <= price && priceCondition.maxPrice >= price;
   }
 
   function isType(

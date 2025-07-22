@@ -4,8 +4,9 @@ pragma solidity ^0.8.0;
 import './base/BaseIntentValidator.sol';
 import '@openzeppelin-contracts/token/ERC20/IERC20.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
-import 'src/libraries/StateLibrary.sol';
+
 import 'src/libraries/TokenLibrary.sol';
+import 'src/libraries/univ4/StateLibrary.sol';
 
 contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
   using StateLibrary for IPoolManager;
