@@ -37,7 +37,7 @@ library LiquidityAmounts {
     uint160 sqrtRatioAX96,
     uint160 sqrtRatioBX96,
     uint256 amount0
-  ) internal pure returns (uint256 liquitity) {
+  ) internal pure returns (uint256 liquidity) {
     if (sqrtRatioAX96 > sqrtRatioBX96) {
       (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
     }
