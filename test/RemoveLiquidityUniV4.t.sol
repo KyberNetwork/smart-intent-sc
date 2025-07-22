@@ -89,6 +89,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     if (fuzzStruct.liquidityToRemove == 0) {
       assertEq(received0, 0, 'received0 should be 0');
       assertEq(received1, 0, 'received1 should be 0');
+    } else if (fuzzStruct.positionOutRange) {
+      assertEq(received0, 0, 'received0 should be 0');
     }
 
     assertGt(unclaimedFee0, 0, 'unclaimedFee0 should be greater than 0');
