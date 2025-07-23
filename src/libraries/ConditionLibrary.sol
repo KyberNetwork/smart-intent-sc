@@ -18,11 +18,11 @@ struct TimeCondition {
 }
 
 /**
- * @param targetYieldBps the target yield in basis points
+ * @param targetYield the target yield threshold (1e6 precision)
  * @param initialAmounts the initial amounts of the tokens
  */
 struct YieldCondition {
-  uint256 targetYieldBps;
+  uint256 targetYield;
   uint256 initialAmounts; // [token0, token1]
 }
 
@@ -42,7 +42,7 @@ library ConditionLibrary {
   ConditionType public constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));
   ConditionType public constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
 
-  uint256 public constant BPS = 10_000;
+  uint256 public constant PRECISION = 1_000_000;
   uint256 public constant Q96 = 1 << 96;
 
   function evaluateTimeCondition(IKSConditionBasedValidator.Condition calldata condition)
@@ -71,9 +71,9 @@ library ConditionLibrary {
     uint256 denominator = initialAmount0 + convertToken1ToToken0(sqrtPriceX96, initialAmount1);
     if (denominator == 0) return false;
 
-    uint256 yieldBps = (numerator * BPS) / denominator;
+    uint256 yield = (numerator * PRECISION) / denominator;
 
-    return yieldBps >= yieldCondition.targetYieldBps;
+    return yield >= yieldCondition.targetYield;
   }
 
   function evaluatePriceCondition(

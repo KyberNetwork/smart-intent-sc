@@ -24,7 +24,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
    * @param tokenId The token ID
    * @param outputTokens The tokens received after removing liquidity
    * @param tokenBalanceBefore The token balance before removing liquidity
-   * @param minPercentsBps The minimum percents for the output tokens compared to the expected amounts (10000 = 100%)
+   * @param minPercent The minimum percent for the output tokens compared to the expected amounts (1_000_000 = 100%)
    * @param liquidity The liquidity to remove
    * @param liquidityBefore The liquidity before removing liquidity
    * @param sqrtPriceX96 The sqrt price X96 of the pool
@@ -37,7 +37,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     uint256 tokenId;
     address[] outputTokens;
     uint256[] tokenBalanceBefore;
-    uint256 minPercentsBps;
+    uint256 minPercent;
     uint256 liquidity;
     uint256 liquidityBefore;
     uint160 sqrtPriceX96;
@@ -51,7 +51,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
    * @param nftIds The NFT IDs
    * @param outputTokens The tokens received after removing liquidity
    * @param dnfExpressions The DNF expressions for conditions
-   * @param minPercentsBps The minimum percents for the output tokens compared to the expected amounts (10000 = 100%)
+   * @param minPercents The minimum percents for the output tokens compared to the expected amounts (1_000_000 = 100%)
    * @param recipient The recipient
    */
   struct RemoveLiquidityValidationData {
@@ -59,7 +59,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     uint256[] nftIds;
     address[][] outputTokens;
     DNFExpression[] dnfExpressions;
-    uint256[] minPercentsBps;
+    uint256[] minPercents;
     address recipient;
   }
 
@@ -152,6 +152,9 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     return _evaluateConditions(dnfExpression.conditions, fee0, fee1, sqrtPriceX96);
   }
 
+  /**
+   * @notice Evaluates a disjunction of conditions (logical OR operation)
+   */
   function _evaluateConditions(
     Condition[][] calldata conditions,
     uint256 fee0,
@@ -172,14 +175,15 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     return false;
   }
 
+  /**
+   * @notice Evaluates a conjunction of conditions (logical AND operation)
+   */
   function _evaluateConjunction(
     Condition[] calldata conjunction,
     uint256 fee0,
     uint256 fee1,
     uint160 sqrtPriceX96
   ) internal view returns (bool) {
-    if (conjunction.length == 0) return true;
-
     bool meetCondition;
     for (uint256 i; i < conjunction.length; ++i) {
       if (conjunction[i].isType(ConditionLibrary.YIELD_BASED)) {
@@ -213,7 +217,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
         localVar.outputTokens[i] == poolKey.currency0 ? localVar.amount0 : localVar.amount1;
 
       require(
-        outputAmounts[i] * ConditionLibrary.BPS >= amount * localVar.minPercentsBps,
+        outputAmounts[i] * ConditionLibrary.PRECISION >= amount * localVar.minPercent,
         InvalidOutputAmount()
       );
     }
@@ -232,7 +236,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     localVar.tokenId = validationData.nftIds[index];
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
     localVar.outputTokens = validationData.outputTokens[index];
-    localVar.minPercentsBps = validationData.minPercentsBps[index];
+    localVar.minPercent = validationData.minPercents[index];
     localVar.tokenBalanceBefore = new uint256[](localVar.outputTokens.length);
     for (uint256 i; i < localVar.outputTokens.length; ++i) {
       localVar.tokenBalanceBefore[i] = localVar.outputTokens[i].balanceOf(localVar.recipient);

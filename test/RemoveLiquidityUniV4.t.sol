@@ -32,7 +32,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   uint256 constant MAGIC_NUMBER_TRANSFER_99PERCENT = uint256(keccak256('99PERCENT'));
   uint256 constant MAGIC_NUMBER_TRANSFER_98PERCENT = uint256(keccak256('98PERCENT'));
   uint256 magicNumber;
-  uint256 minPercentsBps = 9900;
+  uint256 minPercents = 990_000; // 99%
 
   KSLiquidityRemoveUniV4IntentValidator rmLqValidator;
 
@@ -44,7 +44,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     bool conditionPass;
     bool positionOutRange;
     bool outLeft;
-    uint256 minPercentsBps;
+    uint256 minPercents;
   }
 
   function setUp() public override {
@@ -127,11 +127,11 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     bool isRevert;
     vm.startPrank(caller);
     if (fuzzStruct.withSignedIntent) {
-      if (!fuzzStruct.conditionPass || minPercentsBps > ConditionLibrary.BPS) {
+      if (!fuzzStruct.conditionPass || minPercents > ConditionLibrary.PRECISION) {
         isRevert = true;
         if (!fuzzStruct.conditionPass) {
           vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
-        } else if (minPercentsBps > ConditionLibrary.BPS) {
+        } else if (minPercents > ConditionLibrary.PRECISION) {
           vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
@@ -140,11 +140,11 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       );
     } else {
       bytes32 hash = router.hashTypedIntentData(intentData);
-      if (!fuzzStruct.conditionPass || minPercentsBps > ConditionLibrary.BPS) {
+      if (!fuzzStruct.conditionPass || minPercents > ConditionLibrary.PRECISION) {
         isRevert = true;
         if (!fuzzStruct.conditionPass) {
           vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
-        } else if (minPercentsBps > ConditionLibrary.BPS) {
+        } else if (minPercents > ConditionLibrary.PRECISION) {
           vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
@@ -192,7 +192,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       conditionType: ConditionLibrary.YIELD_BASED,
       data: abi.encode(
         YieldCondition({
-          targetYieldBps: 1e18,
+          targetYield: 1e18,
           initialAmounts: (uint256(10_000 ether) << 128) | uint256(10_000e6)
         })
       )
@@ -262,10 +262,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     conditions[0][1] = IKSConditionBasedValidator.Condition({
       conditionType: ConditionLibrary.YIELD_BASED,
       data: abi.encode(
-        YieldCondition({
-          targetYieldBps: 0,
-          initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)
-        })
+        YieldCondition({targetYield: 0, initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)})
       )
     });
 
@@ -294,7 +291,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       conditionType: ConditionLibrary.YIELD_BASED,
       data: abi.encode(
         YieldCondition({
-          targetYieldBps: 0,
+          targetYield: 0,
           initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6) //3435
         })
       )
@@ -329,10 +326,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     conditions[0][0] = IKSConditionBasedValidator.Condition({
       conditionType: ConditionLibrary.YIELD_BASED,
       data: abi.encode(
-        YieldCondition({
-          targetYieldBps: 0,
-          initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6) //3435
-        })
+        YieldCondition({targetYield: 0, initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)})
       )
     });
 
@@ -373,8 +367,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       conditionType: ConditionLibrary.YIELD_BASED,
       data: abi.encode(
         YieldCondition({
-          targetYieldBps: 1000, //10%
-          initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6) //3435
+          targetYield: 100_000, //10%
+          initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)
         })
       )
     });
@@ -491,8 +485,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     validationData.outputTokens[0] = new address[](2);
     validationData.outputTokens[0][0] = token0;
     validationData.outputTokens[0][1] = token1;
-    validationData.minPercentsBps = new uint256[](1);
-    validationData.minPercentsBps[0] = minPercentsBps;
+    validationData.minPercents = new uint256[](1);
+    validationData.minPercents[0] = minPercents;
 
     validationData.recipient = mainAddress;
 
@@ -505,7 +499,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
         conditionType: ConditionLibrary.YIELD_BASED,
         data: abi.encode(
           YieldCondition({
-            targetYieldBps: 0,
+            targetYield: 0,
             initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
           })
         )
@@ -607,7 +601,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
   function _boundStruct(FuzzStruct memory fuzzStruct) internal {
     fuzzStruct.liquidityToRemove = bound(fuzzStruct.liquidityToRemove, 0, liquidity);
-    minPercentsBps = bound(fuzzStruct.minPercentsBps, 0, ConditionLibrary.BPS * 100);
+    minPercents = bound(fuzzStruct.minPercents, 0, ConditionLibrary.PRECISION * 100);
 
     (uint256 received0, uint256 received1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
     IPositionManager(pm).poolManager().computePositionValues(
@@ -637,7 +631,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
           conditionType: ConditionLibrary.YIELD_BASED,
           data: abi.encode(
             YieldCondition({
-              targetYieldBps: 10, // 0.1%
+              targetYield: 1000, // 0.1%
               initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
             })
           )
@@ -648,7 +642,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
         conditionType: ConditionLibrary.YIELD_BASED,
         data: abi.encode(
           YieldCondition({
-            targetYieldBps: 100_000, // 1000%
+            targetYield: 10_000_000, // 1000%
             initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
           })
         )
