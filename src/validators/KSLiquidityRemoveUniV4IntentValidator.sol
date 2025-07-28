@@ -4,18 +4,25 @@ pragma solidity ^0.8.0;
 import './base/BaseIntentValidator.sol';
 
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
-import 'src/interfaces/IKSConditionBasedValidator.sol';
+
 import 'src/libraries/ConditionLibrary.sol';
 import 'src/libraries/univ4/StateLibrary.sol';
+import 'src/validators/base/BaseConditionalValidator.sol';
 
-contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSConditionBasedValidator {
+contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, BaseConditionalValidator {
   using StateLibrary for IPoolManager;
   using TokenHelper for address;
-  using ConditionLibrary for Condition;
+  using ConditionLibrary for *;
 
   error InvalidOwner();
   error InvalidLiquidity();
   error InvalidOutputAmount();
+
+  ConditionType public constant UNIV4_YIELD_BASED =
+    ConditionType.wrap(keccak256('UNIV4_YIELD_BASED'));
+
+  uint256 public constant PRECISION = 1_000_000;
+  uint256 public constant Q96 = 1 << 96;
 
   /**
    * @notice Local variables for remove liquidity validation
@@ -24,7 +31,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
    * @param tokenId The token ID
    * @param outputTokens The tokens received after removing liquidity
    * @param tokenBalanceBefore The token balance before removing liquidity
-   * @param minPercent The minimum percent for the output tokens compared to the expected amounts (1_000_000 = 100%)
+   * @param maxFeePercent The maximum fee percent for the output tokens compared to the expected amounts (1_000_000 = 100%)
    * @param liquidity The liquidity to remove
    * @param liquidityBefore The liquidity before removing liquidity
    * @param sqrtPriceX96 The sqrt price X96 of the pool
@@ -37,7 +44,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     uint256 tokenId;
     address[] outputTokens;
     uint256[] tokenBalanceBefore;
-    uint256 minPercent;
+    uint256 maxFeePercent;
     uint256 liquidity;
     uint256 liquidityBefore;
     uint160 sqrtPriceX96;
@@ -50,16 +57,16 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
    * @param nftAddresses The NFT addresses
    * @param nftIds The NFT IDs
    * @param outputTokens The tokens received after removing liquidity
-   * @param dnfExpressions The DNF expressions for conditions
-   * @param minPercents The minimum percents for the output tokens compared to the expected amounts (1_000_000 = 100%)
+   * @param nodes The nodes of conditions (used to build the condition tree)
+   * @param maxFeePercents The maximum fee percents for the output tokens compared to the expected amounts (1_000_000 = 100%)
    * @param recipient The recipient
    */
   struct RemoveLiquidityValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
     address[][] outputTokens;
-    DNFExpression[] dnfExpressions;
-    uint256[] minPercents;
+    Node[][] nodes;
+    uint256[] maxFeePercents;
     address recipient;
   }
 
@@ -91,8 +98,12 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     (index, fee0Collected, fee1Collected, localVar.liquidity) =
       _decodeValidatorData(actionData.validatorData);
 
-    Condition[][] calldata conditions =
-      _cacheAndDecodeValidationData(coreData.validationData, localVar, index);
+    Node[] calldata nodes = _cacheAndDecodeValidationData(coreData.validationData, localVar, index);
+
+    ConditionTree memory conditionTree =
+      _buildConditionTree(nodes, fee0Collected, fee1Collected, localVar.sqrtPriceX96);
+
+    this.validateConditionTree(conditionTree, 0);
 
     uint256 fee0Unclaimed;
     uint256 fee1Unclaimed;
@@ -100,11 +111,6 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
       .positionManager
       .poolManager().computePositionValues(
       localVar.positionManager, localVar.tokenId, localVar.liquidity
-    );
-
-    require(
-      _evaluateConditions(conditions, fee0Collected, fee1Collected, localVar.sqrtPriceX96),
-      ConditionsNotMet()
     );
     localVar.amount0 += fee0Unclaimed;
     localVar.amount1 += fee1Unclaimed;
@@ -134,72 +140,38 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     _validateOutput(localVar, outputAmounts);
   }
 
-  /// @inheritdoc IKSConditionBasedValidator
-  function validateConditions(DNFExpression calldata dnfExpression, bytes calldata additionalData)
-    external
+  /// @inheritdoc IKSConditionalValidator
+  function evaluateCondition(Condition calldata condition, bytes calldata additionalData)
+    public
     view
-    returns (bool)
+    override
+    returns (bool isSatisfied)
   {
-    uint256 fee0;
-    uint256 fee1;
-    uint160 sqrtPriceX96;
-
-    assembly ("memory-safe") {
-      fee0 := calldataload(additionalData.offset)
-      fee1 := calldataload(add(additionalData.offset, 0x20))
-      sqrtPriceX96 := calldataload(add(additionalData.offset, 0x40))
+    if (condition.isType(UNIV4_YIELD_BASED)) {
+      isSatisfied = _evaluateUniV4YieldCondition(condition, additionalData);
+    } else {
+      isSatisfied = super.evaluateCondition(condition, additionalData);
     }
-    return _evaluateConditions(dnfExpression.conditions, fee0, fee1, sqrtPriceX96);
   }
 
-  /**
-   * @notice Evaluates a disjunction of conditions (logical OR operation)
-   */
-  function _evaluateConditions(
-    Condition[][] calldata conditions,
-    uint256 fee0,
-    uint256 fee1,
+  function _buildConditionTree(
+    Node[] calldata nodes,
+    uint256 fee0Collected,
+    uint256 fee1Collected,
     uint160 sqrtPriceX96
-  ) internal view returns (bool) {
-    if (conditions.length == 0) return true;
-
-    // each condition is a disjunction (or) of conjunctions (and)
-    for (uint256 i; i < conditions.length; ++i) {
-      if (_evaluateConjunction(conditions[i], fee0, fee1, sqrtPriceX96)) {
-        return true;
+  ) internal pure returns (ConditionTree memory conditionTree) {
+    conditionTree.nodes = nodes;
+    conditionTree.additionalData = new bytes[](nodes.length);
+    for (uint256 i; i < nodes.length; ++i) {
+      if (!nodes[i].isLeaf() || nodes[i].condition.isType(TIME_BASED)) {
+        continue;
       }
-      // if false, continue to the next condition
-    }
-
-    // all conditions are false
-    return false;
-  }
-
-  /**
-   * @notice Evaluates a conjunction of conditions (logical AND operation)
-   */
-  function _evaluateConjunction(
-    Condition[] calldata conjunction,
-    uint256 fee0,
-    uint256 fee1,
-    uint160 sqrtPriceX96
-  ) internal view returns (bool) {
-    bool meetCondition;
-    for (uint256 i; i < conjunction.length; ++i) {
-      if (conjunction[i].isType(ConditionLibrary.YIELD_BASED)) {
-        meetCondition = conjunction[i].evaluateUniV4YieldCondition(fee0, fee1, sqrtPriceX96);
-      } else if (conjunction[i].isType(ConditionLibrary.PRICE_BASED)) {
-        meetCondition = conjunction[i].evaluatePriceCondition(sqrtPriceX96);
-      } else if (conjunction[i].isType(ConditionLibrary.TIME_BASED)) {
-        meetCondition = conjunction[i].evaluateTimeCondition();
-      } else {
-        revert ConditionLibrary.WrongConditionType();
-      }
-      if (!meetCondition) {
-        return false;
+      if (nodes[i].condition.isType(UNIV4_YIELD_BASED)) {
+        conditionTree.additionalData[i] = abi.encode(fee0Collected, fee1Collected, sqrtPriceX96);
+      } else if (nodes[i].condition.isType(PRICE_BASED)) {
+        conditionTree.additionalData[i] = abi.encode(sqrtPriceX96);
       }
     }
-    return true;
   }
 
   function _validateOutput(LocalVar calldata localVar, uint256[] memory outputAmounts)
@@ -217,7 +189,7 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
         localVar.outputTokens[i] == poolKey.currency0 ? localVar.amount0 : localVar.amount1;
 
       require(
-        outputAmounts[i] * ConditionLibrary.PRECISION >= amount * localVar.minPercent,
+        outputAmounts[i] * PRECISION >= amount * (PRECISION - localVar.maxFeePercent),
         InvalidOutputAmount()
       );
     }
@@ -227,16 +199,16 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     bytes calldata data,
     LocalVar memory localVar,
     uint256 index
-  ) internal view returns (Condition[][] calldata conditions) {
+  ) internal view returns (Node[] calldata nodes) {
     RemoveLiquidityValidationData calldata validationData = _decodeValidationData(data);
-    conditions = validationData.dnfExpressions[index].conditions;
+    nodes = validationData.nodes[index];
 
     localVar.recipient = validationData.recipient;
     localVar.positionManager = IPositionManager(validationData.nftAddresses[index]);
     localVar.tokenId = validationData.nftIds[index];
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
     localVar.outputTokens = validationData.outputTokens[index];
-    localVar.minPercent = validationData.minPercents[index];
+    localVar.maxFeePercent = validationData.maxFeePercents[index];
     localVar.tokenBalanceBefore = new uint256[](localVar.outputTokens.length);
     for (uint256 i; i < localVar.outputTokens.length; ++i) {
       localVar.tokenBalanceBefore[i] = localVar.outputTokens[i].balanceOf(localVar.recipient);
@@ -282,5 +254,56 @@ contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, IKSCondit
     assembly ("memory-safe") {
       validationData := add(data.offset, calldataload(data.offset))
     }
+  }
+
+  /**
+   * @notice helper function to evaluate whether the yield condition is satisfied
+   * @dev Calculates yield as: (fees_in_token0_terms) / (initial_amounts_in_token0_terms)
+   * @param condition The yield condition containing target yield and initial amounts
+   * @param additionalData Encoded fee0, fee1, and sqrtPriceX96 values
+   * @return true if actual yield >= target yield, false otherwise
+   */
+  function _evaluateUniV4YieldCondition(Condition calldata condition, bytes calldata additionalData)
+    internal
+    pure
+    returns (bool)
+  {
+    uint256 fee0;
+    uint256 fee1;
+    uint160 sqrtPriceX96;
+
+    assembly ("memory-safe") {
+      fee0 := calldataload(additionalData.offset)
+      fee1 := calldataload(add(additionalData.offset, 0x20))
+      sqrtPriceX96 := calldataload(add(additionalData.offset, 0x40))
+    }
+
+    YieldCondition calldata yieldCondition = _decodeYieldCondition(condition.data);
+
+    uint256 initialAmount0 = yieldCondition.initialAmounts >> 128;
+    uint256 initialAmount1 = uint256(uint128(yieldCondition.initialAmounts));
+
+    uint256 numerator = fee0 + _convertToken1ToToken0(sqrtPriceX96, fee1);
+    uint256 denominator = initialAmount0 + _convertToken1ToToken0(sqrtPriceX96, initialAmount1);
+    if (denominator == 0) return false;
+
+    uint256 yield = (numerator * PRECISION) / denominator;
+
+    return yield >= yieldCondition.targetYield;
+  }
+
+  /**
+   * @notice Converts token1 amount to equivalent token0 amount using current price
+   * @dev formula: amount0 = amount1 * Q192 / sqrtPriceX96^2
+   * @param sqrtPriceX96 The pool's sqrt price
+   * @param amount1 Amount of token1 to convert
+   * @return amount0 Equivalent amount in token0 terms
+   */
+  function _convertToken1ToToken0(uint160 sqrtPriceX96, uint256 amount1)
+    internal
+    pure
+    returns (uint256 amount0)
+  {
+    amount0 = Math.mulDiv(Math.mulDiv(amount1, Q96, sqrtPriceX96), Q96, sqrtPriceX96);
   }
 }

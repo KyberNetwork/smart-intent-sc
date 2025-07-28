@@ -11,7 +11,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
   using StateLibrary for IPoolManager;
-  using ConditionLibrary for IKSConditionBasedValidator.Condition;
+  using ConditionLibrary for *;
 
   address pm = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
   address uniV4TokenOwner = 0x1f2F10D1C40777AE1Da742455c65828FF36Df387;
@@ -29,14 +29,21 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   uint256 amount1 = 100e6;
   address nftOwner;
   uint256 constant MAGIC_NUMBER_NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
-  uint256 constant MAGIC_NUMBER_TRANSFER_99PERCENT = uint256(keccak256('99PERCENT'));
-  uint256 constant MAGIC_NUMBER_TRANSFER_98PERCENT = uint256(keccak256('98PERCENT'));
-  uint256 magicNumber;
-  uint256 minPercents = 990_000; // 99%
+  ConditionType constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
+  ConditionType constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));
+  ConditionType constant UNIV4_YIELD_BASED = ConditionType.wrap(keccak256('UNIV4_YIELD_BASED'));
+  OperationType constant AND = OperationType.AND;
+  OperationType constant OR = OperationType.OR;
+  uint256 magicNumber = 1e6;
+  uint256 maxFeePercents = 20_000; // 2%
+  Node[] internal _nodes;
+  mapping(uint256 => bool) internal _isLeaf;
+  uint256 constant PRECISION = 1_000_000;
 
   KSLiquidityRemoveUniV4IntentValidator rmLqValidator;
 
   struct FuzzStruct {
+    uint256 seed;
     uint256 liquidityToRemove;
     bool usePermit;
     bool withSignedIntent;
@@ -44,7 +51,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     bool conditionPass;
     bool positionOutRange;
     bool outLeft;
-    uint256 minPercents;
+    uint256 maxFeePercents;
   }
 
   function setUp() public override {
@@ -70,6 +77,13 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (tickLower, tickUpper) = _getTickRange(positionIn);
     liquidity = IPositionManager(pm).getPositionLiquidity(uniV4TokenId);
     assertTrue(currentTick > tickUpper, 'currentTick > tickLower');
+
+    console.log('PRICE_BASED');
+    console.logBytes32(ConditionType.unwrap(rmLqValidator.PRICE_BASED()));
+    console.log('UNIV4_YIELD_BASED');
+    console.logBytes32(ConditionType.unwrap(rmLqValidator.UNIV4_YIELD_BASED()));
+    console.log('TIME_BASED');
+    console.logBytes32(ConditionType.unwrap(rmLqValidator.TIME_BASED()));
   }
 
   function testFuzz_RemoveLiquidity(FuzzStruct memory fuzzStruct) public {
@@ -99,17 +113,16 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     received0 += unclaimedFee0;
     received1 += unclaimedFee1;
 
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](1);
+    console.log('breakpoint1');
 
-    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[0][0] = RemoveLiquidityUniV4Test(address(this)).getCondition(
-      IKSConditionBasedValidator.Condition({conditionType: fuzzStruct.conditionType, data: ''}),
-      fuzzStruct.conditionPass
-    );
+    Node[] memory nodes = _randomNodes(fuzzStruct);
+    ConditionTree memory conditionTree = this.buildConditionTree(nodes, fee0, fee1, currentPrice);
+    bool pass = this.callLibrary(conditionTree, 0);
+
+    console.log('breakpoint2');
 
     IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(fuzzStruct.usePermit, abi.encode(conditions));
+      _getIntentData(fuzzStruct.usePermit, nodes);
 
     _setUpMainAddress(intentData, fuzzStruct.withSignedIntent, uniV4TokenId, !fuzzStruct.usePermit);
 
@@ -127,11 +140,11 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     bool isRevert;
     vm.startPrank(caller);
     if (fuzzStruct.withSignedIntent) {
-      if (!fuzzStruct.conditionPass || minPercents > ConditionLibrary.PRECISION) {
+      if (!pass || maxFeePercents > PRECISION) {
         isRevert = true;
-        if (!fuzzStruct.conditionPass) {
-          vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
-        } else if (minPercents > ConditionLibrary.PRECISION) {
+        if (!pass) {
+          vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+        } else if (maxFeePercents > PRECISION) {
           vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
@@ -140,11 +153,11 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       );
     } else {
       bytes32 hash = router.hashTypedIntentData(intentData);
-      if (!fuzzStruct.conditionPass || minPercents > ConditionLibrary.PRECISION) {
+      if (!pass || fuzzStruct.maxFeePercents > PRECISION) {
         isRevert = true;
-        if (!fuzzStruct.conditionPass) {
-          vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
-        } else if (minPercents > ConditionLibrary.PRECISION) {
+        if (!pass) {
+          vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+        } else if (fuzzStruct.maxFeePercents > PRECISION) {
           vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
@@ -160,7 +173,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function test_RemoveSuccess_DefaultConditions(bool withPermit) public {
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, new Node[](0));
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
@@ -179,27 +192,20 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function testRevert_NotMeetConditions_YieldBased(bool withPermit) public {
-    // pass price based condition, but fail yield based condition
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](1);
-    conditions[0] = new IKSConditionBasedValidator.Condition[](2);
-    conditions[0][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.PRICE_BASED,
-      data: abi.encode(PriceCondition({minPrice: 0, maxPrice: type(uint160).max}))
-    });
+    // Tree structure:
+    //          AND (index 0)
+    //         /            \
+    //(true) PRICE_BASED (1)  YIELD_BASED (2) (false)
+    Node[] memory nodes = new Node[](3);
+    nodes[1] = _createLeafNode(_createPriceCondition(true));
+    nodes[2] = _createLeafNode(_createYieldCondition(false));
 
-    conditions[0][1] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.YIELD_BASED,
-      data: abi.encode(
-        YieldCondition({
-          targetYield: 1e18,
-          initialAmounts: (uint256(10_000 ether) << 128) | uint256(10_000e6)
-        })
-      )
-    });
+    uint256[] memory andChildren = new uint256[](2);
+    andChildren[0] = 1;
+    andChildren[1] = 2;
+    nodes[0] = _createNode(andChildren, AND);
 
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions));
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
@@ -212,29 +218,24 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     vm.warp(block.timestamp + 100);
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
+    vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_TimeBased(bool withPermit) public {
-    // pass price based condition, but fail time based condition
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](1);
-    conditions[0] = new IKSConditionBasedValidator.Condition[](2);
-    conditions[0][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.PRICE_BASED,
-      data: abi.encode(PriceCondition({minPrice: 0, maxPrice: type(uint160).max}))
-    });
+    // Tree structure:
+    //          AND (index 0)
+    //         /            \
+    //(true) PRICE_BASED (1)  TIME_BASED (2) (false)
+    Node[] memory nodes = new Node[](3);
+    nodes[1] = _createLeafNode(_createPriceCondition(true));
+    nodes[2] = _createLeafNode(_createTimeCondition(false));
+    uint256[] memory andChildren = new uint256[](2);
+    andChildren[0] = 1;
+    andChildren[1] = 2;
+    nodes[0] = _createNode(andChildren, AND);
 
-    conditions[0][1] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.TIME_BASED,
-      data: abi.encode(
-        TimeCondition({startTimestamp: block.timestamp + 100, endTimestamp: block.timestamp + 200})
-      )
-    });
-
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions));
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
@@ -246,28 +247,24 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
+    vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_PriceBased(bool withPermit) public {
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](1);
-    conditions[0] = new IKSConditionBasedValidator.Condition[](2);
-    conditions[0][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.PRICE_BASED,
-      data: abi.encode(PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000}))
-    });
+    // Tree structure:
+    //          AND (index 0)
+    //         /            \
+    //(false) PRICE_BASED (1)  YIELD_BASED (2) (true)
+    Node[] memory nodes = new Node[](3);
+    nodes[1] = _createLeafNode(_createPriceCondition(false));
+    nodes[2] = _createLeafNode(_createYieldCondition(true));
+    uint256[] memory andChildren = new uint256[](2);
+    andChildren[0] = 1;
+    andChildren[1] = 2;
+    nodes[0] = _createNode(andChildren, AND);
 
-    conditions[0][1] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.YIELD_BASED,
-      data: abi.encode(
-        YieldCondition({targetYield: 0, initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)})
-      )
-    });
-
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions));
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
@@ -279,32 +276,24 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(IKSConditionBasedValidator.ConditionsNotMet.selector);
+    vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_PriceBased(bool withPermit) public {
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](2);
-    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[0][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.YIELD_BASED,
-      data: abi.encode(
-        YieldCondition({
-          targetYield: 0,
-          initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6) //3435
-        })
-      )
-    });
+    // Tree structure:
+    //          AND (index 0)
+    //         /            \
+    //(false) YIELD_BASED (1) PRICE_BASED (2) (true)
+    Node[] memory nodes = new Node[](3);
+    nodes[1] = _createLeafNode(_createYieldCondition(false));
+    nodes[2] = _createLeafNode(_createPriceCondition(true));
+    uint256[] memory andChildren = new uint256[](2);
+    andChildren[0] = 1;
+    andChildren[1] = 2;
+    nodes[0] = _createNode(andChildren, OR);
 
-    conditions[1] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[1][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.PRICE_BASED,
-      data: abi.encode(PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000}))
-    });
-
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions));
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
@@ -320,26 +309,15 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function test_RemoveSuccess_TimeBased(bool withPermit) public {
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](2);
-    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[0][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.YIELD_BASED,
-      data: abi.encode(
-        YieldCondition({targetYield: 0, initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)})
-      )
-    });
+    Node[] memory nodes = new Node[](3);
+    nodes[1] = _createLeafNode(_createYieldCondition(false));
+    nodes[2] = _createLeafNode(_createTimeCondition(true));
+    uint256[] memory andChildren = new uint256[](2);
+    andChildren[0] = 1;
+    andChildren[1] = 2;
+    nodes[0] = _createNode(andChildren, OR);
 
-    conditions[1] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[1][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.TIME_BASED,
-      data: abi.encode(
-        TimeCondition({startTimestamp: block.timestamp - 100, endTimestamp: block.timestamp + 200})
-      )
-    });
-
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(withPermit, abi.encode(conditions));
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
@@ -354,43 +332,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function test_RemoveSuccess_FailFirstConjunction_PassSecondOne() public {
-    IKSConditionBasedValidator.Condition[][] memory conditions =
-      new IKSConditionBasedValidator.Condition[][](2);
-    conditions[0] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[0][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.PRICE_BASED,
-      data: abi.encode(PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000}))
-    });
-    conditions[1] = new IKSConditionBasedValidator.Condition[](1);
-    conditions[1][0] = IKSConditionBasedValidator.Condition({
-      conditionType: ConditionLibrary.YIELD_BASED,
-      data: abi.encode(
-        YieldCondition({
-          targetYield: 100_000, //10%
-          initialAmounts: (uint256(1 ether) << 128) | uint256(1000e6)
-        })
-      )
-    });
-
-    IKSSessionIntentRouter.IntentData memory intentData =
-      _getIntentData(false, abi.encode(conditions));
-
-    _setUpMainAddress(intentData, false, uniV4TokenId, true);
-
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, liquidity);
-
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
-
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
-    vm.startPrank(caller);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
-  }
-
   function test_executeSignedIntent_RemoveSuccess() public {
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, true, uniV4TokenId, false);
     IKSSessionIntentRouter.ActionData memory actionData =
       _getActionData(intentData.tokenData, liquidity);
@@ -407,7 +350,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
   function testRevert_validationAfterExecution_fail(uint256 liq) public {
     liq = bound(liq, 0, liquidity);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
     magicNumber = MAGIC_NUMBER_NOT_TRANSFER;
@@ -424,7 +367,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
   function testRevert_validationAfterExecution_InvalidOwner(uint256 liq) public {
     liq = bound(liq, 0, liquidity);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
     nftOwner = address(0);
@@ -441,10 +384,10 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
   function test_RemoveSuccess_Transfer99Percent(uint256 liq) public {
     liq = bound(liq, 0, liquidity);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-    magicNumber = MAGIC_NUMBER_TRANSFER_99PERCENT;
+    magicNumber = 990_000;
 
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -455,12 +398,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testRevert_Transfer98Percent(uint256 liq) public {
+  function testRevert_Transfer97Percent(uint256 liq) public {
     liq = bound(liq, 0, liquidity);
-    KSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, '');
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-    magicNumber = MAGIC_NUMBER_TRANSFER_98PERCENT;
+    magicNumber = 970_000;
 
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -472,8 +415,30 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
-  function _getIntentData(bool withPermit, bytes memory conditions)
+  function testFuzz_OutputAmounts(uint256 liq, uint256 transferPercent) public {
+    liq = bound(liq, 0, liquidity);
+    transferPercent = bound(transferPercent, 0, 1_000_000);
+    magicNumber = transferPercent;
+    maxFeePercents = bound(maxFeePercents, 1, 1e6);
+
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+    _setUpMainAddress(intentData, false, uniV4TokenId, false);
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
+
+    vm.startPrank(caller);
+    if (1e6 - transferPercent > maxFeePercents) {
+      vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+    }
+    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function _getIntentData(bool withPermit, Node[] memory nodes)
     internal
+    view
     returns (IKSSessionIntentRouter.IntentData memory intentData)
   {
     KSLiquidityRemoveUniV4IntentValidator.RemoveLiquidityValidationData memory validationData;
@@ -485,38 +450,52 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     validationData.outputTokens[0] = new address[](2);
     validationData.outputTokens[0][0] = token0;
     validationData.outputTokens[0][1] = token1;
-    validationData.minPercents = new uint256[](1);
-    validationData.minPercents[0] = minPercents;
+    validationData.maxFeePercents = new uint256[](1);
+    validationData.maxFeePercents[0] = maxFeePercents;
+    validationData.nodes = new Node[][](1);
+    if (nodes.length > 0) {
+      validationData.nodes[0] = nodes;
+    } else {
+      // Tree structure:
+      //          OR (index 0)
+      //         /            \
+      //    AND (1)          AND (2)
+      //    /     \          /     \
+      //   A(3)   B(4)     C(5)   D(6)
+      //  true   false     true   true
+      // Create leaf conditions
+      Condition memory conditionA = _createYieldCondition(true);
+      Condition memory conditionB = _createTimeCondition(false);
+      Condition memory conditionC = _createPriceCondition(true);
+      Condition memory conditionD = _createTimeCondition(true);
+
+      nodes = new Node[](7);
+      nodes[3] = _createLeafNode(conditionA); // A (true)
+      nodes[4] = _createLeafNode(conditionB); // B (false)
+      nodes[5] = _createLeafNode(conditionC); // C (true)
+      nodes[6] = _createLeafNode(conditionD); // D (true)
+
+      // Create AND nodes
+      uint256[] memory andChildren1 = new uint256[](2);
+      andChildren1[0] = 3; // A
+      andChildren1[1] = 4; // B
+      nodes[1] = _createNode(andChildren1, AND); // A AND B (false)
+
+      uint256[] memory andChildren2 = new uint256[](2);
+      andChildren2[0] = 5; // C
+      andChildren2[1] = 6; // D
+      nodes[2] = _createNode(andChildren2, AND); // C AND D (true)
+
+      // Create root OR node
+      uint256[] memory orChildren = new uint256[](2);
+      orChildren[0] = 1; // A AND B
+      orChildren[1] = 2; // C AND D
+      nodes[0] = _createNode(orChildren, OR); // (A AND B) OR (C AND D)
+
+      validationData.nodes[0] = nodes;
+    }
 
     validationData.recipient = mainAddress;
-
-    if (conditions.length == 0) {
-      IKSConditionBasedValidator.Condition[][] memory conditions =
-        new IKSConditionBasedValidator.Condition[][](1);
-
-      conditions[0] = new IKSConditionBasedValidator.Condition[](2);
-      conditions[0][0] = IKSConditionBasedValidator.Condition({
-        conditionType: ConditionLibrary.YIELD_BASED,
-        data: abi.encode(
-          YieldCondition({
-            targetYield: 0,
-            initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
-          })
-        )
-      });
-
-      conditions[0][1] = IKSConditionBasedValidator.Condition({
-        conditionType: ConditionLibrary.PRICE_BASED,
-        data: abi.encode(PriceCondition({minPrice: 0, maxPrice: type(uint160).max}))
-      });
-      validationData.dnfExpressions = new IKSConditionBasedValidator.DNFExpression[](1);
-      validationData.dnfExpressions[0].conditions = conditions;
-    } else {
-      IKSConditionBasedValidator.Condition[][] memory conditions =
-        abi.decode(conditions, (IKSConditionBasedValidator.Condition[][]));
-      validationData.dnfExpressions = new IKSConditionBasedValidator.DNFExpression[](1);
-      validationData.dnfExpressions[0].conditions = conditions;
-    }
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
@@ -539,6 +518,19 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+  }
+
+  function callLibrary(ConditionTree calldata tree, uint256 curIndex) external view returns (bool) {
+    console.log('breakpoint5');
+    return ConditionLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition);
+  }
+
+  function evaluateCondition(Condition calldata condition, bytes calldata additionalData)
+    public
+    view
+    returns (bool)
+  {
+    return rmLqValidator.evaluateCondition(condition, additionalData);
   }
 
   function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 liquidity)
@@ -600,8 +592,10 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function _boundStruct(FuzzStruct memory fuzzStruct) internal {
+    fuzzStruct.seed = bound(fuzzStruct.seed, 0, type(uint128).max);
     fuzzStruct.liquidityToRemove = bound(fuzzStruct.liquidityToRemove, 0, liquidity);
-    minPercents = bound(fuzzStruct.minPercents, 0, ConditionLibrary.PRECISION * 100);
+    maxFeePercents = bound(maxFeePercents, 0, type(uint128).max);
+    fuzzStruct.maxFeePercents = maxFeePercents;
 
     (uint256 received0, uint256 received1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
     IPositionManager(pm).poolManager().computePositionValues(
@@ -613,72 +607,157 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     uint256 typeUint = bound(uint256(ConditionType.unwrap(fuzzStruct.conditionType)), 0, 2);
     if (typeUint == 0) {
-      fuzzStruct.conditionType = ConditionLibrary.YIELD_BASED;
+      fuzzStruct.conditionType = UNIV4_YIELD_BASED;
     } else if (typeUint == 1) {
-      fuzzStruct.conditionType = ConditionLibrary.PRICE_BASED;
+      fuzzStruct.conditionType = PRICE_BASED;
     } else {
-      fuzzStruct.conditionType = ConditionLibrary.TIME_BASED;
+      fuzzStruct.conditionType = TIME_BASED;
     }
   }
 
-  function getCondition(
-    IKSConditionBasedValidator.Condition calldata conditionType,
-    bool conditionPass
-  ) external view returns (IKSConditionBasedValidator.Condition memory) {
-    if (conditionType.isType(ConditionLibrary.YIELD_BASED)) {
-      if (conditionPass) {
-        return IKSConditionBasedValidator.Condition({
-          conditionType: ConditionLibrary.YIELD_BASED,
-          data: abi.encode(
-            YieldCondition({
-              targetYield: 1000, // 0.1%
-              initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
-            })
-          )
-        });
+  function buildConditionTree(
+    Node[] calldata nodes,
+    uint256 fee0Collected,
+    uint256 fee1Collected,
+    uint160 sqrtPriceX96
+  ) external pure returns (ConditionTree memory conditionTree) {
+    console.log('breakpoint3');
+    conditionTree.nodes = nodes;
+    conditionTree.additionalData = new bytes[](nodes.length);
+    for (uint256 i; i < nodes.length; ++i) {
+      if (!nodes[i].isLeaf() || nodes[i].condition.isType(TIME_BASED)) {
+        continue;
       }
-
-      return IKSConditionBasedValidator.Condition({
-        conditionType: ConditionLibrary.YIELD_BASED,
-        data: abi.encode(
-          YieldCondition({
-            targetYield: 10_000_000, // 1000%
-            initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
-          })
-        )
-      });
-    } else if (conditionType.isType(ConditionLibrary.PRICE_BASED)) {
-      if (conditionPass) {
-        return IKSConditionBasedValidator.Condition({
-          conditionType: ConditionLibrary.PRICE_BASED,
-          data: abi.encode(
-            PriceCondition({minPrice: currentPrice - 100, maxPrice: currentPrice + 100})
-          )
-        });
+      if (nodes[i].condition.isType(UNIV4_YIELD_BASED)) {
+        conditionTree.additionalData[i] = abi.encode(fee0Collected, fee1Collected, sqrtPriceX96);
+      } else if (nodes[i].condition.isType(PRICE_BASED)) {
+        conditionTree.additionalData[i] = abi.encode(sqrtPriceX96);
       }
-
-      return IKSConditionBasedValidator.Condition({
-        conditionType: ConditionLibrary.PRICE_BASED,
-        data: abi.encode(
-          PriceCondition({minPrice: currentPrice + 100, maxPrice: currentPrice + 1000})
-        )
-      });
-    } else if (conditionType.isType(ConditionLibrary.TIME_BASED)) {
-      if (conditionPass) {
-        return IKSConditionBasedValidator.Condition({
-          conditionType: ConditionLibrary.TIME_BASED,
-          data: abi.encode(
-            TimeCondition({startTimestamp: block.timestamp - 100, endTimestamp: block.timestamp + 100})
-          )
-        });
-      }
-      return IKSConditionBasedValidator.Condition({
-        conditionType: ConditionLibrary.TIME_BASED,
-        data: abi.encode(
-          TimeCondition({startTimestamp: block.timestamp + 100, endTimestamp: block.timestamp + 1000})
-        )
-      });
     }
+    console.log('breakpoint4');
+  }
+
+  function _randomNodes(FuzzStruct memory fuzzStruct) internal returns (Node[] memory nodes) {
+    uint256 maxDepth = bound(fuzzStruct.seed, 1, 10);
+    uint256 maxChildren = bound(fuzzStruct.seed, 1, 10);
+    uint256 curIndex = 0;
+
+    (Node memory curNode, bool isLeaf) = _buildRandomNode(fuzzStruct, false);
+    _nodes.push(curNode);
+    _isLeaf[0] = isLeaf;
+
+    for (uint256 i = 0; i < maxDepth; i++) {
+      uint256 childrenLength = bound(fuzzStruct.seed, 1, maxChildren);
+      curNode = _nodes[curIndex];
+      OperationType opType = curNode.operationType;
+
+      if (_isLeaf[curIndex]) {
+        // leaf node
+        continue;
+      }
+
+      for (uint256 j = 1; j <= childrenLength; j++) {
+        (Node memory childNode, bool childIsLeaf) = _buildRandomNode(fuzzStruct, i == maxDepth - 1);
+
+        uint256 childIndex = _nodes.length;
+        _nodes.push(childNode);
+        _isLeaf[childIndex] = childIsLeaf;
+        _nodes[curIndex].childrenIndexes.push(childIndex);
+      }
+      curIndex++;
+    }
+
+    nodes = _nodes;
+  }
+
+  function _buildRandomNode(FuzzStruct memory fuzzStruct, bool mustBeLeaf)
+    internal
+    returns (Node memory, bool isLeaf)
+  {
+    isLeaf = bound(fuzzStruct.seed, 0, 1) == 1;
+    bool conditionPass = bound(fuzzStruct.seed * 2 + 1, 0, 1) == 1;
+    if (mustBeLeaf || isLeaf) {
+      Condition memory condition = _createCondition(fuzzStruct);
+      return (_createLeafNode(condition), true);
+    } else {
+      OperationType opType = (fuzzStruct.seed << 1) % 3 == 0 ? AND : OR;
+      return (_createNode(new uint256[](0), opType), false);
+    }
+  }
+
+  function _createLeafNode(Condition memory condition) internal pure returns (Node memory) {
+    uint256[] memory emptyChildren = new uint256[](0);
+    return Node({
+      operationType: AND, // doesn't matter for leaf
+      condition: condition,
+      childrenIndexes: emptyChildren
+    });
+  }
+
+  function _createNode(uint256[] memory children, OperationType opType)
+    internal
+    pure
+    returns (Node memory)
+  {
+    Condition memory emptyCondition = Condition({conditionType: TIME_BASED, data: ''});
+    return Node({
+      operationType: opType,
+      condition: emptyCondition, // doesn't matter for non-leaf
+      childrenIndexes: children
+    });
+  }
+
+  function _createCondition(FuzzStruct memory fuzzStruct) internal view returns (Condition memory) {
+    if (ConditionType.unwrap(fuzzStruct.conditionType) == ConditionType.unwrap(UNIV4_YIELD_BASED)) {
+      return _createYieldCondition(fuzzStruct.conditionPass);
+    } else if (ConditionType.unwrap(fuzzStruct.conditionType) == ConditionType.unwrap(PRICE_BASED))
+    {
+      return _createPriceCondition(fuzzStruct.conditionPass);
+    } else {
+      return _createTimeCondition(fuzzStruct.conditionPass);
+    }
+  }
+
+  function _createYieldCondition(bool isTrue) internal view returns (Condition memory condition) {
+    condition.conditionType = UNIV4_YIELD_BASED;
+
+    if (isTrue) {
+      condition.data = abi.encode(
+        YieldCondition({
+          targetYield: 1000, // 0.1%
+          initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
+        })
+      );
+    } else {
+      condition.data = abi.encode(
+        YieldCondition({
+          targetYield: 10_000_000, // 1000%
+          initialAmounts: (uint256(amount0) << 128) | uint256(amount1)
+        })
+      );
+    }
+  }
+
+  function _createTimeCondition(bool isTrue) internal view returns (Condition memory) {
+    TimeCondition memory timeCondition = TimeCondition({
+      startTimestamp: isTrue ? block.timestamp - 100 : block.timestamp + 100,
+      endTimestamp: isTrue ? block.timestamp + 100 : block.timestamp + 200
+    });
+
+    return Condition({conditionType: TIME_BASED, data: abi.encode(timeCondition)});
+  }
+
+  function _createPriceCondition(bool isTrue) internal view returns (Condition memory) {
+    PriceCondition memory priceCondition;
+    if (isTrue) {
+      priceCondition.minPrice = currentPrice - 100;
+      priceCondition.maxPrice = currentPrice + 100;
+    } else {
+      priceCondition.minPrice = currentPrice + 100;
+      priceCondition.maxPrice = currentPrice + 1000;
+    }
+
+    return Condition({conditionType: PRICE_BASED, data: abi.encode(priceCondition)});
   }
 
   function _overrideParams() internal {

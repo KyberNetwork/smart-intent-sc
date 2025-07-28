@@ -56,20 +56,10 @@ contract MockActionContract {
       return;
     }
 
-    if (magicNumber == MAGIC_NUMBER_TRANSFER_99PERCENT) {
-      token0.safeTransfer(owner, amount0 * 0.991e18 / 1e18);
-      token1.safeTransfer(owner, amount1 * 0.991e18 / 1e18);
-      return;
-    }
+    uint256 transferPercent = magicNumber;
 
-    if (magicNumber == MAGIC_NUMBER_TRANSFER_98PERCENT) {
-      token0.safeTransfer(owner, amount0 * 0.98e18 / 1e18);
-      token1.safeTransfer(owner, amount1 * 0.98e18 / 1e18);
-      return;
-    }
-
-    token0.safeTransfer(owner, amount0);
-    token1.safeTransfer(owner, amount1);
+    token0.safeTransfer(owner, amount0 * transferPercent / 1e6);
+    token1.safeTransfer(owner, amount1 * transferPercent / 1e6);
   }
 
   fallback() external payable {}

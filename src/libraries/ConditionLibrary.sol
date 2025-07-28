@@ -1,132 +1,88 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '@openzeppelin-contracts/utils/math/Math.sol';
-import 'src/interfaces/IKSConditionBasedValidator.sol';
+import 'src/interfaces/IKSConditionalValidator.sol';
 
-using ConditionLibrary for ConditionType;
-using ConditionLibrary for IKSConditionBasedValidator.Condition;
-using ConditionLibrary for bytes;
+using ConditionLibrary for ConditionTree;
+using ConditionLibrary for Node;
 
 /**
- * @param startTimestamp the start timestamp of the condition
- * @param endTimestamp the end timestamp of the condition
+ * @notice Library for condition tree evaluation
  */
-struct TimeCondition {
-  uint256 startTimestamp;
-  uint256 endTimestamp;
-}
-
-/**
- * @param targetYield the target yield threshold (1e6 precision)
- * @param initialAmounts the initial amounts of the tokens
- */
-struct YieldCondition {
-  uint256 targetYield;
-  uint256 initialAmounts; // [token0, token1]
-}
-
-/**
- * @param minPrice the minimum price of the token (would be in sqrtPriceX96 if uni v3 pool type)
- * @param maxPrice the maximum price of the token (would be in sqrtPriceX96 if uni v3 pool type)
- */
-struct PriceCondition {
-  uint256 minPrice;
-  uint256 maxPrice;
-}
-
 library ConditionLibrary {
-  error WrongConditionType();
+  error InvalidNodeIndex();
+  error WrongOperationType();
 
-  ConditionType public constant YIELD_BASED = ConditionType.wrap(keccak256('YIELD_BASED'));
-  ConditionType public constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));
-  ConditionType public constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
+  OperationType public constant AND = OperationType.AND;
+  OperationType public constant OR = OperationType.OR;
 
-  uint256 public constant PRECISION = 1_000_000;
-  uint256 public constant Q96 = 1 << 96;
+  /**
+   * @notice Recursively evaluates a node in a condition tree
+   * @param tree the condition tree to be evaluated
+   * @param curIndex index of current node to evaluate (must be < nodes.length and != childIndex)
+   * @param evaluateCondition the custom function holding the logic for evaluating the condition of the leaf node
+   * @return true if the condition tree is satisfied, false otherwise
+   */
+  function evaluateConditionTree(
+    ConditionTree calldata tree,
+    uint256 curIndex,
+    function(Condition calldata, bytes calldata) view returns (bool) evaluateCondition
+  ) internal view returns (bool) {
+    require(curIndex < tree.nodes.length, InvalidNodeIndex());
+    Node calldata node = tree.nodes[curIndex];
 
-  function evaluateTimeCondition(IKSConditionBasedValidator.Condition calldata condition)
+    bytes calldata additionalData = tree.additionalData[curIndex];
+
+    if (node.isLeaf()) {
+      return evaluateCondition(node.condition, additionalData);
+    }
+
+    // non-leaf node
+    uint256 length = node.childrenIndexes.length;
+    uint256 childIndex;
+    if (node.operationType == AND) {
+      for (uint256 i; i < length; ++i) {
+        childIndex = node.childrenIndexes[i];
+        require(childIndex != curIndex, InvalidNodeIndex());
+        if (!tree.evaluateConditionTree(childIndex, evaluateCondition)) {
+          return false;
+        }
+      }
+      return true;
+    } else if (node.operationType == OR) {
+      for (uint256 i; i < length; ++i) {
+        childIndex = node.childrenIndexes[i];
+        require(childIndex != curIndex, InvalidNodeIndex());
+        if (tree.evaluateConditionTree(childIndex, evaluateCondition)) {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      revert WrongOperationType();
+    }
+  }
+
+  /**
+   * @notice Checks if a node is a leaf node
+   * @param node the node to check
+   * @return true if the node is a leaf node, false otherwise
+   */
+  function isLeaf(Node calldata node) internal pure returns (bool) {
+    return node.childrenIndexes.length == 0;
+  }
+
+  /**
+   * @notice Checks if a condition is of a specific type
+   * @param condition the condition to check
+   * @param conditionType the type to check against
+   * @return true if the condition is of the specified type, false otherwise
+   */
+  function isType(Condition calldata condition, ConditionType conditionType)
     internal
-    view
+    pure
     returns (bool)
   {
-    TimeCondition calldata timeCondition = condition.data.decodeTimeCondition();
-
-    return timeCondition.startTimestamp <= block.timestamp
-      && timeCondition.endTimestamp >= block.timestamp;
-  }
-
-  function evaluateUniV4YieldCondition(
-    IKSConditionBasedValidator.Condition calldata condition,
-    uint256 fee0,
-    uint256 fee1,
-    uint160 sqrtPriceX96
-  ) internal pure returns (bool) {
-    YieldCondition calldata yieldCondition = condition.data.decodeYieldCondition();
-
-    uint256 initialAmount0 = yieldCondition.initialAmounts >> 128;
-    uint256 initialAmount1 = uint256(uint128(yieldCondition.initialAmounts));
-
-    uint256 numerator = fee0 + convertToken1ToToken0(sqrtPriceX96, fee1);
-    uint256 denominator = initialAmount0 + convertToken1ToToken0(sqrtPriceX96, initialAmount1);
-    if (denominator == 0) return false;
-
-    uint256 yield = (numerator * PRECISION) / denominator;
-
-    return yield >= yieldCondition.targetYield;
-  }
-
-  function evaluatePriceCondition(
-    IKSConditionBasedValidator.Condition calldata condition,
-    uint256 price
-  ) internal pure returns (bool) {
-    PriceCondition calldata priceCondition = condition.data.decodePriceCondition();
-
-    return priceCondition.minPrice <= price && priceCondition.maxPrice >= price;
-  }
-
-  function isType(
-    IKSConditionBasedValidator.Condition calldata condition,
-    ConditionType conditionType
-  ) internal pure returns (bool) {
     return ConditionType.unwrap(condition.conditionType) == ConditionType.unwrap(conditionType);
-  }
-
-  function decodePriceCondition(bytes calldata data)
-    internal
-    pure
-    returns (PriceCondition calldata priceCondition)
-  {
-    assembly ("memory-safe") {
-      priceCondition := data.offset
-    }
-  }
-
-  function decodeTimeCondition(bytes calldata data)
-    internal
-    pure
-    returns (TimeCondition calldata timeCondition)
-  {
-    assembly ("memory-safe") {
-      timeCondition := data.offset
-    }
-  }
-
-  function decodeYieldCondition(bytes calldata data)
-    internal
-    pure
-    returns (YieldCondition calldata yieldCondition)
-  {
-    assembly ("memory-safe") {
-      yieldCondition := data.offset
-    }
-  }
-
-  function convertToken1ToToken0(uint160 sqrtPriceX96, uint256 amount1)
-    internal
-    pure
-    returns (uint256 amount0)
-  {
-    amount0 = Math.mulDiv(Math.mulDiv(amount1, Q96, sqrtPriceX96), Q96, sqrtPriceX96);
   }
 }
