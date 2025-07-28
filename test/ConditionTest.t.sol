@@ -57,30 +57,6 @@ contract ConditionTest is Test {
       curIndex++;
     }
 
-    // for (uint256 i = 0; i < _nodes.length; i++) {
-    //   console.log('--------------------------------');
-    //   console.log('curNode', i);
-    //   bool isLeaf = _nodes[i].childrenIndexes.length == 0;
-    //   console.log('isLeaf', isLeaf);
-    //   if (isLeaf) {
-    //     console.log(
-    //       'condition',
-    //       ConditionType.unwrap(_nodes[i].condition.conditionType)
-    //         == ConditionType.unwrap(ConditionLibrary.TIME_BASED)
-    //         ? 'time'
-    //         : ConditionType.unwrap(_nodes[i].condition.conditionType)
-    //           == ConditionType.unwrap(ConditionLibrary.YIELD_BASED) ? 'yield' : 'price'
-    //     );
-    //   } else {
-    //     console.log('operationType', _nodes[i].operationType == AND ? 'AND' : 'OR');
-    //     for (uint256 j = 0; j < _nodes[i].childrenIndexes.length; j++) {
-    //       console.log('child', _nodes[i].childrenIndexes[j]);
-    //     }
-    //   }
-
-    //   console.log('--------------------------------');
-    // }
-
     ConditionTree memory tree = _buildTree(_nodes);
 
     bool pass = this.callLibrary(tree, 0);
