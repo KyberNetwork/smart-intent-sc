@@ -77,13 +77,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (tickLower, tickUpper) = _getTickRange(positionIn);
     liquidity = IPositionManager(pm).getPositionLiquidity(uniV4TokenId);
     assertTrue(currentTick > tickUpper, 'currentTick > tickLower');
-
-    console.log('PRICE_BASED');
-    console.logBytes32(ConditionType.unwrap(rmLqValidator.PRICE_BASED()));
-    console.log('UNIV4_YIELD_BASED');
-    console.logBytes32(ConditionType.unwrap(rmLqValidator.UNIV4_YIELD_BASED()));
-    console.log('TIME_BASED');
-    console.logBytes32(ConditionType.unwrap(rmLqValidator.TIME_BASED()));
   }
 
   function testFuzz_RemoveLiquidity(FuzzStruct memory fuzzStruct) public {
@@ -113,13 +106,11 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     received0 += unclaimedFee0;
     received1 += unclaimedFee1;
 
-    console.log('breakpoint1');
 
     Node[] memory nodes = _randomNodes(fuzzStruct);
     ConditionTree memory conditionTree = this.buildConditionTree(nodes, fee0, fee1, currentPrice);
     bool pass = this.callLibrary(conditionTree, 0);
 
-    console.log('breakpoint2');
 
     IKSSessionIntentRouter.IntentData memory intentData =
       _getIntentData(fuzzStruct.usePermit, nodes);
@@ -521,7 +512,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function callLibrary(ConditionTree calldata tree, uint256 curIndex) external view returns (bool) {
-    console.log('breakpoint5');
     return ConditionLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition);
   }
 
@@ -621,7 +611,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     uint256 fee1Collected,
     uint160 sqrtPriceX96
   ) external pure returns (ConditionTree memory conditionTree) {
-    console.log('breakpoint3');
     conditionTree.nodes = nodes;
     conditionTree.additionalData = new bytes[](nodes.length);
     for (uint256 i; i < nodes.length; ++i) {
@@ -634,7 +623,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
         conditionTree.additionalData[i] = abi.encode(sqrtPriceX96);
       }
     }
-    console.log('breakpoint4');
   }
 
   function _randomNodes(FuzzStruct memory fuzzStruct) internal returns (Node[] memory nodes) {
