@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './base/BaseIntentValidator.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
-import '@openzeppelin-contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';

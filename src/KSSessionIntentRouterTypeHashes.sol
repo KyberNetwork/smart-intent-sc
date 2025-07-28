@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import './interfaces/IKSSessionIntentValidator.sol';
 
-import '@openzeppelin-contracts/utils/cryptography/EIP712.sol';
+import 'openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol';
 
 abstract contract KSSessionIntentRouterTypeHashes is
   IKSSessionIntentRouter,

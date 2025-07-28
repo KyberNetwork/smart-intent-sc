@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './FixedPoint96.sol';
-import '@openzeppelin-contracts/utils/math/Math.sol';
+import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 /// @title Liquidity amount functions
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices

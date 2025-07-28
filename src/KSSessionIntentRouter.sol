@@ -5,9 +5,9 @@ import './KSSessionIntentRouterAccounting.sol';
 import './KSSessionIntentRouterNonces.sol';
 import './KSSessionIntentRouterTypeHashes.sol';
 
-import '@openzeppelin-contracts/utils/Address.sol';
-import '@openzeppelin-contracts/utils/ReentrancyGuardTransient.sol';
-import '@openzeppelin-contracts/utils/cryptography/SignatureChecker.sol';
+import 'openzeppelin-contracts/contracts/utils/Address.sol';
+import 'openzeppelin-contracts/contracts/utils/ReentrancyGuardTransient.sol';
+import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
 contract KSSessionIntentRouter is
   KSSessionIntentRouterAccounting,

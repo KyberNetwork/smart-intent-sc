@@ -31,10 +31,8 @@ library ConditionLibrary {
     require(curIndex < tree.nodes.length, InvalidNodeIndex());
     Node calldata node = tree.nodes[curIndex];
 
-    bytes calldata additionalData = tree.additionalData[curIndex];
-
     if (node.isLeaf()) {
-      return evaluateCondition(node.condition, additionalData);
+      return evaluateCondition(node.condition, tree.additionalData[curIndex]);
     }
 
     // non-leaf node

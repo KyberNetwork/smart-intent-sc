@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import '@openzeppelin-contracts/utils/math/Math.sol';
+import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 import 'src/interfaces/uniswapv4/IPoolManager.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
 import 'src/libraries/univ4/LiquidityAmounts.sol';

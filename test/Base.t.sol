@@ -10,7 +10,7 @@ import './mocks/MockDex.sol';
 
 import 'forge-std/Test.sol';
 
-import '@openzeppelin-contracts/mocks/token/ERC20Mock.sol';
+import 'openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol';
 
 import 'src/interfaces/IKSSwapRouter.sol';
 

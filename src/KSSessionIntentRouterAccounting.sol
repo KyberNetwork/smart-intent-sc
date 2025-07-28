@@ -4,13 +4,13 @@ pragma solidity ^0.8.0;
 import './interfaces/IKSSessionIntentValidator.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
-import '@openzeppelin-contracts/interfaces/IERC1155.sol';
-import '@openzeppelin-contracts/interfaces/IERC1155Receiver.sol';
-import '@openzeppelin-contracts/interfaces/IERC721Receiver.sol';
 import {ManagementBase} from 'ks-common-sc/base/ManagementBase.sol';
 import {ManagementPausable} from 'ks-common-sc/base/ManagementPausable.sol';
 import 'ks-common-sc/base/ManagementRescuable.sol';
 import {PermitHelper} from 'ks-common-sc/libraries/token/PermitHelper.sol';
+import 'openzeppelin-contracts/contracts/interfaces/IERC1155.sol';
+import 'openzeppelin-contracts/contracts/interfaces/IERC1155Receiver.sol';
+import 'openzeppelin-contracts/contracts/interfaces/IERC721Receiver.sol';
 
 abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, ManagementRescuable {
   using TokenHelper for address;

@@ -7,7 +7,7 @@ import '../interfaces/uniswapv2/IUniswapV2Pair.sol';
 import './base/BaseIntentValidator.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
-import '@openzeppelin-contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 contract KSZapOutUniswapV2IntentValidator is BaseIntentValidator {
   using TokenHelper for address;
