@@ -106,11 +106,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     received0 += unclaimedFee0;
     received1 += unclaimedFee1;
 
-
     Node[] memory nodes = _randomNodes(fuzzStruct);
     ConditionTree memory conditionTree = this.buildConditionTree(nodes, fee0, fee1, currentPrice);
     bool pass = this.callLibrary(conditionTree, 0);
-
 
     IKSSessionIntentRouter.IntentData memory intentData =
       _getIntentData(fuzzStruct.usePermit, nodes);
