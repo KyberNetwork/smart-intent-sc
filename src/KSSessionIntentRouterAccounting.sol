@@ -12,11 +12,11 @@ import 'openzeppelin-contracts/interfaces/IERC721Receiver.sol';
 abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSRescueV2 {
   using TokenLibrary for address;
 
-  mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) internal erc1155Allowances;
+  mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) public erc1155Allowances;
 
-  mapping(bytes32 => mapping(address => uint256)) internal erc20Allowances;
+  mapping(bytes32 => mapping(address => uint256)) public erc20Allowances;
 
-  mapping(bytes32 => mapping(address => mapping(uint256 => bool))) internal erc721Approvals;
+  mapping(bytes32 => mapping(address => mapping(uint256 => bool))) public erc721Approvals;
 
   constructor(address initialOwner, address[] memory initialGuardians) Ownable(initialOwner) {
     for (uint256 i = 0; i < initialGuardians.length; i++) {

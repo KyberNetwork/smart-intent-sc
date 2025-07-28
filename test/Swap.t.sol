@@ -27,9 +27,7 @@ contract SwapTest is BaseTest {
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(
-      router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
-    );
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   /// forge-config: default.fuzz.runs = 10

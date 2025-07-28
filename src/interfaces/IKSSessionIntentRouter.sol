@@ -11,14 +11,17 @@ interface IKSSessionIntentRouter {
   /// @notice Thrown when executing the intent after the end time
   error ExecuteTooLate();
 
-  /// @notice Thrown when the intent has already existed or has been revoked
-  error IntentExistedOrRevoked();
+  /// @notice Thrown when the intent has not been delegated
+  error IntentNotDelegated();
+
+  /// @notice Thrown when the intent has already been delegated
+  error IntentDelegated();
+
+  /// @notice Thrown when the intent has already been revoked
+  error IntentRevoked();
 
   /// @notice Thrown when the action contract and selector length mismatch
   error LengthMismatch();
-
-  /// @notice Thrown when the intent has been revoked
-  error IntentRevoked();
 
   /// @notice Thrown when the signature is not from the main address
   error InvalidMainAddressSignature();
@@ -157,6 +160,12 @@ interface IKSSessionIntentRouter {
     bytes extraData;
   }
 
+  enum IntentStatus {
+    NOT_DELEGATED,
+    DELEGATED,
+    REVOKED
+  }
+
   /**
    * @notice Data structure for action
    * @param tokenData The token data for the action
@@ -204,26 +213,20 @@ interface IKSSessionIntentRouter {
 
   /**
    * @notice Revoke the delegated intent
-   * @param intentHash The hash of the intent
-   */
-  function revoke(bytes32 intentHash) external;
-
-  /**
-   * @notice Revoke the delegated intent
    * @param intentData The intent data to revoke
    */
   function revoke(IntentData memory intentData) external;
 
   /**
    * @notice Execute the intent
-   * @param intentHash The hash of the intent
+   * @param intentData The data for the intent
    * @param daSignature The signature of the delegated address
    * @param guardian The address of the guardian
    * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
    */
   function execute(
-    bytes32 intentHash,
+    IntentData calldata intentData,
     bytes memory daSignature,
     address guardian,
     bytes memory gdSignature,
@@ -269,36 +272,36 @@ interface IKSSessionIntentRouter {
     returns (bytes32 actionHash);
 
   /**
-   * @notice Get the ERC1155 allowance for a specific intent
+   * @notice Return the ERC1155 allowance for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC1155 token
    * @param tokenId The ID of the ERC1155 token
    * @return allowance The allowance for the specified token and token ID
    */
-  function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
+  function erc1155Allowances(bytes32 intentHash, address token, uint256 tokenId)
     external
     view
     returns (uint256 allowance);
 
   /**
-   * @notice Get the ERC20 allowance for a specific intent
+   * @notice Return the ERC20 allowance for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC20 token
    * @return allowance The allowance for the specified token
    */
-  function getERC20Allowance(bytes32 intentHash, address token)
+  function erc20Allowances(bytes32 intentHash, address token)
     external
     view
     returns (uint256 allowance);
 
   /**
-   * @notice Check if an ERC721 token is approved for a specific intent
+   * @notice Return if an ERC721 token is approved for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC721 token
    * @param tokenId The ID of the ERC721 token
    * @return approved True if the token is approved, false otherwise
    */
-  function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
+  function erc721Approvals(bytes32 intentHash, address token, uint256 tokenId)
     external
     view
     returns (bool approved);

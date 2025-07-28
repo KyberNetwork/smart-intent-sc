@@ -87,9 +87,7 @@ contract TimeBasedDCATest is BaseTest {
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
-      router.execute(
-        router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
-      );
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -120,9 +118,7 @@ contract TimeBasedDCATest is BaseTest {
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
-      router.execute(
-        router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
-      );
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -157,9 +153,7 @@ contract TimeBasedDCATest is BaseTest {
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
-      router.execute(
-        router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
-      );
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -186,8 +180,6 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
       if (i == timestamps.length - 1) {
         vm.expectRevert(
@@ -195,7 +187,7 @@ contract TimeBasedDCATest is BaseTest {
         );
       }
 
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -219,8 +211,6 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
       vm.expectRevert(
         abi.encodeWithSelector(
@@ -230,7 +220,7 @@ contract TimeBasedDCATest is BaseTest {
           timestamps[i] + startPeriod + 1
         )
       );
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -259,15 +249,13 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
       vm.expectRevert(
         abi.encodeWithSelector(
           KSTimeBasedDCAIntentValidator.InvalidTokenIn.selector, validationData.srcToken, tokenIn
         )
       );
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -296,15 +284,13 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
       vm.expectRevert(
         abi.encodeWithSelector(
           KSTimeBasedDCAIntentValidator.InvalidAmountIn.selector, 1e8, amountIn
         )
       );
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -330,8 +316,6 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
       vm.expectRevert(
         abi.encodeWithSelector(
@@ -341,7 +325,7 @@ contract TimeBasedDCATest is BaseTest {
           actualAmountOut
         )
       );
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -367,8 +351,6 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
       vm.expectRevert(
         abi.encodeWithSelector(
@@ -378,7 +360,7 @@ contract TimeBasedDCATest is BaseTest {
           actualAmountOut
         )
       );
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       vm.stopPrank();
     }
   }
@@ -403,10 +385,8 @@ contract TimeBasedDCATest is BaseTest {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
-      bytes32 intentHash = router.hashTypedIntentData(intentData);
-
       vm.startPrank(caller);
-      router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
       //try to execute again
       if (i == swapNo) {
@@ -415,7 +395,7 @@ contract TimeBasedDCATest is BaseTest {
         vm.expectRevert(
           abi.encodeWithSelector(KSTimeBasedDCAIntentValidator.SwapAlreadyExecuted.selector)
         );
-        router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+        router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       }
       vm.stopPrank();
     }

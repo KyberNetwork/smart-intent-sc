@@ -17,9 +17,7 @@ contract KSSessionIntentRouter is
 {
   using Address for address;
 
-  address internal constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
-
-  mapping(bytes32 => IntentCoreData) public intents;
+  mapping(bytes32 => IntentStatus) public intentStatuses;
 
   mapping(bytes32 => bool) public whitelistedActions;
 
@@ -55,38 +53,30 @@ contract KSSessionIntentRouter is
   /// @inheritdoc IKSSessionIntentRouter
   function delegate(IntentData calldata intentData) public {
     require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
-    _delegate(intentData, 0);
-  }
 
-  /// @inheritdoc IKSSessionIntentRouter
-  function revoke(bytes32 intentHash) public {
-    IntentCoreData storage intent = intents[intentHash];
-    require(intent.mainAddress == _msgSender(), NotMainAddress());
-
-    intent.mainAddress = DEAD_ADDRESS;
-
-    emit RevokeIntent(intentHash);
+    _delegate(intentData, _hashTypedIntentData(intentData));
   }
 
   /// @inheritdoc IKSSessionIntentRouter
   function revoke(IntentData calldata intentData) public {
     require(intentData.coreData.mainAddress == _msgSender(), NotMainAddress());
-    bytes32 intentHash = _hashTypedIntentData(intentData);
 
-    intents[intentHash].mainAddress = DEAD_ADDRESS;
+    bytes32 intentHash = _hashTypedIntentData(intentData);
+    intentStatuses[intentHash] = IntentStatus.REVOKED;
 
     emit RevokeIntent(intentHash);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
   function execute(
-    bytes32 intentHash,
+    IntentData calldata intentData,
     bytes memory daSignature,
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
   ) public {
-    _execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    bytes32 intentHash = _hashTypedIntentData(intentData);
+    _execute(intentHash, intentData.coreData, daSignature, guardian, gdSignature, actionData);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
@@ -103,8 +93,9 @@ contract KSSessionIntentRouter is
       SignatureChecker.isValidSignatureNow(intentData.coreData.mainAddress, intentHash, maSignature),
       InvalidMainAddressSignature()
     );
+
     _delegate(intentData, intentHash);
-    _execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    _execute(intentHash, intentData.coreData, daSignature, guardian, gdSignature, actionData);
   }
 
   /// @inheritdoc IKSSessionIntentRouter
@@ -117,40 +108,14 @@ contract KSSessionIntentRouter is
     return _hashTypedActionData(actionData);
   }
 
-  /// @inheritdoc IKSSessionIntentRouter
-  function getERC1155Allowance(bytes32 intentHash, address token, uint256 tokenId)
-    public
-    view
-    returns (uint256)
-  {
-    return erc1155Allowances[intentHash][token][tokenId];
-  }
-
-  /// @inheritdoc IKSSessionIntentRouter
-  function getERC20Allowance(bytes32 intentHash, address token) public view returns (uint256) {
-    return erc20Allowances[intentHash][token];
-  }
-
-  /// @inheritdoc IKSSessionIntentRouter
-  function getERC721Approval(bytes32 intentHash, address token, uint256 tokenId)
-    public
-    view
-    returns (bool)
-  {
-    return erc721Approvals[intentHash][token][tokenId];
-  }
-
   function _delegate(IntentData calldata intentData, bytes32 intentHash) internal {
-    if (intentHash == 0) intentHash = _hashTypedIntentData(intentData);
-    address mainAddress = intents[intentHash].mainAddress;
-    require(mainAddress == address(0), IntentExistedOrRevoked());
+    _checkIntentStatus(intentHash, IntentStatus.NOT_DELEGATED);
     require(
       intentData.coreData.actionContracts.length == intentData.coreData.actionSelectors.length,
       LengthMismatch()
     );
 
-    intents[intentHash] = intentData.coreData;
-
+    intentStatuses[intentHash] = IntentStatus.DELEGATED;
     _approveTokens(intentHash, intentData.tokenData);
 
     emit DelegateIntent(
@@ -160,13 +125,13 @@ contract KSSessionIntentRouter is
 
   function _execute(
     bytes32 intentHash,
+    IntentCoreData calldata intent,
     bytes memory daSignature,
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
   ) internal nonReentrant {
-    IntentCoreData storage intent = intents[intentHash];
-    require(intent.mainAddress != DEAD_ADDRESS, IntentRevoked());
+    _checkIntentStatus(intentHash, IntentStatus.DELEGATED);
     require(block.timestamp >= intent.startTime, ExecuteTooEarly());
     require(block.timestamp <= intent.endTime, ExecuteTooLate());
     require(block.timestamp <= actionData.deadline, ExecuteTooLate());
@@ -213,5 +178,18 @@ contract KSSessionIntentRouter is
     );
 
     emit ExecuteIntent(intentHash, actionData, actionResult);
+  }
+
+  function _checkIntentStatus(bytes32 intentHash, IntentStatus expectedStatus) internal view {
+    IntentStatus actualStatus = intentStatuses[intentHash];
+    if (actualStatus != expectedStatus) {
+      if (actualStatus == IntentStatus.DELEGATED) {
+        revert IntentDelegated();
+      } else if (actualStatus == IntentStatus.REVOKED) {
+        revert IntentRevoked();
+      } else {
+        revert IntentNotDelegated();
+      }
+    }
   }
 }
