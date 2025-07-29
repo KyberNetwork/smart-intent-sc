@@ -32,8 +32,6 @@ struct PriceCondition {
 }
 
 abstract contract BaseConditionalValidator is IKSConditionalValidator {
-  using ConditionTreeLibrary for *;
-
   error WrongConditionType();
 
   ConditionType public constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));

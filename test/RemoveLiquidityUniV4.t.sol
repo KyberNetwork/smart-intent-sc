@@ -11,7 +11,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
   using StateLibrary for IPoolManager;
-  using ConditionTreeLibrary for *;
 
   address pm = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
   address uniV4TokenOwner = 0x1f2F10D1C40777AE1Da742455c65828FF36Df387;

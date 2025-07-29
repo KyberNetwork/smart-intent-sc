@@ -9,8 +9,6 @@ import 'src/validators/base/BaseConditionalValidator.sol';
 import 'test/mocks/MockConditionalValidator.sol';
 
 contract ConditionTreeTest is Test {
-  using ConditionTreeLibrary for *;
-
   OperationType constant AND = OperationType.AND;
   OperationType constant OR = OperationType.OR;
   ConditionType constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));

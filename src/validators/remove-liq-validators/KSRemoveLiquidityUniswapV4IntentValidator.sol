@@ -15,7 +15,6 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
 {
   using StateLibrary for IPoolManager;
   using TokenHelper for address;
-  using ConditionTreeLibrary for *;
 
   error InvalidOwner();
   error InvalidLiquidity();
