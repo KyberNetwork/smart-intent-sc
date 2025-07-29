@@ -442,10 +442,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     validationData.nftAddresses[0] = pm;
     validationData.nftIds = new uint256[](1);
     validationData.nftIds[0] = uniV4TokenId;
-    validationData.maxFees = new uint256[][](1);
-    validationData.maxFees[0] = new uint256[](2);
-    validationData.maxFees[0][0] = maxFeePercents;
-    validationData.maxFees[0][1] = maxFeePercents;
+    validationData.maxFees = new uint256[](1);
+    validationData.maxFees[0] = maxFeePercents << 128 | maxFeePercents;
     validationData.wrapOrUnwrap = new bool[](1);
     validationData.wrapOrUnwrap[0] = wrapOrUnwrap;
 

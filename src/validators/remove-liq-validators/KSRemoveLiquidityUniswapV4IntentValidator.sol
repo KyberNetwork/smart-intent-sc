@@ -26,7 +26,6 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
 
   uint256 public constant PRECISION = 1_000_000;
   uint256 public constant Q96 = 1 << 96;
-  uint256 public constant FEE_LENGTH = 2;
   address public immutable WETH;
 
   /**
@@ -60,7 +59,7 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
    * @param nftAddresses The NFT addresses
    * @param nftIds The NFT IDs
    * @param nodes The nodes of conditions (used to build the condition tree)
-   * @param maxFees The max fee percents for each output token (1e6 = 100%)
+   * @param maxFees The max fee percents for each output token (1e6 = 100%), [128 bits token0 max fee, 128 bits token1 max fee]
    * @param wrapOrUnwrap wrap or unwrap token flag when remove liquidity from pool
    * @param recipient The recipient
    */
@@ -68,7 +67,7 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     address[] nftAddresses;
     uint256[] nftIds;
     Node[][] nodes;
-    uint256[][] maxFees;
+    uint256[] maxFees;
     bool[] wrapOrUnwrap;
     address recipient;
   }
@@ -195,13 +194,13 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
   ) internal view returns (Node[] calldata nodes) {
     RemoveLiquidityValidationData calldata validationData = _decodeValidationData(data);
     nodes = validationData.nodes[index];
-    require(validationData.maxFees[index].length == FEE_LENGTH, InvalidLength());
 
     localVar.recipient = validationData.recipient;
     localVar.tokenId = validationData.nftIds[index];
     localVar.positionManager = IPositionManager(validationData.nftAddresses[index]);
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
-    localVar.maxFees = [validationData.maxFees[index][0], validationData.maxFees[index][1]];
+    localVar.maxFees =
+      [validationData.maxFees[index] >> 128, uint128(validationData.maxFees[index])];
 
     {
       IPoolManager poolManager = localVar.positionManager.poolManager();
