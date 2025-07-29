@@ -6,7 +6,7 @@ import 'src/validators/base/BaseIntentValidator.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
 import 'src/libraries/ConditionTreeLibrary.sol';
-import 'src/libraries/univ4/StateLibrary.sol';
+import 'src/libraries/uniswapv4/StateLibrary.sol';
 import 'src/validators/base/BaseConditionalValidator.sol';
 
 contract KSRemoveLiquidityUniswapV4IntentValidator is

@@ -6,7 +6,7 @@ import 'src/interfaces/uniswapv4/IPositionManager.sol';
 import 'src/validators/base/BaseIntentValidator.sol';
 
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
-import 'src/libraries/univ4/StateLibrary.sol';
+import 'src/libraries/uniswapv4/StateLibrary.sol';
 
 contract KSZapOutUniswapV4IntentValidator is BaseIntentValidator {
   using StateLibrary for IPoolManager;

@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 import 'src/interfaces/uniswapv4/IPoolManager.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
-import 'src/libraries/univ4/LiquidityAmounts.sol';
-import 'src/libraries/univ4/TickMath.sol';
+import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
+import 'src/libraries/uniswapv4/TickMath.sol';
 
 /// @notice A helper library to provide state getters that use extsload
 library StateLibrary {
