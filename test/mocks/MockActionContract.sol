@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {console} from 'forge-std/console.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
+
+import 'src/interfaces/IWETH.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
 
 struct UniswapV4Data {
@@ -32,7 +34,9 @@ contract MockActionContract {
     address token0,
     address token1,
     uint256 liquidity,
-    uint256 magicNumber
+    uint256 magicNumber,
+    bool wrapOrUnwrap,
+    address weth
   ) external {
     (PoolKey memory poolKey,) = posManager.getPoolAndPositionInfo(tokenId);
     bytes memory actions = new bytes(2);
@@ -50,10 +54,31 @@ contract MockActionContract {
     uint256 amount1 = token1.balanceOf(address(this));
     console.log('amount0', amount0);
     console.log('amount1', amount1);
+    console.log('wrapOrUnwrap', wrapOrUnwrap);
+    console.log('token0', token0);
+    console.log('token1', token1);
 
     if (magicNumber == MAGIC_NUMBER_NOT_TRANSFER) {
       // not transfer back to owner
       return;
+    }
+
+    if (wrapOrUnwrap) {
+      if (token0 == TokenHelper.NATIVE_ADDRESS) {
+        IWETH(weth).deposit{value: amount0}();
+        token0 = weth;
+      } else if (token0 == weth) {
+        IWETH(weth).withdraw(amount0);
+        token0 = TokenHelper.NATIVE_ADDRESS;
+      }
+
+      if (token1 == TokenHelper.NATIVE_ADDRESS) {
+        IWETH(weth).deposit{value: amount1}();
+        token1 = weth;
+      } else if (token1 == weth) {
+        IWETH(weth).withdraw(amount1);
+        token1 = TokenHelper.NATIVE_ADDRESS;
+      }
     }
 
     uint256 transferPercent = magicNumber;

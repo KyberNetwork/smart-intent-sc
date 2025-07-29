@@ -38,6 +38,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   Node[] internal _nodes;
   mapping(uint256 => bool) internal _isLeaf;
   uint256 constant PRECISION = 1_000_000;
+  address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+  bool wrapOrUnwrap;
 
   KSRemoveLiquidityUniswapV4IntentValidator rmLqValidator;
 
@@ -57,7 +59,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     FORK_BLOCK = 22_937_800;
     super.setUp();
 
-    rmLqValidator = new KSRemoveLiquidityUniswapV4IntentValidator();
+    rmLqValidator = new KSRemoveLiquidityUniswapV4IntentValidator(weth);
     address[] memory validators = new address[](1);
     validators[0] = address(rmLqValidator);
     nftOwner = mainAddress;
@@ -83,6 +85,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       _overrideParams();
     }
     _boundStruct(fuzzStruct);
+    wrapOrUnwrap = bound(fuzzStruct.seed, 0, 1) == 1;
 
     (uint256 received0, uint256 received1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
     IPositionManager(pm).poolManager().computePositionValues(
@@ -121,6 +124,10 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       _getCallerAndSignatures(0, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
+
+    if (wrapOrUnwrap) {
+      token0 = weth;
+    }
 
     uint256 balance0Before = token0.balanceOf(mainAddress);
     uint256 balance1Before = token1.balanceOf(mainAddress);
@@ -404,6 +411,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function testFuzz_OutputAmounts(uint256 liq, uint256 transferPercent) public {
+    wrapOrUnwrap = bound(liq, 0, 1) == 1;
     liq = bound(liq, 0, liquidity);
     transferPercent = bound(transferPercent, 0, 1_000_000);
     magicNumber = transferPercent;
@@ -434,12 +442,13 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     validationData.nftAddresses[0] = pm;
     validationData.nftIds = new uint256[](1);
     validationData.nftIds[0] = uniV4TokenId;
-    validationData.outputTokens = new address[][](1);
-    validationData.outputTokens[0] = new address[](2);
-    validationData.outputTokens[0][0] = token0;
-    validationData.outputTokens[0][1] = token1;
-    validationData.maxFeePercents = new uint256[](1);
-    validationData.maxFeePercents[0] = maxFeePercents;
+    validationData.maxFees = new uint256[][](1);
+    validationData.maxFees[0] = new uint256[](2);
+    validationData.maxFees[0][0] = maxFeePercents;
+    validationData.maxFees[0][1] = maxFeePercents;
+    validationData.wrapOrUnwrap = new bool[](1);
+    validationData.wrapOrUnwrap[0] = wrapOrUnwrap;
+
     validationData.nodes = new Node[][](1);
     if (nodes.length > 0) {
       validationData.nodes[0] = nodes;
@@ -528,7 +537,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     actionData = IKSSessionIntentRouter.ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
-      actionCalldata: abi.encode(pm, uniV4TokenId, nftOwner, token0, token1, liquidity, magicNumber),
+      actionCalldata: abi.encode(
+        pm, uniV4TokenId, nftOwner, token0, token1, liquidity, magicNumber, wrapOrUnwrap, weth
+      ),
       validatorData: abi.encode(0, fee0, fee1, liquidity),
       extraData: '',
       deadline: block.timestamp + 1 days,

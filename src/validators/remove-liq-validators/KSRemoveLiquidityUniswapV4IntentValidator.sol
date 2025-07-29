@@ -19,57 +19,62 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
   error InvalidOwner();
   error InvalidLiquidity();
   error InvalidOutputAmount();
+  error InvalidLength();
 
   ConditionType public constant UNIV4_YIELD_BASED =
     ConditionType.wrap(keccak256('UNIV4_YIELD_BASED'));
 
   uint256 public constant PRECISION = 1_000_000;
   uint256 public constant Q96 = 1 << 96;
+  uint256 public constant FEE_LENGTH = 2;
+  address public immutable WETH;
 
   /**
    * @notice Local variables for remove liquidity validation
    * @param recipient The recipient of the output tokens
    * @param positionManager The position manager contract
    * @param tokenId The token ID
-   * @param outputTokens The tokens received after removing liquidity
-   * @param tokenBalanceBefore The token balance before removing liquidity
-   * @param maxFeePercent The maximum fee percent for the output tokens compared to the expected amounts (1_000_000 = 100%)
    * @param liquidity The liquidity to remove
    * @param liquidityBefore The liquidity before removing liquidity
    * @param sqrtPriceX96 The sqrt price X96 of the pool
-   * @param amount0 The expected amount of token0 to remove
-   * @param amount1 The expected amount of token1 to remove
+   * @param balancesBefore The token0, token1 balances before removing liquidity
+   * @param maxFees The max fee percents for each output token (1e6 = 100%)
+   * @param tokens The token0, token1 of the pool
+   * @param amounts The expected amounts of tokens to remove (after claimed fees)
    */
   struct LocalVar {
     address recipient;
     IPositionManager positionManager;
     uint256 tokenId;
-    address[] outputTokens;
-    uint256[] tokenBalanceBefore;
-    uint256 maxFeePercent;
     uint256 liquidity;
     uint256 liquidityBefore;
     uint160 sqrtPriceX96;
-    uint256 amount0;
-    uint256 amount1;
+    uint256[2] balancesBefore;
+    uint256[2] maxFees;
+    address[2] tokens;
+    uint256[2] amounts;
   }
 
   /**
    * @notice Data structure for remove liquidity validation
    * @param nftAddresses The NFT addresses
    * @param nftIds The NFT IDs
-   * @param outputTokens The tokens received after removing liquidity
    * @param nodes The nodes of conditions (used to build the condition tree)
-   * @param maxFeePercents The maximum fee percents for the output tokens compared to the expected amounts (1_000_000 = 100%)
+   * @param maxFees The max fee percents for each output token (1e6 = 100%)
+   * @param wrapOrUnwrap wrap or unwrap token flag when remove liquidity from pool
    * @param recipient The recipient
    */
   struct RemoveLiquidityValidationData {
     address[] nftAddresses;
     uint256[] nftIds;
-    address[][] outputTokens;
     Node[][] nodes;
-    uint256[] maxFeePercents;
+    uint256[][] maxFees;
+    bool[] wrapOrUnwrap;
     address recipient;
+  }
+
+  constructor(address _weth) {
+    WETH = _weth;
   }
 
   modifier checkTokenLengths(IKSSessionIntentRouter.TokenData calldata tokenData) override {
@@ -109,13 +114,14 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
 
     uint256 fee0Unclaimed;
     uint256 fee1Unclaimed;
-    (localVar.amount0, localVar.amount1, fee0Unclaimed, fee1Unclaimed) = localVar
+    (localVar.amounts[0], localVar.amounts[1], fee0Unclaimed, fee1Unclaimed) = localVar
       .positionManager
       .poolManager().computePositionValues(
       localVar.positionManager, localVar.tokenId, localVar.liquidity
     );
-    localVar.amount0 += fee0Unclaimed;
-    localVar.amount1 += fee1Unclaimed;
+
+    localVar.amounts[0] += fee0Unclaimed;
+    localVar.amounts[1] += fee1Unclaimed;
     return abi.encode(localVar);
   }
 
@@ -134,12 +140,7 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
       localVar.positionManager.ownerOf(localVar.tokenId) == coreData.mainAddress, InvalidOwner()
     );
 
-    uint256[] memory outputAmounts = new uint256[](localVar.outputTokens.length);
-    for (uint256 i; i < localVar.outputTokens.length; ++i) {
-      outputAmounts[i] =
-        localVar.outputTokens[i].balanceOf(localVar.recipient) - localVar.tokenBalanceBefore[i];
-    }
-    _validateOutput(localVar, outputAmounts);
+    _validateOutput(localVar);
   }
 
   /// @inheritdoc IKSConditionalValidator
@@ -176,25 +177,15 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     }
   }
 
-  function _validateOutput(LocalVar calldata localVar, uint256[] memory outputAmounts)
-    internal
-    view
-  {
-    (PoolKey memory poolKey,) = localVar.positionManager.getPoolAndPositionInfo(localVar.tokenId);
-    poolKey.currency0 =
-      poolKey.currency0 == address(0) ? TokenHelper.NATIVE_ADDRESS : poolKey.currency0;
-    poolKey.currency1 =
-      poolKey.currency1 == address(0) ? TokenHelper.NATIVE_ADDRESS : poolKey.currency1;
+  function _validateOutput(LocalVar calldata localVar) internal view {
+    uint256 output0 = localVar.tokens[0].balanceOf(localVar.recipient) - localVar.balancesBefore[0];
+    uint256 output1 = localVar.tokens[1].balanceOf(localVar.recipient) - localVar.balancesBefore[1];
 
-    for (uint256 i; i < localVar.outputTokens.length; ++i) {
-      uint256 amount =
-        localVar.outputTokens[i] == poolKey.currency0 ? localVar.amount0 : localVar.amount1;
-
-      require(
-        outputAmounts[i] * PRECISION >= amount * (PRECISION - localVar.maxFeePercent),
-        InvalidOutputAmount()
-      );
-    }
+    require(
+      output0 * PRECISION >= localVar.amounts[0] * (PRECISION - localVar.maxFees[0])
+        && output1 * PRECISION >= localVar.amounts[1] * (PRECISION - localVar.maxFees[1]),
+      InvalidOutputAmount()
+    );
   }
 
   function _cacheAndDecodeValidationData(
@@ -204,25 +195,34 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
   ) internal view returns (Node[] calldata nodes) {
     RemoveLiquidityValidationData calldata validationData = _decodeValidationData(data);
     nodes = validationData.nodes[index];
+    require(validationData.maxFees[index].length == FEE_LENGTH, InvalidLength());
 
     localVar.recipient = validationData.recipient;
-    localVar.positionManager = IPositionManager(validationData.nftAddresses[index]);
     localVar.tokenId = validationData.nftIds[index];
+    localVar.positionManager = IPositionManager(validationData.nftAddresses[index]);
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
-    localVar.outputTokens = validationData.outputTokens[index];
-    localVar.maxFeePercent = validationData.maxFeePercents[index];
-    localVar.tokenBalanceBefore = new uint256[](localVar.outputTokens.length);
-    for (uint256 i; i < localVar.outputTokens.length; ++i) {
-      localVar.tokenBalanceBefore[i] = localVar.outputTokens[i].balanceOf(localVar.recipient);
-    }
+    localVar.maxFees = [validationData.maxFees[index][0], validationData.maxFees[index][1]];
 
     {
       IPoolManager poolManager = localVar.positionManager.poolManager();
 
       (PoolKey memory poolKey,) = localVar.positionManager.getPoolAndPositionInfo(localVar.tokenId);
-      bytes32 poolId = StateLibrary.getPoolId(poolKey);
-      (localVar.sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+      (localVar.sqrtPriceX96,,,) = poolManager.getSlot0(StateLibrary.getPoolId(poolKey));
+
+      localVar.tokens = [
+        poolKey.currency0 == address(0) ? TokenHelper.NATIVE_ADDRESS : poolKey.currency0,
+        poolKey.currency1 == address(0) ? TokenHelper.NATIVE_ADDRESS : poolKey.currency1
+      ];
     }
+
+    if (validationData.wrapOrUnwrap[index]) {
+      localVar.tokens = [_adjustToken(localVar.tokens[0]), _adjustToken(localVar.tokens[1])];
+    }
+
+    localVar.balancesBefore = [
+      localVar.tokens[0].balanceOf(localVar.recipient),
+      localVar.tokens[1].balanceOf(localVar.recipient)
+    ];
   }
 
   function _decodeValidatorData(bytes calldata data)
@@ -244,7 +244,7 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     returns (LocalVar calldata localVar)
   {
     assembly ("memory-safe") {
-      localVar := add(data.offset, calldataload(data.offset))
+      localVar := data.offset
     }
   }
 
@@ -307,5 +307,13 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     returns (uint256 amount0)
   {
     amount0 = Math.mulDiv(Math.mulDiv(amount1, Q96, sqrtPriceX96), Q96, sqrtPriceX96);
+  }
+
+  function _adjustToken(address token) internal view returns (address adjustedToken) {
+    if (token != WETH && token != TokenHelper.NATIVE_ADDRESS) {
+      return token;
+    }
+
+    return token == WETH ? TokenHelper.NATIVE_ADDRESS : WETH;
   }
 }
