@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'src/interfaces/IKSConditionalValidator.sol';
+import 'src/interfaces/validators/IKSConditionalValidator.sol';
 
-using ConditionLibrary for ConditionTree;
-using ConditionLibrary for Node;
+using ConditionTreeLibrary for ConditionTree;
+using ConditionTreeLibrary for Node;
 
 /**
  * @notice Library for condition tree evaluation
  */
-library ConditionLibrary {
+library ConditionTreeLibrary {
   error InvalidNodeIndex();
   error WrongOperationType();
 
@@ -18,6 +18,11 @@ library ConditionLibrary {
 
   /**
    * @notice Recursively evaluates a node in a condition tree
+   * @dev The algorithm assumes that the condition tree structure is valid, meaning:
+   *      - No cycle paths exist in the tree
+   *      - Each node is only visited once during traversal
+   *      - All childrenIndexes point to valid nodes within the array bounds
+   *      Invalid tree structures could lead to revert, or invalid results.
    * @param tree the condition tree to be evaluated
    * @param curIndex index of current node to evaluate (must be < nodes.length and != childIndex)
    * @param evaluateCondition the custom function holding the logic for evaluating the condition of the leaf node
@@ -41,7 +46,6 @@ library ConditionLibrary {
     if (node.operationType == AND) {
       for (uint256 i; i < length; ++i) {
         childIndex = node.childrenIndexes[i];
-        require(childIndex != curIndex, InvalidNodeIndex());
         if (!tree.evaluateConditionTree(childIndex, evaluateCondition)) {
           return false;
         }
@@ -50,7 +54,6 @@ library ConditionLibrary {
     } else if (node.operationType == OR) {
       for (uint256 i; i < length; ++i) {
         childIndex = node.childrenIndexes[i];
-        require(childIndex != curIndex, InvalidNodeIndex());
         if (tree.evaluateConditionTree(childIndex, evaluateCondition)) {
           return true;
         }

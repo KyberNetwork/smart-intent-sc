@@ -7,10 +7,13 @@ import 'forge-std/StdJson.sol';
 import '../Base.s.sol';
 
 import 'src/KSSessionIntentRouter.sol';
-import 'src/interfaces/IKSSwapRouter.sol';
-import 'src/validators/KSPriceBasedDCAIntentValidator.sol';
-import 'src/validators/KSSwapIntentValidator.sol';
-import 'src/validators/KSTimeBasedDCAIntentValidator.sol';
+import 'src/interfaces/routers/IKSSwapRouter.sol';
+import 'src/validators/swap-validators/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap-validators/KSSwapIntentValidator.sol';
+import 'src/validators/swap-validators/KSTimeBasedDCAIntentValidator.sol';
+import 'src/validators/zap-out-validators/KSZapOutUniswapV2IntentValidator.sol';
+import 'src/validators/zap-out-validators/KSZapOutUniswapV3IntentValidator.sol';
+import 'src/validators/zap-out-validators/KSZapOutUniswapV4IntentValidator.sol';
 
 contract BaseOnchainScript is BaseScript {
   using stdJson for string;

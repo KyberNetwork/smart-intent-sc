@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './base/BaseIntentValidator.sol';
+import 'src/validators/base/BaseIntentValidator.sol';
 
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
-import 'src/libraries/ConditionLibrary.sol';
+import 'src/libraries/ConditionTreeLibrary.sol';
 import 'src/libraries/univ4/StateLibrary.sol';
 import 'src/validators/base/BaseConditionalValidator.sol';
 
-contract KSLiquidityRemoveUniV4IntentValidator is BaseIntentValidator, BaseConditionalValidator {
+contract KSRemoveLiquidityUniswapV4IntentValidator is
+  BaseIntentValidator,
+  BaseConditionalValidator
+{
   using StateLibrary for IPoolManager;
   using TokenHelper for address;
-  using ConditionLibrary for *;
+  using ConditionTreeLibrary for *;
 
   error InvalidOwner();
   error InvalidLiquidity();

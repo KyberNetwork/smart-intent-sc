@@ -4,14 +4,14 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
-import 'src/validators/KSLiquidityRemoveUniV4IntentValidator.sol';
+import 'src/validators/remove-liq-validators/KSRemoveLiquidityUniswapV4IntentValidator.sol';
 import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniV4Test is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
   using StateLibrary for IPoolManager;
-  using ConditionLibrary for *;
+  using ConditionTreeLibrary for *;
 
   address pm = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
   address uniV4TokenOwner = 0x1f2F10D1C40777AE1Da742455c65828FF36Df387;
@@ -40,7 +40,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   mapping(uint256 => bool) internal _isLeaf;
   uint256 constant PRECISION = 1_000_000;
 
-  KSLiquidityRemoveUniV4IntentValidator rmLqValidator;
+  KSRemoveLiquidityUniswapV4IntentValidator rmLqValidator;
 
   struct FuzzStruct {
     uint256 seed;
@@ -58,7 +58,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     FORK_BLOCK = 22_937_800;
     super.setUp();
 
-    rmLqValidator = new KSLiquidityRemoveUniV4IntentValidator();
+    rmLqValidator = new KSRemoveLiquidityUniswapV4IntentValidator();
     address[] memory validators = new address[](1);
     validators[0] = address(rmLqValidator);
     nftOwner = mainAddress;
@@ -134,7 +134,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
         if (!pass) {
           vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
         } else if (maxFeePercents > PRECISION) {
-          vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+          vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
       router.executeWithSignedIntent(
@@ -147,7 +147,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
         if (!pass) {
           vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
         } else if (fuzzStruct.maxFeePercents > PRECISION) {
-          vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+          vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
       router.execute(hash, daSignature, guardian, gdSignature, actionData);
@@ -350,7 +350,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+    vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -367,7 +367,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOwner.selector);
+    vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOwner.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -400,7 +400,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+    vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -420,7 +420,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
     vm.startPrank(caller);
     if (1e6 - transferPercent > maxFeePercents) {
-      vm.expectRevert(KSLiquidityRemoveUniV4IntentValidator.InvalidOutputAmount.selector);
+      vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
     }
     router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
   }
@@ -430,7 +430,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     view
     returns (IKSSessionIntentRouter.IntentData memory intentData)
   {
-    KSLiquidityRemoveUniV4IntentValidator.RemoveLiquidityValidationData memory validationData;
+    KSRemoveLiquidityUniswapV4IntentValidator.RemoveLiquidityValidationData memory validationData;
     validationData.nftAddresses = new address[](1);
     validationData.nftAddresses[0] = pm;
     validationData.nftIds = new uint256[](1);
@@ -510,7 +510,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
   }
 
   function callLibrary(ConditionTree calldata tree, uint256 curIndex) external view returns (bool) {
-    return ConditionLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition);
+    return ConditionTreeLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition);
   }
 
   function evaluateCondition(Condition calldata condition, bytes calldata additionalData)

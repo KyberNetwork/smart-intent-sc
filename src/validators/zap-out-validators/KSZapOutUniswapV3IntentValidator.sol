@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './base/BaseIntentValidator.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
+import 'src/validators/base/BaseIntentValidator.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 

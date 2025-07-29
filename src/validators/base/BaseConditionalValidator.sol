@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../../interfaces/IKSConditionalValidator.sol';
-import '../../libraries/ConditionLibrary.sol';
+import 'src/interfaces/validators/IKSConditionalValidator.sol';
+import 'src/libraries/ConditionTreeLibrary.sol';
 
 /**
  * @param startTimestamp the start timestamp of the condition
@@ -32,7 +32,7 @@ struct PriceCondition {
 }
 
 abstract contract BaseConditionalValidator is IKSConditionalValidator {
-  using ConditionLibrary for *;
+  using ConditionTreeLibrary for *;
 
   error WrongConditionType();
 
@@ -46,7 +46,8 @@ abstract contract BaseConditionalValidator is IKSConditionalValidator {
     virtual
   {
     require(
-      ConditionLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition), ConditionsNotMet()
+      ConditionTreeLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition),
+      ConditionsNotMet()
     );
   }
 

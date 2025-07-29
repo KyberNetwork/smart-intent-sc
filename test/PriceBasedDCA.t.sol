@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
-import 'src/validators/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap-validators/KSPriceBasedDCAIntentValidator.sol';
 
 contract PriceBasedDCATest is BaseTest {
   using SafeERC20 for IERC20;
@@ -30,7 +30,7 @@ contract PriceBasedDCATest is BaseTest {
 
   uint32[] timestamps = [firstTimestamp, firstTimestamp + 1 days, firstTimestamp + 2 days];
   uint256[] amountIns = [1e9, 1e9, 1e9];
-  uint256[] amountOutLimits = [7e22 << 128 | 1e23, 8e22 << 128 | 1e23, 9e22 << 128 | 1e23];
+  uint256[] amountOutLimits = [(7e22 << 128) | 1e23, (8e22 << 128) | 1e23, (9e22 << 128) | 1e23];
   uint256 swap;
   uint32 deadline;
   uint256 minAmountOut;
@@ -135,9 +135,9 @@ contract PriceBasedDCATest is BaseTest {
     actualAmountOut = 493_606_057_603_605_781;
 
     delete amountOutLimits;
-    amountOutLimits.push(46e16 << 128 | 50e16);
-    amountOutLimits.push(47e16 << 128 | 50e16);
-    amountOutLimits.push(48e16 << 128 | 50e16);
+    amountOutLimits.push((46e16 << 128) | 50e16);
+    amountOutLimits.push((47e16 << 128) | 50e16);
+    amountOutLimits.push((48e16 << 128) | 50e16);
 
     recipient = 0xdeAD00000000000000000000000000000000dEAd;
     swapCalldata =
@@ -302,9 +302,9 @@ contract PriceBasedDCATest is BaseTest {
     KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
       intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
     );
-    validationData.amountOutLimits[0] = actualAmountOut + 1 << 128 | 1e23; //invalid amountOut
-    validationData.amountOutLimits[1] = actualAmountOut + 1 << 128 | 1e23; //invalid amountOut
-    validationData.amountOutLimits[2] = actualAmountOut + 1 << 128 | 1e23; //invalid amountOut
+    validationData.amountOutLimits[0] = ((actualAmountOut + 1) << 128) | 1e23; //invalid amountOut
+    validationData.amountOutLimits[1] = ((actualAmountOut + 1) << 128) | 1e23; //invalid amountOut
+    validationData.amountOutLimits[2] = ((actualAmountOut + 1) << 128) | 1e23; //invalid amountOut
     intentData.coreData.validationData = abi.encode(validationData);
 
     _setUpMainAddress(intentData, false);
@@ -345,9 +345,9 @@ contract PriceBasedDCATest is BaseTest {
     KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
       intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
     );
-    validationData.amountOutLimits[0] = 1e9 << 128 | actualAmountOut - 1; //invalid amountOut
-    validationData.amountOutLimits[1] = 1e9 << 128 | actualAmountOut - 1; //invalid amountOut
-    validationData.amountOutLimits[2] = 1e9 << 128 | actualAmountOut - 1; //invalid amountOut
+    validationData.amountOutLimits[0] = (1e9 << 128) | (actualAmountOut - 1); //invalid amountOut
+    validationData.amountOutLimits[1] = (1e9 << 128) | (actualAmountOut - 1); //invalid amountOut
+    validationData.amountOutLimits[2] = (1e9 << 128) | (actualAmountOut - 1); //invalid amountOut
     intentData.coreData.validationData = abi.encode(validationData);
 
     _setUpMainAddress(intentData, false);

@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 import 'forge-std/Test.sol';
 
-import 'src/interfaces/IKSConditionalValidator.sol';
-import 'src/libraries/ConditionLibrary.sol';
+import 'src/interfaces/validators/IKSConditionalValidator.sol';
+import 'src/libraries/ConditionTreeLibrary.sol';
 import 'src/validators/base/BaseConditionalValidator.sol';
 import 'test/mocks/MockConditionalValidator.sol';
 
-contract ConditionTest is Test {
-  using ConditionLibrary for *;
+contract ConditionTreeTest is Test {
+  using ConditionTreeLibrary for *;
 
   OperationType constant AND = OperationType.AND;
   OperationType constant OR = OperationType.OR;
@@ -211,7 +211,7 @@ contract ConditionTest is Test {
 
     ConditionTree memory tree = _buildTree(nodes);
 
-    vm.expectRevert(ConditionLibrary.InvalidNodeIndex.selector);
+    vm.expectRevert(ConditionTreeLibrary.InvalidNodeIndex.selector);
     _validator.validateConditionTree(tree, 1);
   }
 
@@ -307,7 +307,7 @@ contract ConditionTest is Test {
     view
     returns (Condition memory)
   {
-    seed = bound(seed * 2 << 2, 0, 1);
+    seed = bound((seed * 2) << 2, 0, 1);
     if (seed == 0) {
       return _createTimeCondition(isTrue);
     } else {
@@ -375,7 +375,7 @@ contract ConditionTest is Test {
   }
 
   function callLibrary(ConditionTree calldata tree, uint256 curIndex) external view returns (bool) {
-    return ConditionLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition);
+    return ConditionTreeLibrary.evaluateConditionTree(tree, curIndex, evaluateCondition);
   }
 
   function evaluateCondition(Condition calldata condition, bytes calldata additionalData)

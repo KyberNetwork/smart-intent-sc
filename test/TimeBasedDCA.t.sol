@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
-import 'src/validators/KSTimeBasedDCAIntentValidator.sol';
+import 'src/validators/swap-validators/KSTimeBasedDCAIntentValidator.sol';
 
 contract TimeBasedDCATest is BaseTest {
   using SafeERC20 for IERC20;
@@ -450,7 +450,7 @@ contract TimeBasedDCATest is BaseTest {
     validationData.srcToken = tokenIn;
     validationData.dstToken = tokenOut;
     validationData.amountIn = amountIn;
-    validationData.amountOutLimits = minAmountOut << 128 | maxAmountOut;
+    validationData.amountOutLimits = (minAmountOut << 128) | maxAmountOut;
     validationData.executionParams = executionParams;
     validationData.recipient = recipient;
 

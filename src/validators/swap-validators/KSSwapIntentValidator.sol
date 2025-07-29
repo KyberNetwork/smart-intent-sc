@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSwapRouter.sol';
+import 'src/interfaces/routers/IKSSwapRouter.sol';
 
-import './base/BaseIntentValidator.sol';
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
+import 'src/validators/base/BaseIntentValidator.sol';
 
 contract KSSwapIntentValidator is BaseIntentValidator {
   using TokenHelper for address;

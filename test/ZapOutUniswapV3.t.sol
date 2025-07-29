@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import 'src/interfaces/IKSZapRouter.sol';
-import 'src/validators/KSZapOutUniswapV3IntentValidator.sol';
+import 'src/interfaces/routers/IKSZapRouter.sol';
+import 'src/validators/zap-out-validators/KSZapOutUniswapV3IntentValidator.sol';
 
 contract ZapOutUniswapV3Test is BaseTest {
   KSZapOutUniswapV3IntentValidator zapOutValidator;

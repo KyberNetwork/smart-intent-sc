@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './Base.s.sol';
 
 import {KSSessionIntentRouter} from 'src/KSSessionIntentRouter.sol';
-import {IKSSessionIntentRouter} from 'src/interfaces/IKSSessionIntentRouter.sol';
+import {IKSSessionIntentRouter} from 'src/interfaces/routers/IKSSessionIntentRouter.sol';
 
 contract WhitelistActions is BaseScript {
   address[] unWhitelistedContracts;
