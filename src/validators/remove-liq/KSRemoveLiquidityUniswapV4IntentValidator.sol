@@ -39,7 +39,8 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
    * @param balancesBefore The token0, token1 balances before removing liquidity
    * @param maxFees The max fee percents for each output token (1e6 = 100%)
    * @param tokens The token0, token1 of the pool
-   * @param amounts The expected amounts of tokens to remove (after claimed fees)
+   * @param amounts The token amounts received from removing the specified liquidity (excluding unclaimed fees)
+   * @param unclaimedFees The unclaimed fees of the position
    */
   struct LocalVar {
     address recipient;
@@ -52,6 +53,7 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     uint256[2] maxFees;
     address[2] tokens;
     uint256[2] amounts;
+    uint256[2] unclaimedFees;
   }
 
   /**
@@ -110,8 +112,10 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
       _buildConditionTree(nodes, fee0Generated, fee1Generated, localVar.sqrtPriceX96);
 
     this.validateConditionTree(conditionTree, 0);
-    (localVar.amounts[0], localVar.amounts[1],,) = localVar.positionManager.poolManager()
-      .computePositionValues(localVar.positionManager, localVar.tokenId, localVar.liquidity);
+    (localVar.amounts[0], localVar.amounts[1], localVar.unclaimedFees[0], localVar.unclaimedFees[1])
+    = localVar.positionManager.poolManager().computePositionValues(
+      localVar.positionManager, localVar.tokenId, localVar.liquidity
+    );
 
     return abi.encode(localVar);
   }
@@ -172,11 +176,12 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     uint256 output0 = localVar.tokens[0].balanceOf(localVar.recipient) - localVar.balancesBefore[0];
     uint256 output1 = localVar.tokens[1].balanceOf(localVar.recipient) - localVar.balancesBefore[1];
 
-    require(
-      output0 * PRECISION >= localVar.amounts[0] * (PRECISION - localVar.maxFees[0])
-        && output1 * PRECISION >= localVar.amounts[1] * (PRECISION - localVar.maxFees[1]),
-      InvalidOutputAmount()
-    );
+    uint256 minOutput0 = (localVar.amounts[0] * (PRECISION - localVar.maxFees[0])) / PRECISION
+      + localVar.unclaimedFees[0];
+    uint256 minOutput1 = (localVar.amounts[1] * (PRECISION - localVar.maxFees[1])) / PRECISION
+      + localVar.unclaimedFees[1];
+
+    require(output0 >= minOutput0 && output1 >= minOutput1, InvalidOutputAmount());
   }
 
   function _cacheAndDecodeValidationData(

@@ -27,7 +27,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   uint256 amount0 = 0.5 ether;
   uint256 amount1 = 100e6;
   address nftOwner;
-  uint256 constant MAGIC_NUMBER_NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
+  uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
   ConditionType constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
   ConditionType constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));
   ConditionType constant UNISWAPV4_YIELD_BASED =
@@ -41,6 +41,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   uint256 constant PRECISION = 1_000_000;
   address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
   bool wrapOrUnwrap;
+  bool takeUnclaimedFees;
 
   KSRemoveLiquidityUniswapV4IntentValidator rmLqValidator;
 
@@ -341,7 +342,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-    magicNumber = MAGIC_NUMBER_NOT_TRANSFER;
+    magicNumber = NOT_TRANSFER;
 
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -383,8 +384,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testRevert_Transfer97Percent(uint256 liq) public {
-    liq = bound(liq, 0, liquidity);
+  function testRevert_Transfer97Percent_NotTakeUnclaimedFees(uint256 liq) public {
+    liq = bound(liq, liquidity * 10 / 100, liquidity);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
@@ -401,9 +402,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
   function testFuzz_OutputAmounts(uint256 liq, uint256 transferPercent) public {
     wrapOrUnwrap = bound(liq, 0, 1) == 1;
-    liq = bound(liq, 0, liquidity);
-    transferPercent = bound(transferPercent, 0, 1_000_000);
-    magicNumber = transferPercent;
+    liq = bound(liq, liquidity * 10 / 100, liquidity);
+    takeUnclaimedFees = bound(liq, 0, 1) == 1;
+    magicNumber = bound(transferPercent, 0, 1_000_000);
     maxFeePercents = bound(maxFeePercents, 1, 1e6);
 
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
@@ -414,7 +415,23 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
-    if (1e6 - transferPercent > maxFeePercents) {
+    if ((1e6 - magicNumber > maxFeePercents) && !takeUnclaimedFees || takeUnclaimedFees) {
+      vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+    }
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function testFuzz_ClaimFeeOnly(bool takeFees) public {
+    takeUnclaimedFees = takeFees;
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+    _setUpMainAddress(intentData, false, uniV4TokenId, false);
+
+    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, 0);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    vm.startPrank(caller);
+    if (takeUnclaimedFees) {
       vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
     }
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -524,7 +541,16 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: abi.encode(
-        pm, uniV4TokenId, nftOwner, token0, token1, _liquidity, magicNumber, wrapOrUnwrap, weth
+        pm,
+        uniV4TokenId,
+        nftOwner,
+        token0,
+        token1,
+        _liquidity,
+        magicNumber,
+        wrapOrUnwrap,
+        weth,
+        takeUnclaimedFees
       ),
       validatorData: abi.encode(0, fee0, fee1, _liquidity),
       extraData: '',

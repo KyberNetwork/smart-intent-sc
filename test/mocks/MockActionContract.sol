@@ -6,6 +6,7 @@ import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
 import 'src/interfaces/IWETH.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
+import 'src/libraries/uniswapv4/StateLibrary.sol';
 
 struct UniswapV4Data {
   address posManager;
@@ -18,12 +19,11 @@ struct UniswapV4Data {
 
 contract MockActionContract {
   using TokenHelper for address;
+  using StateLibrary for IPoolManager;
 
   uint256 constant DECREASE_LIQUIDITY = 0x01;
   uint256 constant TAKE_PAIR = 0x11;
-  uint256 constant MAGIC_NUMBER_NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
-  uint256 constant MAGIC_NUMBER_TRANSFER_99PERCENT = uint256(keccak256('99PERCENT'));
-  uint256 constant MAGIC_NUMBER_TRANSFER_98PERCENT = uint256(keccak256('98PERCENT'));
+  uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
 
   function doNothing() external pure {}
 
@@ -34,10 +34,14 @@ contract MockActionContract {
     address token0,
     address token1,
     uint256 liquidity,
-    uint256 magicNumber,
+    uint256 transferPercent,
     bool wrapOrUnwrap,
-    address weth
+    address weth,
+    bool takeFees
   ) external {
+    (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
+      posManager.poolManager().computePositionValues(posManager, tokenId, liquidity);
+
     (PoolKey memory poolKey,) = posManager.getPoolAndPositionInfo(tokenId);
     bytes memory actions = new bytes(2);
     bytes[] memory params = new bytes[](2);
@@ -50,41 +54,39 @@ contract MockActionContract {
       posManager.transferFrom(msg.sender, owner, tokenId);
     }
 
-    uint256 amount0 = token0.balanceOf(address(this));
-    uint256 amount1 = token1.balanceOf(address(this));
-    console.log('amount0', amount0);
-    console.log('amount1', amount1);
-    console.log('wrapOrUnwrap', wrapOrUnwrap);
-    console.log('token0', token0);
-    console.log('token1', token1);
-
-    if (magicNumber == MAGIC_NUMBER_NOT_TRANSFER) {
+    if (transferPercent == NOT_TRANSFER) {
       // not transfer back to owner
       return;
     }
 
     if (wrapOrUnwrap) {
       if (token0 == TokenHelper.NATIVE_ADDRESS) {
-        IWETH(weth).deposit{value: amount0}();
+        IWETH(weth).deposit{value: amount0 + unclaimedFee0}();
         token0 = weth;
       } else if (token0 == weth) {
-        IWETH(weth).withdraw(amount0);
+        IWETH(weth).withdraw(amount0 + unclaimedFee0);
         token0 = TokenHelper.NATIVE_ADDRESS;
       }
 
       if (token1 == TokenHelper.NATIVE_ADDRESS) {
-        IWETH(weth).deposit{value: amount1}();
+        IWETH(weth).deposit{value: amount1 + unclaimedFee1}();
         token1 = weth;
       } else if (token1 == weth) {
-        IWETH(weth).withdraw(amount1);
+        IWETH(weth).withdraw(amount1 + unclaimedFee1);
         token1 = TokenHelper.NATIVE_ADDRESS;
       }
     }
 
-    uint256 transferPercent = magicNumber;
+    uint256 amount0Transfer = amount0 * transferPercent / 1e6;
+    uint256 amount1Transfer = amount1 * transferPercent / 1e6;
 
-    token0.safeTransfer(owner, amount0 * transferPercent / 1e6);
-    token1.safeTransfer(owner, amount1 * transferPercent / 1e6);
+    if (!takeFees) {
+      amount0Transfer += unclaimedFee0;
+      amount1Transfer += unclaimedFee1;
+    }
+
+    token0.safeTransfer(owner, amount0Transfer);
+    token1.safeTransfer(owner, amount1Transfer);
   }
 
   fallback() external payable {}
