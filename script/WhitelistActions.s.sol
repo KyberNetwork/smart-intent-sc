@@ -32,8 +32,8 @@ contract WhitelistActions is BaseScript {
     );
 
     for (uint256 i; i < actionContracts.length; ++i) {
-      bytes32 key = keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]));
-      if (!KSSessionIntentRouter(router).whitelistedActions(key)) {
+      if (!KSSessionIntentRouter(router).whitelistedActions(actionContracts[i], actionSelectors[i]))
+      {
         unWhitelistedContracts.push(actionContracts[i]);
         unWhitelistedSelectors.push(actionSelectors[i]);
       }

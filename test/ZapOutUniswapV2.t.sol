@@ -67,9 +67,7 @@ contract ZapOutUniswapV2Test is BaseTest {
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(
-      router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
-    );
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testZapOutUniswapV2WithSignedIntentSuccess(uint256 mode) public {

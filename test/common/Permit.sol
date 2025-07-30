@@ -16,7 +16,7 @@ library Permit {
 
   function hashPermit(address spender, uint256 tokenId, uint256 nonce, uint256 deadline)
     internal
-    view
+    pure
     returns (bytes32 digest)
   {
     // equivalent to: keccak256(abi.encode(PERMIT_TYPEHASH, spender, tokenId, nonce, deadline));

@@ -29,14 +29,13 @@ contract ConditionTreeTest is Test {
     uint256 maxChildren = bound(seed, 1, 10);
     uint256 curIndex = 0;
 
-    (Node memory curNode, bool isLeaf, bool conditionPass) = _buildRandomNode(seed, false);
+    (Node memory curNode, bool isLeaf,) = _buildRandomNode(seed, false);
     _nodes.push(curNode);
     _isLeaf[0] = isLeaf;
 
     for (uint256 i = 0; i < maxDepth; i++) {
       uint256 childrenLength = bound(seed, 1, maxChildren);
       curNode = _nodes[curIndex];
-      OperationType opType = curNode.operationType;
 
       if (_isLeaf[curIndex]) {
         // leaf node
@@ -44,7 +43,7 @@ contract ConditionTreeTest is Test {
       }
 
       for (uint256 j = 1; j <= childrenLength; j++) {
-        (Node memory childNode, bool childIsLeaf, bool childConditionPass) =
+        (Node memory childNode, bool childIsLeaf,) =
           _buildRandomNode(uint128(seed) + i + j, i == maxDepth - 1);
 
         uint256 childIndex = _nodes.length;
@@ -221,8 +220,6 @@ contract ConditionTreeTest is Test {
     nodes[0] =
       Node({operationType: OperationType.AND, condition: condition, childrenIndexes: emptyChildren});
 
-    bytes[] memory additionalData = this.createMockData(nodes);
-
     _validator.validateConditionTree(_buildTree(nodes), 0);
   }
 
@@ -235,8 +232,6 @@ contract ConditionTreeTest is Test {
     uint256[] memory children = new uint256[](1);
     children[0] = 0;
     nodes[1] = _createNode(children, AND); // index 1
-
-    bytes[] memory additionalData = this.createMockData(nodes);
 
     _validator.validateConditionTree(_buildTree(nodes), 1);
   }
@@ -294,8 +289,6 @@ contract ConditionTreeTest is Test {
     outerChildren[0] = 0; // A
     outerChildren[1] = 5; // B AND (C AND D)
     nodes[6] = _createNode(outerChildren, AND); // root
-
-    bytes[] memory additionalData = this.createMockData(nodes);
 
     _validator.validateConditionTree(_buildTree(nodes), 6);
   }

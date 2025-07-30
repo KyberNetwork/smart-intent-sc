@@ -26,7 +26,7 @@ contract MockActionTest is BaseTest {
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
   }
 
@@ -80,7 +80,7 @@ contract MockActionTest is BaseTest {
         newTokenData.erc1155Data[0].amounts[0]
       )
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionCollectERC20MoreThanAllowanceShouldRevert(uint256 seed) public {
@@ -111,7 +111,7 @@ contract MockActionTest is BaseTest {
         newTokenData.erc20Data[0].amount
       )
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionCollectERC721WithoutApprovalShouldRevert(uint256 seed) public {
@@ -141,7 +141,7 @@ contract MockActionTest is BaseTest {
         newTokenData.erc721Data[0].tokenId
       )
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionDelegateWithRandomCallerShouldRevert(uint256 seed) public {
@@ -193,7 +193,6 @@ contract MockActionTest is BaseTest {
   {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     vm.prank(mainAddress);
     router.delegate(intentData);
@@ -224,7 +223,7 @@ contract MockActionTest is BaseTest {
         MockActionContract.doNothing.selector
       )
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteWithNonWhitelistedValidatorShouldRevert(uint256 seed) public {
@@ -262,7 +261,6 @@ contract MockActionTest is BaseTest {
   {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     vm.prank(mainAddress);
     router.delegate(intentData);
@@ -287,30 +285,28 @@ contract MockActionTest is BaseTest {
     vm.expectRevert(
       abi.encodeWithSelector(IKSSessionIntentRouter.NonWhitelistedValidator.selector, mockValidator)
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionRevokeWithRandomCallerShouldRevert(uint256 seed) public {
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     vm.prank(mainAddress);
     router.delegate(intentData);
 
     vm.startPrank(randomCaller);
     vm.expectRevert(IKSSessionIntentRouter.NotMainAddress.selector);
-    router.revoke(intentHash);
+    router.revoke(intentData);
     vm.stopPrank();
   }
 
   function testMockActionExecuteRevokedIntentShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     vm.startPrank(mainAddress);
     router.delegate(intentData);
-    router.revoke(intentHash);
+    router.revoke(intentData);
     vm.stopPrank();
 
     IKSSessionIntentRouter.TokenData memory newTokenData =
@@ -323,7 +319,7 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSessionIntentRouter.IntentRevoked.selector);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionDelegateRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
@@ -331,7 +327,7 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(mainAddress);
     router.revoke(intentData);
-    vm.expectRevert(IKSSessionIntentRouter.IntentExistedOrRevoked.selector);
+    vm.expectRevert(IKSSessionIntentRouter.IntentRevoked.selector);
     router.delegate(intentData);
     vm.stopPrank();
   }
@@ -339,7 +335,6 @@ contract MockActionTest is BaseTest {
   function testMockActionExecuteRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     vm.startPrank(mainAddress);
     router.revoke(intentData);
@@ -355,13 +350,12 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSessionIntentRouter.IntentRevoked.selector);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testMockActionExecuteNonExistentIntentShouldRevert(uint256 seed) public {
+  function testMockActionExecuteNOT_DELEGATEDIntentShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     IKSSessionIntentRouter.TokenData memory newTokenData =
       _getNewTokenData(intentData.tokenData, seed);
@@ -373,7 +367,7 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
     vm.expectRevert();
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionDelegateExistedIntentShouldRevert(uint256 seed) public {
@@ -382,7 +376,7 @@ contract MockActionTest is BaseTest {
     vm.startPrank(mainAddress);
     router.delegate(intentData);
 
-    vm.expectRevert(IKSSessionIntentRouter.IntentExistedOrRevoked.selector);
+    vm.expectRevert(IKSSessionIntentRouter.IntentDelegated.selector);
     router.delegate(intentData);
   }
 
@@ -410,7 +404,7 @@ contract MockActionTest is BaseTest {
     vm.expectRevert(
       abi.encodeWithSelector(IKSSessionIntentRouter.InvalidActionSelectorId.selector, 0)
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteActionNotInListActionsShouldRevert(uint256 seed) public {
@@ -435,7 +429,7 @@ contract MockActionTest is BaseTest {
     vm.expectRevert(
       abi.encodeWithSelector(IKSSessionIntentRouter.InvalidActionSelectorId.selector, 1)
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteDifferentActions(uint256 seed) public {
@@ -468,7 +462,7 @@ contract MockActionTest is BaseTest {
 
     //execute first time
     vm.prank(caller);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
     amountIn = newTokenData.erc20Data[0].amount;
 
@@ -490,7 +484,7 @@ contract MockActionTest is BaseTest {
 
     //execute second time
     vm.prank(caller);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteSuccessShouldEmitExtraData(uint256 seed) public {
@@ -513,7 +507,7 @@ contract MockActionTest is BaseTest {
 
     vm.recordLogs();
     vm.startPrank(caller);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -550,7 +544,7 @@ contract MockActionTest is BaseTest {
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     vm.expectRevert(
@@ -558,7 +552,7 @@ contract MockActionTest is BaseTest {
         IKSSessionIntentRouter.NonceAlreadyUsed.selector, intentHash, actionData.nonce
       )
     );
-    router.execute(intentHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function _getNewTokenData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 seed)
@@ -661,7 +655,7 @@ contract MockActionTest is BaseTest {
       IKSSessionIntentRouter.ERC1155Data memory erc1155Data = tokenData.erc1155Data[i];
       for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
         assertEq(
-          router.getERC1155Allowance(intentHash, erc1155Data.token, erc1155Data.tokenIds[j]),
+          router.erc1155Allowances(intentHash, erc1155Data.token, erc1155Data.tokenIds[j]),
           erc1155Data.amounts[j],
           'ERC1155 allowance not set correctly after delegation'
         );
@@ -670,7 +664,7 @@ contract MockActionTest is BaseTest {
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
       IKSSessionIntentRouter.ERC20Data memory erc20Data = tokenData.erc20Data[i];
       assertEq(
-        router.getERC20Allowance(intentHash, erc20Data.token),
+        router.erc20Allowances(intentHash, erc20Data.token),
         erc20Data.amount,
         'ERC20 allowance not set correctly after delegation'
       );
@@ -678,7 +672,7 @@ contract MockActionTest is BaseTest {
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
       IKSSessionIntentRouter.ERC721Data memory erc721Data = tokenData.erc721Data[i];
       assertTrue(
-        router.getERC721Approval(intentHash, erc721Data.token, erc721Data.tokenId),
+        router.erc721Approvals(intentHash, erc721Data.token, erc721Data.tokenId),
         'ERC721 approval not set correctly after delegation'
       );
     }
@@ -693,7 +687,7 @@ contract MockActionTest is BaseTest {
       IKSSessionIntentRouter.ERC1155Data memory erc1155Data = tokenData.erc1155Data[i];
       for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
         assertEq(
-          router.getERC1155Allowance(intentHash, erc1155Data.token, erc1155Data.tokenIds[j]),
+          router.erc1155Allowances(intentHash, erc1155Data.token, erc1155Data.tokenIds[j]),
           erc1155Data.amounts[j] - newTokenData.erc1155Data[i].amounts[j],
           'ERC1155 allowance not updated correctly after execution'
         );
@@ -702,7 +696,7 @@ contract MockActionTest is BaseTest {
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
       IKSSessionIntentRouter.ERC20Data memory erc20Data = tokenData.erc20Data[i];
       assertEq(
-        router.getERC20Allowance(intentHash, erc20Data.token),
+        router.erc20Allowances(intentHash, erc20Data.token),
         erc20Data.amount - newTokenData.erc20Data[i].amount,
         'ERC20 allowance not updated correctly after execution'
       );

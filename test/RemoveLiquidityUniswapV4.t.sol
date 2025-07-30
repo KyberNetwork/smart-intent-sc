@@ -7,7 +7,7 @@ import 'ks-common-sc/libraries/token/TokenHelper.sol';
 import 'src/validators/remove-liq-validators/KSRemoveLiquidityUniswapV4IntentValidator.sol';
 import 'test/common/Permit.sol';
 
-contract RemoveLiquidityUniV4Test is BaseTest {
+contract RemoveLiquidityUniswapV4Test is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
   using StateLibrary for IPoolManager;
@@ -147,7 +147,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
         intentData, maSignature, daSignature, guardian, gdSignature, actionData
       );
     } else {
-      bytes32 hash = router.hashTypedIntentData(intentData);
       if (!pass || fuzzStruct.maxFeePercents > PRECISION) {
         isRevert = true;
         if (!pass) {
@@ -156,7 +155,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
           vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
         }
       }
-      router.execute(hash, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     }
 
     if (!isRevert) {
@@ -181,9 +180,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     vm.warp(block.timestamp + 100);
 
     vm.startPrank(caller);
-    router.execute(
-      router.hashTypedIntentData(intentData), daSignature, guardian, gdSignature, actionData
-    );
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_YieldBased(bool withPermit) public {
@@ -211,10 +208,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       _getCallerAndSignatures(0, actionData);
 
     vm.warp(block.timestamp + 100);
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_TimeBased(bool withPermit) public {
@@ -240,10 +236,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_PriceBased(bool withPermit) public {
@@ -269,10 +264,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_PriceBased(bool withPermit) public {
@@ -298,9 +292,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_TimeBased(bool withPermit) public {
@@ -322,9 +315,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function test_executeSignedIntent_RemoveSuccess() public {
@@ -354,10 +346,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_validationAfterExecution_InvalidOwner(uint256 liq) public {
@@ -371,10 +362,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOwner.selector);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_Transfer99Percent(uint256 liq) public {
@@ -388,9 +378,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_Transfer97Percent(uint256 liq) public {
@@ -404,10 +393,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
     vm.startPrank(caller);
     vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testFuzz_OutputAmounts(uint256 liq, uint256 transferPercent) public {
@@ -423,13 +411,12 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
-    bytes32 intentDataHash = router.hashTypedIntentData(intentData);
 
     vm.startPrank(caller);
     if (1e6 - transferPercent > maxFeePercents) {
       vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
     }
-    router.execute(intentDataHash, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function _getIntentData(bool withPermit, Node[] memory nodes)
@@ -527,7 +514,7 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     return rmLqValidator.evaluateCondition(condition, additionalData);
   }
 
-  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 liquidity)
+  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 _liquidity)
     internal
     view
     returns (IKSSessionIntentRouter.ActionData memory actionData)
@@ -536,9 +523,9 @@ contract RemoveLiquidityUniV4Test is BaseTest {
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: abi.encode(
-        pm, uniV4TokenId, nftOwner, token0, token1, liquidity, magicNumber, wrapOrUnwrap, weth
+        pm, uniV4TokenId, nftOwner, token0, token1, _liquidity, magicNumber, wrapOrUnwrap, weth
       ),
-      validatorData: abi.encode(0, fee0, fee1, liquidity),
+      validatorData: abi.encode(0, fee0, fee1, _liquidity),
       extraData: '',
       deadline: block.timestamp + 1 days,
       nonce: 0
@@ -593,10 +580,8 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     maxFeePercents = bound(maxFeePercents, 0, type(uint128).max);
     fuzzStruct.maxFeePercents = maxFeePercents;
 
-    (uint256 received0, uint256 received1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, liquidity
-    );
+    (uint256 received0, uint256 received1,,) = IPositionManager(pm).poolManager()
+      .computePositionValues(IPositionManager(pm), uniV4TokenId, liquidity);
 
     amount0 = received0;
     amount1 = received1;
@@ -643,7 +628,6 @@ contract RemoveLiquidityUniV4Test is BaseTest {
     for (uint256 i = 0; i < maxDepth; i++) {
       uint256 childrenLength = bound(fuzzStruct.seed, 1, maxChildren);
       curNode = _nodes[curIndex];
-      OperationType opType = curNode.operationType;
 
       if (_isLeaf[curIndex]) {
         // leaf node
@@ -666,10 +650,10 @@ contract RemoveLiquidityUniV4Test is BaseTest {
 
   function _buildRandomNode(FuzzStruct memory fuzzStruct, bool mustBeLeaf)
     internal
+    view
     returns (Node memory, bool isLeaf)
   {
     isLeaf = bound(fuzzStruct.seed, 0, 1) == 1;
-    bool conditionPass = bound(fuzzStruct.seed * 2 + 1, 0, 1) == 1;
     if (mustBeLeaf || isLeaf) {
       Condition memory condition = _createCondition(fuzzStruct);
       return (_createLeafNode(condition), true);

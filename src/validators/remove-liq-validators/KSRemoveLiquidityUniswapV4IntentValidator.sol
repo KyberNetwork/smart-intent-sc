@@ -21,8 +21,8 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
   error InvalidOutputAmount();
   error InvalidLength();
 
-  ConditionType public constant UNIV4_YIELD_BASED =
-    ConditionType.wrap(keccak256('UNIV4_YIELD_BASED'));
+  ConditionType public constant UNISWAPV4_YIELD_BASED =
+    ConditionType.wrap(keccak256('UNISWAPV4_YIELD_BASED'));
 
   uint256 public constant PRECISION = 1_000_000;
   uint256 public constant Q96 = 1 << 96;
@@ -149,8 +149,8 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     override
     returns (bool isSatisfied)
   {
-    if (condition.isType(UNIV4_YIELD_BASED)) {
-      isSatisfied = _evaluateUniV4YieldCondition(condition, additionalData);
+    if (condition.isType(UNISWAPV4_YIELD_BASED)) {
+      isSatisfied = _evaluateUniswapV4YieldCondition(condition, additionalData);
     } else {
       isSatisfied = super.evaluateCondition(condition, additionalData);
     }
@@ -168,7 +168,7 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
       if (!nodes[i].isLeaf() || nodes[i].condition.isType(TIME_BASED)) {
         continue;
       }
-      if (nodes[i].condition.isType(UNIV4_YIELD_BASED)) {
+      if (nodes[i].condition.isType(UNISWAPV4_YIELD_BASED)) {
         conditionTree.additionalData[i] = abi.encode(fee0Collected, fee1Collected, sqrtPriceX96);
       } else if (nodes[i].condition.isType(PRICE_BASED)) {
         conditionTree.additionalData[i] = abi.encode(sqrtPriceX96);
@@ -264,11 +264,10 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
    * @param additionalData Encoded fee0, fee1, and sqrtPriceX96 values
    * @return true if actual yield >= target yield, false otherwise
    */
-  function _evaluateUniV4YieldCondition(Condition calldata condition, bytes calldata additionalData)
-    internal
-    pure
-    returns (bool)
-  {
+  function _evaluateUniswapV4YieldCondition(
+    Condition calldata condition,
+    bytes calldata additionalData
+  ) internal pure returns (bool) {
     uint256 fee0;
     uint256 fee1;
     uint160 sqrtPriceX96;

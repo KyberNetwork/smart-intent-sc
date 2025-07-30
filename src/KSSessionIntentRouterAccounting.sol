@@ -16,11 +16,11 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, Man
   using TokenHelper for address;
   using PermitHelper for address;
 
-  mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) internal erc1155Allowances;
+  mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) public erc1155Allowances;
 
-  mapping(bytes32 => mapping(address => uint256)) internal erc20Allowances;
+  mapping(bytes32 => mapping(address => uint256)) public erc20Allowances;
 
-  mapping(bytes32 => mapping(address => mapping(uint256 => bool))) internal erc721Approvals;
+  mapping(bytes32 => mapping(address => mapping(uint256 => bool))) public erc721Approvals;
 
   constructor(
     address initialAdmin,
