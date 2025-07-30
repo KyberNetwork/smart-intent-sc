@@ -30,7 +30,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   uint256 constant MAGIC_NUMBER_NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
   ConditionType constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
   ConditionType constant PRICE_BASED = ConditionType.wrap(keccak256('PRICE_BASED'));
-  ConditionType constant UNIV4_YIELD_BASED = ConditionType.wrap(keccak256('UNIV4_YIELD_BASED'));
+  ConditionType constant UNISWAPV4_YIELD_BASED =
+    ConditionType.wrap(keccak256('UNISWAPV4_YIELD_BASED'));
   OperationType constant AND = OperationType.AND;
   OperationType constant OR = OperationType.OR;
   uint256 magicNumber = 1e6;
@@ -588,7 +589,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     uint256 typeUint = bound(uint256(ConditionType.unwrap(fuzzStruct.conditionType)), 0, 2);
     if (typeUint == 0) {
-      fuzzStruct.conditionType = UNIV4_YIELD_BASED;
+      fuzzStruct.conditionType = UNISWAPV4_YIELD_BASED;
     } else if (typeUint == 1) {
       fuzzStruct.conditionType = PRICE_BASED;
     } else {
@@ -608,7 +609,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       if (!nodes[i].isLeaf() || nodes[i].condition.isType(TIME_BASED)) {
         continue;
       }
-      if (nodes[i].condition.isType(UNIV4_YIELD_BASED)) {
+      if (nodes[i].condition.isType(UNISWAPV4_YIELD_BASED)) {
         conditionTree.additionalData[i] = abi.encode(fee0Collected, fee1Collected, sqrtPriceX96);
       } else if (nodes[i].condition.isType(PRICE_BASED)) {
         conditionTree.additionalData[i] = abi.encode(sqrtPriceX96);
@@ -686,7 +687,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   }
 
   function _createCondition(FuzzStruct memory fuzzStruct) internal view returns (Condition memory) {
-    if (ConditionType.unwrap(fuzzStruct.conditionType) == ConditionType.unwrap(UNIV4_YIELD_BASED)) {
+    if (
+      ConditionType.unwrap(fuzzStruct.conditionType) == ConditionType.unwrap(UNISWAPV4_YIELD_BASED)
+    ) {
       return _createYieldCondition(fuzzStruct.conditionPass);
     } else if (ConditionType.unwrap(fuzzStruct.conditionType) == ConditionType.unwrap(PRICE_BASED))
     {
@@ -697,7 +700,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   }
 
   function _createYieldCondition(bool isTrue) internal view returns (Condition memory condition) {
-    condition.conditionType = UNIV4_YIELD_BASED;
+    condition.conditionType = UNISWAPV4_YIELD_BASED;
 
     if (isTrue) {
       condition.data = abi.encode(

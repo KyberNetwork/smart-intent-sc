@@ -136,6 +136,10 @@ contract KSSessionIntentRouter is
     ActionData calldata actionData
   ) internal nonReentrant {
     _checkIntentStatus(intentHash, IntentStatus.DELEGATED);
+    require(
+      actionData.actionSelectorId < intent.actionContracts.length,
+      InvalidActionSelectorId(actionData.actionSelectorId)
+    );
     require(block.timestamp <= actionData.deadline, ActionExpired());
     _checkRole(KSRoles.GUARDIAN_ROLE, guardian);
 
