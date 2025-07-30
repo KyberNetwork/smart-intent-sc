@@ -99,28 +99,20 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
     LocalVar memory localVar;
 
     uint256 index;
-    uint256 fee0Collected;
-    uint256 fee1Collected;
-    (index, fee0Collected, fee1Collected, localVar.liquidity) =
+    uint256 fee0Generated;
+    uint256 fee1Generated;
+    (index, fee0Generated, fee1Generated, localVar.liquidity) =
       _decodeValidatorData(actionData.validatorData);
 
     Node[] calldata nodes = _cacheAndDecodeValidationData(coreData.validationData, localVar, index);
 
     ConditionTree memory conditionTree =
-      _buildConditionTree(nodes, fee0Collected, fee1Collected, localVar.sqrtPriceX96);
+      _buildConditionTree(nodes, fee0Generated, fee1Generated, localVar.sqrtPriceX96);
 
     this.validateConditionTree(conditionTree, 0);
+    (localVar.amounts[0], localVar.amounts[1],,) = localVar.positionManager.poolManager()
+      .computePositionValues(localVar.positionManager, localVar.tokenId, localVar.liquidity);
 
-    uint256 fee0Unclaimed;
-    uint256 fee1Unclaimed;
-    (localVar.amounts[0], localVar.amounts[1], fee0Unclaimed, fee1Unclaimed) = localVar
-      .positionManager
-      .poolManager().computePositionValues(
-      localVar.positionManager, localVar.tokenId, localVar.liquidity
-    );
-
-    localVar.amounts[0] += fee0Unclaimed;
-    localVar.amounts[1] += fee1Unclaimed;
     return abi.encode(localVar);
   }
 
@@ -227,12 +219,12 @@ contract KSRemoveLiquidityUniswapV4IntentValidator is
   function _decodeValidatorData(bytes calldata data)
     internal
     pure
-    returns (uint256 index, uint256 fee0Collected, uint256 fee1Collected, uint256 liquidity)
+    returns (uint256 index, uint256 fee0Generated, uint256 fee1Generated, uint256 liquidity)
   {
     assembly ("memory-safe") {
       index := calldataload(data.offset)
-      fee0Collected := calldataload(add(data.offset, 0x20))
-      fee1Collected := calldataload(add(data.offset, 0x40))
+      fee0Generated := calldataload(add(data.offset, 0x20))
+      fee1Generated := calldataload(add(data.offset, 0x40))
       liquidity := calldataload(add(data.offset, 0x60))
     }
   }

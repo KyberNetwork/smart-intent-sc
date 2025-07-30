@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
-import 'src/validators/swap-validators/KSTimeBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSTimeBasedDCAIntentValidator.sol';
 
 contract TimeBasedDCATest is BaseTest {
   using SafeERC20 for IERC20;

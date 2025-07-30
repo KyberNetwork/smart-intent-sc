@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'src/interfaces/routers/IKSZapRouter.sol';
-import 'src/validators/zap-out-validators/KSZapOutUniswapV2IntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV2IntentValidator.sol';
 
 contract ZapOutUniswapV2Test is BaseTest {
   using SafeERC20 for IERC20;

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'ks-common-sc/libraries/token/TokenHelper.sol';
-import 'src/validators/remove-liq-validators/KSRemoveLiquidityUniswapV4IntentValidator.sol';
+import 'src/validators/remove-liq/KSRemoveLiquidityUniswapV4IntentValidator.sol';
 import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniswapV4Test is BaseTest {
@@ -431,7 +431,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     validationData.nftIds = new uint256[](1);
     validationData.nftIds[0] = uniV4TokenId;
     validationData.maxFees = new uint256[](1);
-    validationData.maxFees[0] = maxFeePercents << 128 | maxFeePercents;
+    validationData.maxFees[0] = (maxFeePercents << 128) | maxFeePercents;
     validationData.wrapOrUnwrap = new bool[](1);
     validationData.wrapOrUnwrap[0] = wrapOrUnwrap;
 

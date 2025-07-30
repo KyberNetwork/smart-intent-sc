@@ -15,7 +15,7 @@ import 'openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol';
 import 'src/interfaces/routers/IKSSwapRouter.sol';
 
 import 'src/KSSessionIntentRouter.sol';
-import 'src/validators/swap-validators/KSSwapIntentValidator.sol';
+import 'src/validators/swap/KSSwapIntentValidator.sol';
 
 contract BaseTest is Test {
   uint256 FORK_BLOCK = 22_085_494;

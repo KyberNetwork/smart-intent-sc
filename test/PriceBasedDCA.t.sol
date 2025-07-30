@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
-import 'src/validators/swap-validators/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
 
 contract PriceBasedDCATest is BaseTest {
   using SafeERC20 for IERC20;

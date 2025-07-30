@@ -8,12 +8,12 @@ import '../Base.s.sol';
 
 import 'src/KSSessionIntentRouter.sol';
 import 'src/interfaces/routers/IKSSwapRouter.sol';
-import 'src/validators/swap-validators/KSPriceBasedDCAIntentValidator.sol';
-import 'src/validators/swap-validators/KSSwapIntentValidator.sol';
-import 'src/validators/swap-validators/KSTimeBasedDCAIntentValidator.sol';
-import 'src/validators/zap-out-validators/KSZapOutUniswapV2IntentValidator.sol';
-import 'src/validators/zap-out-validators/KSZapOutUniswapV3IntentValidator.sol';
-import 'src/validators/zap-out-validators/KSZapOutUniswapV4IntentValidator.sol';
+import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSSwapIntentValidator.sol';
+import 'src/validators/swap/KSTimeBasedDCAIntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV2IntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV3IntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV4IntentValidator.sol';
 
 contract BaseOnchainScript is BaseScript {
   using stdJson for string;
