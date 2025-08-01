@@ -23,7 +23,7 @@ contract WhitelistActions is BaseScript {
     console.log('router is %s', router);
 
     (address[] memory actionContracts, bytes4[] memory actionSelectors) = _readSwapRouterAddresses(
-      string(abi.encodePacked(root, '/script/configs/whitelisted-actions.json')), chainId
+      string(abi.encodePacked(root, '/script/config/whitelisted-actions.json')), chainId
     );
 
     require(
