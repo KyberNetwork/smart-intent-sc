@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './Base.s.sol';
 
 import {KSSessionIntentRouter} from 'src/KSSessionIntentRouter.sol';
-import {IKSSessionIntentRouter} from 'src/interfaces/IKSSessionIntentRouter.sol';
+import {IKSSessionIntentRouter} from 'src/interfaces/routers/IKSSessionIntentRouter.sol';
 
 contract WhitelistActions is BaseScript {
   address[] unWhitelistedContracts;
@@ -23,7 +23,7 @@ contract WhitelistActions is BaseScript {
     console.log('router is %s', router);
 
     (address[] memory actionContracts, bytes4[] memory actionSelectors) = _readSwapRouterAddresses(
-      string(abi.encodePacked(root, '/script/configs/whitelisted-actions.json')), chainId
+      string(abi.encodePacked(root, '/script/config/whitelisted-actions.json')), chainId
     );
 
     require(
@@ -32,8 +32,8 @@ contract WhitelistActions is BaseScript {
     );
 
     for (uint256 i; i < actionContracts.length; ++i) {
-      bytes32 key = keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]));
-      if (!KSSessionIntentRouter(router).whitelistedActions(key)) {
+      if (!KSSessionIntentRouter(router).whitelistedActions(actionContracts[i], actionSelectors[i]))
+      {
         unWhitelistedContracts.push(actionContracts[i]);
         unWhitelistedSelectors.push(actionSelectors[i]);
       }

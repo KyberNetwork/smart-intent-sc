@@ -380,46 +380,6 @@ contract MockActionTest is BaseTest {
     router.delegate(intentData);
   }
 
-  function testMockActionExecuteTooLateShouldRevert(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-
-    vm.prank(mainAddress);
-    router.delegate(intentData);
-
-    IKSSessionIntentRouter.TokenData memory newTokenData =
-      _getNewTokenData(intentData.tokenData, seed);
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
-
-    vm.warp(intentData.coreData.endTime + 1);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(IKSSessionIntentRouter.ExecuteTooLate.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-  }
-
-  function testMockActionExecuteTooEarlyShouldRevert(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
-
-    vm.prank(mainAddress);
-    router.delegate(intentData);
-
-    IKSSessionIntentRouter.TokenData memory newTokenData =
-      _getNewTokenData(intentData.tokenData, seed);
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(newTokenData, '');
-
-    vm.warp(intentData.coreData.startTime - 1);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(IKSSessionIntentRouter.ExecuteTooEarly.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-  }
-
   function testMockActionExecuteEmptyActionShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(seed);
@@ -510,7 +470,8 @@ contract MockActionTest is BaseTest {
     newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
     newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
       token: address(erc20Mock),
-      amount: newTokenData.erc20Data[0].amount
+      amount: newTokenData.erc20Data[0].amount,
+      permitData: ''
     });
     newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](0);
 
@@ -613,12 +574,13 @@ contract MockActionTest is BaseTest {
     newTokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
     newTokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
       token: address(erc20Mock),
-      amount: bound(seed, 1, tokenData.erc20Data[0].amount)
+      amount: bound(seed, 1, tokenData.erc20Data[0].amount),
+      permitData: ''
     });
 
     newTokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
     newTokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed});
+      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed, permitData: ''});
   }
 
   function _getIntentData(uint256 seed)
@@ -629,8 +591,6 @@ contract MockActionTest is BaseTest {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp + 10,
-      endTime: block.timestamp + 1 days,
       actionContracts: _toArray(address(mockActionContract)),
       actionSelectors: _toArray(MockActionContract.doNothing.selector),
       validator: address(mockValidator),
@@ -653,14 +613,17 @@ contract MockActionTest is BaseTest {
     erc1155Mock.setApprovalForAll(address(router), true);
 
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] =
-      IKSSessionIntentRouter.ERC20Data({token: address(erc20Mock), amount: bound(seed, 1, 1e18)});
+    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({
+      token: address(erc20Mock),
+      amount: bound(seed, 1, 1e18),
+      permitData: ''
+    });
     erc20Mock.mint(mainAddress, tokenData.erc20Data[0].amount);
     erc20Mock.approve(address(router), tokenData.erc20Data[0].amount);
 
     tokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
     tokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed});
+      IKSSessionIntentRouter.ERC721Data({token: address(erc721Mock), tokenId: seed, permitData: ''});
     erc721Mock.mint(mainAddress, seed);
     erc721Mock.approve(address(router), seed);
 

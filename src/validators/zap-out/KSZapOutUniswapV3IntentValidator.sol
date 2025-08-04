@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../libraries/TokenLibrary.sol';
-import './base/BaseIntentValidator.sol';
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
+import 'src/validators/base/BaseIntentValidator.sol';
 
-import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
 
 contract KSZapOutUniswapV3IntentValidator is BaseIntentValidator {
-  using TokenLibrary for address;
+  using TokenHelper for address;
 
   error InvalidZapOutPosition();
 

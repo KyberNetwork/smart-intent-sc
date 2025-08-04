@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'openzeppelin-contracts/token/ERC20/IERC20.sol';
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
-import '../libraries/TokenLibrary.sol';
-import './base/BaseStatefulIntentValidator.sol';
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
+import 'src/validators/base/BaseStatefulIntentValidator.sol';
 
 contract KSPriceBasedDCAIntentValidator is BaseStatefulIntentValidator {
-  using TokenLibrary for address;
+  using TokenHelper for address;
 
   error ExceedNumSwaps(uint256 numSwaps, uint256 swapNo);
   error InvalidTokenIn(address tokenIn, address actualTokenIn);

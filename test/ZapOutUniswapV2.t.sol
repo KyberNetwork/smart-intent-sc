@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import 'src/interfaces/IKSZapRouter.sol';
-import 'src/validators/KSZapOutUniswapV2IntentValidator.sol';
+import 'src/interfaces/routers/IKSZapRouter.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV2IntentValidator.sol';
 
 contract ZapOutUniswapV2Test is BaseTest {
   using SafeERC20 for IERC20;
@@ -107,18 +107,16 @@ contract ZapOutUniswapV2Test is BaseTest {
       address token1 = IUniswapV2Pair(pool).token1();
       uint256 reserve0 = IERC20(token0).balanceOf(pool);
       uint256 reserve1 = IERC20(token1).balanceOf(pool);
-      uint256 priceCurrent = reserve1 * 1e18 / reserve0;
+      uint256 priceCurrent = (reserve1 * 1e18) / reserve0;
       validationData.priceLowers = new uint256[](1);
-      validationData.priceLowers[0] = priceCurrent * 95 / 100;
+      validationData.priceLowers[0] = (priceCurrent * 95) / 100;
       validationData.priceUppers = new uint256[](1);
-      validationData.priceUppers[0] = priceCurrent * 105 / 100;
+      validationData.priceUppers[0] = (priceCurrent * 105) / 100;
     }
 
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp + 10,
-      endTime: block.timestamp + 1 days,
       actionContracts: _toArray(zapRouter),
       actionSelectors: _toArray(IKSZapRouter.zap.selector),
       validator: address(zapOutValidator),
@@ -127,7 +125,8 @@ contract ZapOutUniswapV2Test is BaseTest {
 
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({token: pool, amount: amountIn});
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: pool, amount: amountIn, permitData: ''});
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});

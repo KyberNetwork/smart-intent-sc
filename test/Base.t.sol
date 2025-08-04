@@ -10,12 +10,12 @@ import './mocks/MockDex.sol';
 
 import 'forge-std/Test.sol';
 
-import 'openzeppelin-contracts/mocks/token/ERC20Mock.sol';
+import 'openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol';
 
-import 'src/interfaces/IKSSwapRouter.sol';
+import 'src/interfaces/routers/IKSSwapRouter.sol';
 
 import 'src/KSSessionIntentRouter.sol';
-import 'src/validators/KSSwapIntentValidator.sol';
+import 'src/validators/swap/KSSwapIntentValidator.sol';
 
 contract BaseTest is Test {
   uint256 FORK_BLOCK = 22_085_494;
@@ -59,7 +59,7 @@ contract BaseTest is Test {
 
     address[] memory initialGuardians = new address[](1);
     initialGuardians[0] = guardian;
-    router = new KSSessionIntentRouter(owner, initialGuardians);
+    router = new KSSessionIntentRouter(owner, initialGuardians, initialGuardians);
 
     mockValidator = new MockIntentValidator();
     swapValidator = new KSSwapIntentValidator();
@@ -72,17 +72,19 @@ contract BaseTest is Test {
       validators[1] = address(swapValidator);
       router.whitelistValidators(validators, true);
 
-      address[] memory actionContracts = new address[](4);
+      address[] memory actionContracts = new address[](5);
       actionContracts[0] = address(mockActionContract);
       actionContracts[1] = address(swapRouter);
       actionContracts[2] = address(swapRouter);
       actionContracts[3] = address(mockDex);
+      actionContracts[4] = address(mockActionContract);
 
-      bytes4[] memory actionSelectors = new bytes4[](4);
+      bytes4[] memory actionSelectors = new bytes4[](5);
       actionSelectors[0] = MockActionContract.doNothing.selector;
       actionSelectors[1] = IKSSwapRouter.swap.selector;
       actionSelectors[2] = IKSSwapRouter.swapSimpleMode.selector;
       actionSelectors[3] = MockDex.mockSwap.selector;
+      actionSelectors[4] = MockActionContract.removeUniswapV4.selector;
       router.whitelistActions(actionContracts, actionSelectors, true);
       vm.stopPrank();
     }

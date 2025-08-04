@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './interfaces/IKSSessionIntentRouter.sol';
+import './interfaces/routers/IKSSessionIntentRouter.sol';
 
 abstract contract KSSessionIntentRouterNonces is IKSSessionIntentRouter {
   /// @inheritdoc IKSSessionIntentRouter

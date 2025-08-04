@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import 'src/interfaces/IKSZapRouter.sol';
-import 'src/validators/KSZapOutUniswapV3IntentValidator.sol';
+import 'src/interfaces/routers/IKSZapRouter.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV3IntentValidator.sol';
 
 contract ZapOutUniswapV3Test is BaseTest {
   KSZapOutUniswapV3IntentValidator zapOutValidator;
@@ -107,8 +107,6 @@ contract ZapOutUniswapV3Test is BaseTest {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp,
-      endTime: block.timestamp + 1 days,
       actionContracts: _toArray(zapRouter),
       actionSelectors: _toArray(IKSZapRouter.zap.selector),
       validator: address(zapOutValidator),
@@ -118,7 +116,7 @@ contract ZapOutUniswapV3Test is BaseTest {
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
     tokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(pm), tokenId: tokenId});
+      IKSSessionIntentRouter.ERC721Data({token: address(pm), tokenId: tokenId, permitData: ''});
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});

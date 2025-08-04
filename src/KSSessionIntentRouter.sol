@@ -5,9 +5,9 @@ import './KSSessionIntentRouterAccounting.sol';
 import './KSSessionIntentRouterNonces.sol';
 import './KSSessionIntentRouterTypeHashes.sol';
 
-import 'openzeppelin-contracts/utils/Address.sol';
-import 'openzeppelin-contracts/utils/ReentrancyGuardTransient.sol';
-import 'openzeppelin-contracts/utils/cryptography/SignatureChecker.sol';
+import 'openzeppelin-contracts/contracts/utils/Address.sol';
+import 'openzeppelin-contracts/contracts/utils/ReentrancyGuardTransient.sol';
+import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
 contract KSSessionIntentRouter is
   KSSessionIntentRouterAccounting,
@@ -19,30 +19,34 @@ contract KSSessionIntentRouter is
 
   mapping(bytes32 => IntentStatus) public intentStatuses;
 
-  mapping(bytes32 => bool) public whitelistedActions;
+  mapping(address => mapping(bytes4 => bool)) public whitelistedActions;
 
   mapping(address => bool) public whitelistedValidators;
 
-  constructor(address initialOwner, address[] memory initialGuardians)
-    KSSessionIntentRouterAccounting(initialOwner, initialGuardians)
-  {}
+  constructor(
+    address initialAdmin,
+    address[] memory initialGuardians,
+    address[] memory initialRescuers
+  ) KSSessionIntentRouterAccounting(initialAdmin, initialGuardians, initialRescuers) {}
 
   /// @inheritdoc IKSSessionIntentRouter
   function whitelistActions(
     address[] calldata actionContracts,
     bytes4[] calldata actionSelectors,
     bool grantOrRevoke
-  ) public onlyOwner {
+  ) public onlyRole(DEFAULT_ADMIN_ROLE) {
     for (uint256 i = 0; i < actionContracts.length; i++) {
-      whitelistedActions[keccak256(abi.encodePacked(actionContracts[i], actionSelectors[i]))] =
-        grantOrRevoke;
+      whitelistedActions[actionContracts[i]][actionSelectors[i]] = grantOrRevoke;
 
       emit WhitelistAction(actionContracts[i], actionSelectors[i], grantOrRevoke);
     }
   }
 
   /// @inheritdoc IKSSessionIntentRouter
-  function whitelistValidators(address[] calldata validators, bool grantOrRevoke) public onlyOwner {
+  function whitelistValidators(address[] calldata validators, bool grantOrRevoke)
+    public
+    onlyRole(DEFAULT_ADMIN_ROLE)
+  {
     for (uint256 i = 0; i < validators.length; i++) {
       whitelistedValidators[validators[i]] = grantOrRevoke;
 
@@ -116,7 +120,7 @@ contract KSSessionIntentRouter is
     );
 
     intentStatuses[intentHash] = IntentStatus.DELEGATED;
-    _approveTokens(intentHash, intentData.tokenData);
+    _approveTokens(intentHash, intentData.tokenData, intentData.coreData.mainAddress);
 
     emit DelegateIntent(
       intentData.coreData.mainAddress, intentData.coreData.delegatedAddress, intentData
@@ -132,14 +136,12 @@ contract KSSessionIntentRouter is
     ActionData calldata actionData
   ) internal nonReentrant {
     _checkIntentStatus(intentHash, IntentStatus.DELEGATED);
-    require(block.timestamp >= intent.startTime, ExecuteTooEarly());
-    require(block.timestamp <= intent.endTime, ExecuteTooLate());
-    require(block.timestamp <= actionData.deadline, ExecuteTooLate());
-    require(guardians[guardian], KyberSwapRole.KSRoleNotGuardian(guardian));
     require(
       actionData.actionSelectorId < intent.actionContracts.length,
       InvalidActionSelectorId(actionData.actionSelectorId)
     );
+    require(block.timestamp <= actionData.deadline, ActionExpired());
+    _checkRole(KSRoles.GUARDIAN_ROLE, guardian);
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 
@@ -156,6 +158,7 @@ contract KSSessionIntentRouter is
         InvalidGuardianSignature()
       );
     }
+
     require(whitelistedValidators[intent.validator], NonWhitelistedValidator(intent.validator));
     bytes memory beforeExecutionData = IKSSessionIntentValidator(intent.validator)
       .validateBeforeExecution(intentHash, intent, actionData);
@@ -163,10 +166,8 @@ contract KSSessionIntentRouter is
     address actionContract = intent.actionContracts[actionData.actionSelectorId];
     bytes4 actionSelector = intent.actionSelectors[actionData.actionSelectorId];
 
-    bytes32 actionContractAndSelectorHash =
-      keccak256(abi.encodePacked(actionContract, actionSelector));
     require(
-      whitelistedActions[actionContractAndSelectorHash],
+      whitelistedActions[actionContract][actionSelector],
       NonWhitelistedAction(actionContract, actionSelector)
     );
     _collectTokens(intentHash, intent.mainAddress, actionContract, actionData.tokenData);

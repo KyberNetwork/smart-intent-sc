@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './interfaces/IKSSessionIntentValidator.sol';
-import './libraries/TokenLibrary.sol';
+import './interfaces/validators/IKSSessionIntentValidator.sol';
+import 'ks-common-sc/libraries/token/TokenHelper.sol';
 
-import 'ks-growth-utils-sc/KSRescueV2.sol';
+import {ManagementBase} from 'ks-common-sc/base/ManagementBase.sol';
+import {ManagementPausable} from 'ks-common-sc/base/ManagementPausable.sol';
+import 'ks-common-sc/base/ManagementRescuable.sol';
+import {PermitHelper} from 'ks-common-sc/libraries/token/PermitHelper.sol';
+import 'openzeppelin-contracts/contracts/interfaces/IERC1155.sol';
+import 'openzeppelin-contracts/contracts/interfaces/IERC1155Receiver.sol';
+import 'openzeppelin-contracts/contracts/interfaces/IERC721Receiver.sol';
 
-import 'openzeppelin-contracts/interfaces/IERC1155Receiver.sol';
-import 'openzeppelin-contracts/interfaces/IERC721Receiver.sol';
-
-abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSRescueV2 {
-  using TokenLibrary for address;
+abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, ManagementRescuable {
+  using TokenHelper for address;
+  using PermitHelper for address;
 
   mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) public erc1155Allowances;
 
@@ -18,16 +22,17 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
 
   mapping(bytes32 => mapping(address => mapping(uint256 => bool))) public erc721Approvals;
 
-  constructor(address initialOwner, address[] memory initialGuardians) Ownable(initialOwner) {
-    for (uint256 i = 0; i < initialGuardians.length; i++) {
-      guardians[initialGuardians[i]] = true;
-
-      emit UpdateGuardian(initialGuardians[i], true);
-    }
+  constructor(
+    address initialAdmin,
+    address[] memory initialGuardians,
+    address[] memory initialRescuers
+  ) ManagementBase(0, initialAdmin) {
+    _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
+    _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
   }
 
   /// @notice Set the tokens' allowances for the intent
-  function _approveTokens(bytes32 intentHash, TokenData calldata tokenData) internal {
+  function _approveTokens(bytes32 intentHash, TokenData calldata tokenData, address from) internal {
     for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
       ERC1155Data calldata erc1155Data = tokenData.erc1155Data[i];
       for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
@@ -38,10 +43,16 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
       ERC20Data calldata erc20Data = tokenData.erc20Data[i];
       erc20Allowances[intentHash][erc20Data.token] = erc20Data.amount;
+      if (erc20Data.permitData.length > 0) {
+        erc20Data.token.erc20Permit(from, erc20Data.permitData);
+      }
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
       ERC721Data calldata erc721Data = tokenData.erc721Data[i];
       erc721Approvals[intentHash][erc721Data.token][erc721Data.tokenId] = true;
+      if (erc721Data.permitData.length > 0) {
+        erc721Data.token.erc721Permit(erc721Data.tokenId, erc721Data.permitData);
+      }
     }
   }
 
@@ -131,9 +142,9 @@ abstract contract KSSessionIntentRouterAccounting is IKSSessionIntentRouter, KSR
     return IERC1155Receiver.onERC1155BatchReceived.selector;
   }
 
-  function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
+  function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
     return interfaceId == type(IERC1155Receiver).interfaceId
-      || interfaceId == type(IERC721Receiver).interfaceId;
+      || interfaceId == type(IERC721Receiver).interfaceId || super.supportsInterface(interfaceId);
   }
 
   function _safeApproveInf(address token, address spender) internal {

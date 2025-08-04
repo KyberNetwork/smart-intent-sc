@@ -14,15 +14,19 @@ contract DeployRouter is BaseScript {
     console.log('chainId is %s', chainId);
 
     address owner =
-      _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
+      _readAddress(string(abi.encodePacked(root, '/script/config/router-owner.json')), chainId);
 
     address[] memory guardians = _readAddressArray(
-      string(abi.encodePacked(root, '/script/configs/router-guardians.json')), chainId
+      string(abi.encodePacked(root, '/script/config/router-guardians.json')), chainId
+    );
+
+    address[] memory rescuers = _readAddressArray(
+      string(abi.encodePacked(root, '/script/config/router-rescuers.json')), chainId
     );
 
     vm.startBroadcast();
 
-    KSSessionIntentRouter router = new KSSessionIntentRouter(owner, guardians);
+    KSSessionIntentRouter router = new KSSessionIntentRouter(owner, guardians, rescuers);
 
     string memory path = string(abi.encodePacked(root, '/script/deployedAddresses/'));
     _writeAddress(path, 'router', chainId, address(router));

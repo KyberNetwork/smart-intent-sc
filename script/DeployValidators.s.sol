@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import './Base.s.sol';
 
-import 'src/validators/KSPriceBasedDCAIntentValidator.sol';
-import 'src/validators/KSTimeBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSTimeBasedDCAIntentValidator.sol';
 
 contract DeployValidators is BaseScript {
   function run() external {

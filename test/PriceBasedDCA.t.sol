@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
-import 'src/validators/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
 
 contract PriceBasedDCATest is BaseTest {
   using SafeERC20 for IERC20;
@@ -30,7 +30,7 @@ contract PriceBasedDCATest is BaseTest {
 
   uint32[] timestamps = [firstTimestamp, firstTimestamp + 1 days, firstTimestamp + 2 days];
   uint256[] amountIns = [1e9, 1e9, 1e9];
-  uint256[] amountOutLimits = [7e22 << 128 | 1e23, 8e22 << 128 | 1e23, 9e22 << 128 | 1e23];
+  uint256[] amountOutLimits = [(7e22 << 128) | 1e23, (8e22 << 128) | 1e23, (9e22 << 128) | 1e23];
   uint256 swap;
   uint32 deadline;
   uint256 minAmountOut;
@@ -57,6 +57,14 @@ contract PriceBasedDCATest is BaseTest {
 
   function test_priceBasedSuccess(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    intentData.tokenData.erc20Data[0].amount = type(uint128).max;
+    _setUpMainAddress(intentData, false);
+
+    IKSSessionIntentRouter.TokenData memory tokenData;
+    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
@@ -65,12 +73,8 @@ contract PriceBasedDCATest is BaseTest {
       minAmountOut = amountOutLimits[i] >> 128;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
 
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-      _setUpMainAddress(intentData, false);
-
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
+        _getActionData(tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -86,6 +90,15 @@ contract PriceBasedDCATest is BaseTest {
     uint256 mode = bound(seed, 0, 2);
     uint256 swapNo = bound(seed, 0, timestamps.length);
 
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    intentData.tokenData.erc20Data[0].amount = type(uint128).max;
+    _setUpMainAddress(intentData, false);
+
+    IKSSessionIntentRouter.TokenData memory tokenData;
+    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
+
     for (uint256 i; i < timestamps.length; i++) {
       //skip a swap, but other swaps still executed
       if (i == swapNo) {
@@ -98,12 +111,8 @@ contract PriceBasedDCATest is BaseTest {
       minAmountOut = amountOutLimits[i] >> 128;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
 
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-      _setUpMainAddress(intentData, false);
-
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
+        _getActionData(tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -122,25 +131,30 @@ contract PriceBasedDCATest is BaseTest {
     actualAmountOut = 493_606_057_603_605_781;
 
     delete amountOutLimits;
-    amountOutLimits.push(46e16 << 128 | 50e16);
-    amountOutLimits.push(47e16 << 128 | 50e16);
-    amountOutLimits.push(48e16 << 128 | 50e16);
+    amountOutLimits.push((46e16 << 128) | 50e16);
+    amountOutLimits.push((47e16 << 128) | 50e16);
+    amountOutLimits.push((48e16 << 128) | 50e16);
 
     recipient = 0xdeAD00000000000000000000000000000000dEAd;
     swapCalldata =
       hex'00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000f4a1d7fdf4890be35e71f3e0bbc4a0ec377eca3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000003a000000000000000000000000000000000000000000000000000000000000005e000000000000000000000000000000000000000000000000000000000000002e0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000dead00000000000000000000000000000000dead00000000000000000000000000000000000000000000000000000000773593ff00000000000000000000000000000000000000000000000000000000000002800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004063407a490000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000f4a1d7fdf4890be35e71f3e0bbc4a0ec377eca3000000000000000000000000e0554a476a092703abdb3ef35c80e0d76d32939f000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000000000000000000000000000000000003b9aca0000000000000000000000000000000000000000000000000000000001000276a4000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000805bdac33e000000000000000007a69996cdae59a1000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000001a000000000000000000000000000000000000000000000000000000000000001e00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000dead00000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000000000000000000000000000061f136952cc8c0f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000f4a1d7fdf4890be35e71f3e0bbc4a0ec377eca30000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000003b9aca0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002777b22536f75726365223a226b79626572737761702d6c696d69742d6f726465722d6f70657261746f72222c22416d6f756e74496e555344223a223939392e39383437303732373431383936222c22416d6f756e744f7574555344223a22313030302e32353736343334373334393935222c22526566657272616c223a22222c22466c616773223a302c22416d6f756e744f7574223a22353531323936383737333734333634303634222c2254696d657374616d70223a313734333636343533392c22526f7574654944223a2263633163303061652d313063332d346665632d383234632d336266646132373261663339222c22496e74656772697479496e666f223a7b224b65794944223a2231222c225369676e6174757265223a2256503149333948335755702b49794e53706f456e6842385758734b304f4a774946306c3671573874446959346a484f324e4345662b2b44435832326e2b335a5132594a3650734c4d375a4162335872366144543257553969356d366b51624f71743639502f7a4954387574725731434b58724577417534754e6e32753251557179527a786131526b632b63534e314b335a513835696f41346c5058726a313863466176354c5559533679315347487a334e672f4e332f304d6964646770616d622f416c5344412b37507055475673305872716d6d51656d753666553272644c4836346b4645536d5074387a5a316a3554674e397a5432376c4957766e51552f524645526164314a427634723556374f62434d6b73726e58346374465535756835474b45455152475a776f346177302f476b39776b6c78726446315a676e5371556d645072545635457469687a666842336242714d57513d3d227d7d000000000000000000';
+
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    intentData.tokenData.erc20Data[0].amount = type(uint128).max;
+    _setUpMainAddress(intentData, false);
+
+    IKSSessionIntentRouter.TokenData memory tokenData;
+    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
       deadline = timestamps[i] + 10;
       swap = i;
 
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-      _setUpMainAddress(intentData, false);
-
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
+        _getActionData(tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -157,6 +171,14 @@ contract PriceBasedDCATest is BaseTest {
 
     uint256 numSwaps = timestamps.length;
     timestamps.push(firstTimestamp + 3 days);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    intentData.tokenData.erc20Data[0].amount = type(uint128).max;
+    _setUpMainAddress(intentData, false);
+
+    IKSSessionIntentRouter.TokenData memory tokenData;
+    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIns[0], permitData: ''});
 
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
@@ -165,12 +187,8 @@ contract PriceBasedDCATest is BaseTest {
       minAmountOut = 9e22;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
 
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-      _setUpMainAddress(intentData, false);
-
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
+        _getActionData(tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -193,21 +211,20 @@ contract PriceBasedDCATest is BaseTest {
   function test_invalidTokenIn(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
 
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
+      intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
+    );
+    validationData.srcToken = makeAddr('dummy'); //invalid tokenIn
+    intentData.coreData.validationData = abi.encode(validationData);
+    _setUpMainAddress(intentData, false);
+
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
       deadline = executionTime + 10;
       swap = i;
       minAmountOut = 9e22;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
-
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-      KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
-        intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
-      );
-      validationData.srcToken = makeAddr('dummy'); //invalid tokenIn
-      intentData.coreData.validationData = abi.encode(validationData);
-
-      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
@@ -229,6 +246,18 @@ contract PriceBasedDCATest is BaseTest {
 
   function test_invalidAmountIn(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+
+    KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
+      intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
+    );
+    validationData.amountIns[0] = 1e8; //invalid amountIn
+    validationData.amountIns[1] = 1e8; //invalid amountIn
+    validationData.amountIns[2] = 1e8; //invalid amountIn
+
+    intentData.coreData.validationData = abi.encode(validationData);
+
+    _setUpMainAddress(intentData, false);
 
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
@@ -236,18 +265,6 @@ contract PriceBasedDCATest is BaseTest {
       swap = i;
       minAmountOut = 9e22;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
-
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-      KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
-        intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
-      );
-      validationData.amountIns[0] = 1e8; //invalid amountIn
-      validationData.amountIns[1] = 1e8; //invalid amountIn
-      validationData.amountIns[2] = 1e8; //invalid amountIn
-
-      intentData.coreData.validationData = abi.encode(validationData);
-
-      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
@@ -269,24 +286,22 @@ contract PriceBasedDCATest is BaseTest {
 
   function test_invalidAmountOut_min(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
+      intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
+    );
+    validationData.amountOutLimits[0] = ((actualAmountOut + 1) << 128) | 1e23; //invalid amountOut
+    validationData.amountOutLimits[1] = ((actualAmountOut + 1) << 128) | 1e23; //invalid amountOut
+    validationData.amountOutLimits[2] = ((actualAmountOut + 1) << 128) | 1e23; //invalid amountOut
+    intentData.coreData.validationData = abi.encode(validationData);
 
+    _setUpMainAddress(intentData, false);
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
       deadline = executionTime + 10;
       swap = i;
       minAmountOut = 9e22;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
-
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-      KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
-        intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
-      );
-      validationData.amountOutLimits[0] = actualAmountOut + 1 << 128 | 1e23; //invalid amountOut
-      validationData.amountOutLimits[1] = actualAmountOut + 1 << 128 | 1e23; //invalid amountOut
-      validationData.amountOutLimits[2] = actualAmountOut + 1 << 128 | 1e23; //invalid amountOut
-      intentData.coreData.validationData = abi.encode(validationData);
-
-      _setUpMainAddress(intentData, false);
 
       IKSSessionIntentRouter.ActionData memory actionData =
         _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
@@ -312,6 +327,21 @@ contract PriceBasedDCATest is BaseTest {
   function test_invalidAmountOut_max(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
 
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
+      intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
+    );
+    validationData.amountOutLimits[0] = (1e9 << 128) | (actualAmountOut - 1); //invalid amountOut
+    validationData.amountOutLimits[1] = (1e9 << 128) | (actualAmountOut - 1); //invalid amountOut
+    validationData.amountOutLimits[2] = (1e9 << 128) | (actualAmountOut - 1); //invalid amountOut
+    intentData.coreData.validationData = abi.encode(validationData);
+
+    _setUpMainAddress(intentData, false);
+    IKSSessionIntentRouter.TokenData memory tokenData;
+    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
+
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
       deadline = executionTime + 10;
@@ -319,19 +349,8 @@ contract PriceBasedDCATest is BaseTest {
       minAmountOut = 9e22;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
 
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-      KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData = abi.decode(
-        intentData.coreData.validationData, (KSPriceBasedDCAIntentValidator.DCAValidationData)
-      );
-      validationData.amountOutLimits[0] = 1e9 << 128 | actualAmountOut - 1; //invalid amountOut
-      validationData.amountOutLimits[1] = 1e9 << 128 | actualAmountOut - 1; //invalid amountOut
-      validationData.amountOutLimits[2] = 1e9 << 128 | actualAmountOut - 1; //invalid amountOut
-      intentData.coreData.validationData = abi.encode(validationData);
-
-      _setUpMainAddress(intentData, false);
-
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
+        _getActionData(tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -355,6 +374,15 @@ contract PriceBasedDCATest is BaseTest {
     uint256 mode = bound(seed, 0, 2);
     uint256 swapNo = bound(seed, 0, timestamps.length);
 
+    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    intentData.tokenData.erc20Data[0].amount = type(uint128).max;
+    _setUpMainAddress(intentData, false);
+
+    IKSSessionIntentRouter.TokenData memory tokenData;
+    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
+
     for (uint256 i; i < timestamps.length; i++) {
       uint32 executionTime = timestamps[i];
       deadline = timestamps[i] + 10;
@@ -362,12 +390,8 @@ contract PriceBasedDCATest is BaseTest {
       minAmountOut = 9e22;
       swapCalldata = _adjustMinReturnAmount(swapCalldata);
 
-      IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
-
-      _setUpMainAddress(intentData, false);
-
       IKSSessionIntentRouter.ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
+        _getActionData(tokenData, _adjustDeadline(swapCalldata));
 
       vm.warp(executionTime);
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -404,8 +428,6 @@ contract PriceBasedDCATest is BaseTest {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      startTime: block.timestamp + 10,
-      endTime: deadline,
       actionContracts: _toArray(swapRouter),
       actionSelectors: _toArray(IKSSwapRouter.swap.selector),
       validator: address(dcaValidator),
@@ -414,7 +436,8 @@ contract PriceBasedDCATest is BaseTest {
 
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn});
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
@@ -424,9 +447,9 @@ contract PriceBasedDCATest is BaseTest {
     IKSSessionIntentRouter.IntentData memory intentData,
     bool withSignedIntent
   ) internal {
-    deal(tokenIn, mainAddress, amountIn);
+    deal(tokenIn, mainAddress, type(uint128).max);
     vm.startPrank(mainAddress);
-    IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
+    IERC20(tokenIn).safeIncreaseAllowance(address(router), type(uint256).max);
     if (!withSignedIntent) {
       router.delegate(intentData);
     }

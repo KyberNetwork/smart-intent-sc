@@ -7,10 +7,13 @@ import 'forge-std/StdJson.sol';
 import '../Base.s.sol';
 
 import 'src/KSSessionIntentRouter.sol';
-import 'src/interfaces/IKSSwapRouter.sol';
-import 'src/validators/KSPriceBasedDCAIntentValidator.sol';
-import 'src/validators/KSSwapIntentValidator.sol';
-import 'src/validators/KSTimeBasedDCAIntentValidator.sol';
+import 'src/interfaces/routers/IKSSwapRouter.sol';
+import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
+import 'src/validators/swap/KSSwapIntentValidator.sol';
+import 'src/validators/swap/KSTimeBasedDCAIntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV2IntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV3IntentValidator.sol';
+import 'src/validators/zap-out/KSZapOutUniswapV4IntentValidator.sol';
 
 contract BaseOnchainScript is BaseScript {
   using stdJson for string;
@@ -61,7 +64,7 @@ contract BaseOnchainScript is BaseScript {
     (guardian, guardianPrivateKey) = makeAddrAndKey('guardian');
 
     (address[] memory swapRouters,) = _readSwapRouterAddresses(
-      string(abi.encodePacked(root, '/script/configs/whitelisted-actions.json')), chainId
+      string(abi.encodePacked(root, '/script/config/whitelisted-actions.json')), chainId
     );
     swapRouter = swapRouters[0];
     router = KSSessionIntentRouter(
@@ -71,9 +74,9 @@ contract BaseOnchainScript is BaseScript {
     //add guardian
     {
       address owner =
-        _readAddress(string(abi.encodePacked(root, '/script/configs/router-owner.json')), chainId);
+        _readAddress(string(abi.encodePacked(root, '/script/config/router-owner.json')), chainId);
       vm.startBroadcast(owner);
-      router.updateGuardian(guardian, true);
+      router.grantRole(KSRoles.GUARDIAN_ROLE, guardian);
       vm.stopBroadcast();
     }
 
@@ -95,9 +98,9 @@ contract BaseOnchainScript is BaseScript {
 
     //read data for swap
     SwapInputs memory swapInputs =
-      _readSwapInputs(string(abi.encodePacked(root, '/script/configs/swap-inputs.json')), chainId);
+      _readSwapInputs(string(abi.encodePacked(root, '/script/config/swap-inputs.json')), chainId);
     string memory chainName =
-      _readString(string(abi.encodePacked(root, '/script/configs/chain-name.json')), chainId);
+      _readString(string(abi.encodePacked(root, '/script/config/chain-name.json')), chainId);
 
     tokenIn = swapInputs.tokenIn;
     tokenOut = swapInputs.tokenOut;
@@ -124,8 +127,6 @@ contract BaseOnchainScript is BaseScript {
     IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
       mainAddress: mainWallet,
       delegatedAddress: sessionWallet,
-      startTime: startTime,
-      endTime: endTime,
       actionContracts: _toArray(swapRouter),
       actionSelectors: _toArray(selector),
       validator: validator,
@@ -134,7 +135,8 @@ contract BaseOnchainScript is BaseScript {
 
     IKSSessionIntentRouter.TokenData memory tokenData;
     tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] = IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn});
+    tokenData.erc20Data[0] =
+      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
     intentData =
       IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
