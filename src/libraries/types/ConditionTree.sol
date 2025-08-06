@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'src/interfaces/validators/IKSConditionalValidator.sol';
-
-using ConditionTreeLibrary for ConditionTree global;
-using ConditionTreeLibrary for Node global;
-using ConditionTreeLibrary for Condition global;
-
 type ConditionType is bytes32;
 
 enum OperationType {
@@ -42,6 +36,10 @@ struct ConditionTree {
   Node[] nodes;
   bytes[] additionalData;
 }
+
+using ConditionTreeLibrary for ConditionTree global;
+using ConditionTreeLibrary for Node global;
+using ConditionTreeLibrary for Condition global;
 
 /**
  * @notice Library for condition tree evaluation

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './interfaces/routers/IKSSessionIntentRouter.sol';
+import './interfaces/IKSSmartIntentRouter.sol';
 
-abstract contract KSSessionIntentRouterNonces is IKSSessionIntentRouter {
-  /// @inheritdoc IKSSessionIntentRouter
+abstract contract KSSmartIntentRouterNonces is IKSSmartIntentRouter {
+  /// @inheritdoc IKSSmartIntentRouter
   mapping(bytes32 intentHash => mapping(uint256 word => uint256 bitmap)) public nonces;
 
   function _useUnorderedNonce(bytes32 intentHash, uint256 nonce) internal {

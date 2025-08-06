@@ -1,3 +1,2 @@
 forge-std/=lib/ks-common-sc/lib/forge-std/src/
-ks-growth-utils-sc/=lib/ks-growth-utils-sc/contracts/
-ks-common-sc/=lib/ks-common-sc/src/
+ks-common-sc/=lib/ks-common-sc

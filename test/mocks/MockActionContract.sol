@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {console} from 'forge-std/console.sol';
-import 'ks-common-sc/libraries/token/TokenHelper.sol';
+import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 import 'src/interfaces/IWETH.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
