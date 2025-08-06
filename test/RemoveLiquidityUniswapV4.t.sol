@@ -4,7 +4,7 @@
 // import './Base.t.sol';
 
 // import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-// import 'src/validators/remove-liq/KSRemoveLiquidityUniswapV4IntentValidator.sol';
+// import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV4Hook.sol';
 // import 'test/common/Permit.sol';
 
 // contract RemoveLiquidityUniswapV4Test is BaseTest {
@@ -43,7 +43,7 @@
 //   bool wrapOrUnwrap;
 //   bool takeUnclaimedFees;
 
-//   KSRemoveLiquidityUniswapV4IntentValidator rmLqValidator;
+//   KSRemoveLiquidityUniswapV4Hook rmLqHook;
 
 //   struct FuzzStruct {
 //     uint256 seed;
@@ -61,12 +61,8 @@
 //     FORK_BLOCK = 22_937_800;
 //     super.setUp();
 
-//     rmLqValidator = new KSRemoveLiquidityUniswapV4IntentValidator(weth);
-//     address[] memory validators = new address[](1);
-//     validators[0] = address(rmLqValidator);
+//     rmLqHook = new KSRemoveLiquidityUniswapV4Hook(weth);
 //     nftOwner = mainAddress;
-//     vm.prank(owner);
-//     router.whitelistValidators(validators, true);
 
 //     (, uint256 positionIn) = IPositionManager(pm).getPoolAndPositionInfo(uniV4TokenId);
 //     IPoolManager poolManager = IPositionManager(pm).poolManager();
@@ -114,11 +110,11 @@
 //     ConditionTree memory conditionTree = this.buildConditionTree(nodes, fee0, fee1, currentPrice);
 //     bool pass = this.callLibrary(conditionTree, 0);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(fuzzStruct.usePermit, nodes);
+//     IntentData memory intentData = _getIntentData(fuzzStruct.usePermit, nodes);
 
 //     _setUpMainAddress(intentData, fuzzStruct.withSignedIntent, uniV4TokenId, !fuzzStruct.usePermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
+//     ActionData memory actionData =
 //       _getActionData(intentData.tokenData, fuzzStruct.liquidityToRemove);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -139,9 +135,9 @@
 //       if (!pass || maxFeePercents > PRECISION) {
 //         isRevert = true;
 //         if (!pass) {
-//           vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+//           vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
 //         } else if (maxFeePercents > PRECISION) {
-//           vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+//           vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOutputAmount.selector);
 //         }
 //       }
 //       router.executeWithSignedIntent(
@@ -151,9 +147,9 @@
 //       if (!pass || fuzzStruct.maxFeePercents > PRECISION) {
 //         isRevert = true;
 //         if (!pass) {
-//           vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+//           vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
 //         } else if (fuzzStruct.maxFeePercents > PRECISION) {
-//           vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+//           vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOutputAmount.selector);
 //         }
 //       }
 //       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -168,12 +164,11 @@
 //   }
 
 //   function test_RemoveSuccess_DefaultConditions(bool withPermit) public {
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(withPermit, new Node[](0));
+//     IntentData memory intentData = _getIntentData(withPermit, new Node[](0));
 
 //     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
@@ -198,19 +193,18 @@
 //     andChildren[1] = 2;
 //     nodes[0] = _createNode(andChildren, AND);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
+//     IntentData memory intentData = _getIntentData(withPermit, nodes);
 
 //     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.warp(block.timestamp + 100);
 //     vm.startPrank(caller);
-//     vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+//     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
@@ -227,18 +221,17 @@
 //     andChildren[1] = 2;
 //     nodes[0] = _createNode(andChildren, AND);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
+//     IntentData memory intentData = _getIntentData(withPermit, nodes);
 
 //     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
-//     vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+//     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
@@ -255,18 +248,17 @@
 //     andChildren[1] = 2;
 //     nodes[0] = _createNode(andChildren, AND);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
+//     IntentData memory intentData = _getIntentData(withPermit, nodes);
 
 //     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
-//     vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+//     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
@@ -283,12 +275,11 @@
 //     andChildren[1] = 2;
 //     nodes[0] = _createNode(andChildren, OR);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
+//     IntentData memory intentData = _getIntentData(withPermit, nodes);
 
 //     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
@@ -306,12 +297,11 @@
 //     andChildren[1] = 2;
 //     nodes[0] = _createNode(andChildren, OR);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(withPermit, nodes);
+//     IntentData memory intentData = _getIntentData(withPermit, nodes);
 
 //     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
@@ -321,10 +311,9 @@
 //   }
 
 //   function test_executeSignedIntent_RemoveSuccess() public {
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, true, uniV4TokenId, false);
-//     IKSSmartIntentRouter.ActionData memory actionData =
-//       _getActionData(intentData.tokenData, liquidity);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
@@ -338,44 +327,44 @@
 
 //   function testRevert_validationAfterExecution_fail(uint256 liq) public {
 //     liq = bound(liq, 0, liquidity);
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
 //     magicNumber = NOT_TRANSFER;
 
-//     IKSSmartIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liq);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
-//     vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+//     vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOutputAmount.selector);
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
 //   function testRevert_validationAfterExecution_InvalidOwner(uint256 liq) public {
 //     liq = bound(liq, 0, liquidity);
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
 //     nftOwner = address(0);
 
-//     IKSSmartIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liq);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
-//     vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOwner.selector);
+//     vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOwner.selector);
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
 //   function test_RemoveSuccess_Transfer99Percent(uint256 liq) public {
 //     liq = bound(liq, 0, liquidity);
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
 //     magicNumber = 990_000;
 
-//     IKSSmartIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liq);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
@@ -385,17 +374,17 @@
 
 //   function testRevert_Transfer97Percent_NotTakeUnclaimedFees(uint256 liq) public {
 //     liq = bound(liq, liquidity * 10 / 100, liquidity);
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
 //     magicNumber = 970_000;
 
-//     IKSSmartIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liq);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
-//     vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+//     vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOutputAmount.selector);
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
@@ -406,32 +395,32 @@
 //     magicNumber = bound(transferPercent, 0, 1_000_000);
 //     maxFeePercents = bound(maxFeePercents, 1, 1e6);
 
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-//     IKSSmartIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, liq);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
 //     if ((1e6 - magicNumber > maxFeePercents) && !takeUnclaimedFees || takeUnclaimedFees) {
-//       vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+//       vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOutputAmount.selector);
 //     }
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
 
 //   function testFuzz_ClaimFeeOnly(bool takeFees) public {
 //     takeUnclaimedFees = takeFees;
-//     IKSSmartIntentRouter.IntentData memory intentData = _getIntentData(true, new Node[](0));
+//     IntentData memory intentData = _getIntentData(true, new Node[](0));
 //     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-//     IKSSmartIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData, 0);
+//     ActionData memory actionData = _getActionData(intentData.tokenData, 0);
 //     (address caller, bytes memory daSignature, bytes memory gdSignature) =
 //       _getCallerAndSignatures(0, actionData);
 
 //     vm.startPrank(caller);
 //     if (takeUnclaimedFees) {
-//       vm.expectRevert(KSRemoveLiquidityUniswapV4IntentValidator.InvalidOutputAmount.selector);
+//       vm.expectRevert(KSRemoveLiquidityUniswapV4Hook.InvalidOutputAmount.selector);
 //     }
 //     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 //   }
@@ -439,21 +428,21 @@
 //   function _getIntentData(bool withPermit, Node[] memory nodes)
 //     internal
 //     view
-//     returns (IKSSmartIntentRouter.IntentData memory intentData)
+//     returns (IntentData memory intentData)
 //   {
-//     KSRemoveLiquidityUniswapV4IntentValidator.RemoveLiquidityValidationData memory validationData;
-//     validationData.nftAddresses = new address[](1);
-//     validationData.nftAddresses[0] = pm;
-//     validationData.nftIds = new uint256[](1);
-//     validationData.nftIds[0] = uniV4TokenId;
-//     validationData.maxFees = new uint256[](1);
-//     validationData.maxFees[0] = (maxFeePercents << 128) | maxFeePercents;
-//     validationData.wrapOrUnwrap = new bool[](1);
-//     validationData.wrapOrUnwrap[0] = wrapOrUnwrap;
+//     KSRemoveLiquidityUniswapV4Hook.RemoveLiquidityHookData memory hookData;
+//     hookData.nftAddresses = new address[](1);
+//     hookData.nftAddresses[0] = pm;
+//     hookData.nftIds = new uint256[](1);
+//     hookData.nftIds[0] = uniV4TokenId;
+//     hookData.maxFees = new uint256[](1);
+//     hookData.maxFees[0] = (maxFeePercents << 128) | maxFeePercents;
+//     hookData.wrapOrUnwrap = new bool[](1);
+//     hookData.wrapOrUnwrap[0] = wrapOrUnwrap;
 
-//     validationData.nodes = new Node[][](1);
+//     hookData.nodes = new Node[][](1);
 //     if (nodes.length > 0) {
-//       validationData.nodes[0] = nodes;
+//       hookData.nodes[0] = nodes;
 //     } else {
 //       // Tree structure:
 //       //          OR (index 0)
@@ -491,18 +480,18 @@
 //       orChildren[1] = 2; // C AND D
 //       nodes[0] = _createNode(orChildren, OR); // (A AND B) OR (C AND D)
 
-//       validationData.nodes[0] = nodes;
+//       hookData.nodes[0] = nodes;
 //     }
 
-//     validationData.recipient = mainAddress;
+//     hookData.recipient = mainAddress;
 
-//     IKSSmartIntentRouter.IntentCoreData memory coreData = IKSSmartIntentRouter.IntentCoreData({
+//     IntentCoreData memory coreData = IntentCoreData({
 //       mainAddress: mainAddress,
 //       delegatedAddress: delegatedAddress,
 //       actionContracts: _toArray(address(mockActionContract)),
 //       actionSelectors: _toArray(MockActionContract.removeUniswapV4.selector),
-//       validator: address(rmLqValidator),
-//       validationData: abi.encode(validationData)
+//       hook: address(rmLqHook),
+//       hookIntentData: abi.encode(hookData)
 //     });
 
 //     bytes memory permitData;
@@ -510,13 +499,11 @@
 //       permitData = _getPermitData(uniV4TokenId);
 //     }
 
-//     IKSSmartIntentRouter.TokenData memory tokenData;
-//     tokenData.erc721Data = new IKSSmartIntentRouter.ERC721Data[](1);
-//     tokenData.erc721Data[0] =
-//       IKSSmartIntentRouter.ERC721Data({token: pm, tokenId: uniV4TokenId, permitData: permitData});
+//     TokenData memory tokenData;
+//     tokenData.erc721Data = new ERC721Data[](1);
+//     tokenData.erc721Data[0] = ERC721Data({token: pm, tokenId: uniV4TokenId, permitData: permitData});
 
-//     intentData =
-//       IKSSmartIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+//     intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
 //   }
 
 //   function callLibrary(ConditionTree calldata tree, uint256 curIndex) external view returns (bool) {
@@ -528,15 +515,15 @@
 //     view
 //     returns (bool)
 //   {
-//     return rmLqValidator.evaluateCondition(condition, additionalData);
+//     return rmLqHook.evaluateCondition(condition, additionalData);
 //   }
 
-//   function _getActionData(IKSSmartIntentRouter.TokenData memory tokenData, uint256 _liquidity)
+//   function _getActionData(TokenData memory tokenData, uint256 _liquidity)
 //     internal
 //     view
-//     returns (IKSSmartIntentRouter.ActionData memory actionData)
+//     returns (ActionData memory actionData)
 //   {
-//     actionData = IKSSmartIntentRouter.ActionData({
+//     actionData = ActionData({
 //       tokenData: tokenData,
 //       actionSelectorId: 0,
 //       actionCalldata: abi.encode(
@@ -551,7 +538,7 @@
 //         weth,
 //         takeUnclaimedFees
 //       ),
-//       validatorData: abi.encode(0, fee0, fee1, _liquidity),
+//       hookActionData: abi.encode(0, fee0, fee1, _liquidity),
 //       extraData: '',
 //       deadline: block.timestamp + 1 days,
 //       nonce: 0
@@ -559,7 +546,7 @@
 //   }
 
 //   function _setUpMainAddress(
-//     IKSSmartIntentRouter.IntentData memory intentData,
+//     IntentData memory intentData,
 //     bool withSignedIntent,
 //     uint256 tokenId,
 //     bool needApproval

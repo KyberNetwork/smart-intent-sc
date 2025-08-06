@@ -13,7 +13,7 @@ struct UniswapV4Data {
   uint256 tokenId;
   uint128 liquidity;
   uint128[2] minAmounts;
-  address owner;
+  address admin;
   bytes hookData;
 }
 
@@ -25,12 +25,12 @@ contract MockActionContract {
   uint256 constant TAKE_PAIR = 0x11;
   uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
 
-  function doNothing() external pure {}
+  function execute(bytes calldata) external {}
 
   function removeUniswapV4(
     IPositionManager posManager,
     uint256 tokenId,
-    address owner,
+    address admin,
     address token0,
     address token1,
     uint256 liquidity,
@@ -50,12 +50,12 @@ contract MockActionContract {
     actions[1] = bytes1(uint8(TAKE_PAIR));
     params[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
     posManager.modifyLiquidities(abi.encode(actions, params), type(uint256).max);
-    if (owner != address(0)) {
-      posManager.transferFrom(msg.sender, owner, tokenId);
+    if (admin != address(0)) {
+      posManager.transferFrom(msg.sender, admin, tokenId);
     }
 
     if (transferPercent == NOT_TRANSFER) {
-      // not transfer back to owner
+      // not transfer back to admin
       return;
     }
 
@@ -85,8 +85,8 @@ contract MockActionContract {
       amount1Transfer += unclaimedFee1;
     }
 
-    token0.safeTransfer(owner, amount0Transfer);
-    token1.safeTransfer(owner, amount1Transfer);
+    token0.safeTransfer(admin, amount0Transfer);
+    token1.safeTransfer(admin, amount1Transfer);
   }
 
   fallback() external payable {}

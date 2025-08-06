@@ -23,11 +23,17 @@ interface IKSSmartIntentRouter {
   /// @notice Thrown when the signature is not from the main address
   error InvalidMainAddressSignature();
 
+  /// @notice Thrown when the action contract is not whitelisted
+  error NotWhitelistedActionContract(address actionContract);
+
   /// @notice Thrown when the action contract and selector not found in intent
   error InvalidActionSelectorId(uint256 actionSelectorId);
 
   /// @notice Thrown when a nonce has already been used
   error NonceAlreadyUsed(bytes32 intentHash, uint256 nonce);
+
+  /// @notice Emitted when an action contract is whitelisted or revoked
+  event WhitelistActionContract(address actionContract, bool grantOrRevoke);
 
   /// @notice Emitted when an intent is delegated
   event DelegateIntent(
@@ -51,6 +57,14 @@ interface IKSSmartIntentRouter {
     DELEGATED,
     REVOKED
   }
+
+  /**
+   * @notice Whitelist or revoke action contracts
+   * @param actionContracts The addresses of the action contracts
+   * @param grantOrRevoke True to grant, false to revoke
+   */
+  function whitelistActionContracts(address[] calldata actionContracts, bool grantOrRevoke)
+    external;
 
   /**
    * @notice Delegate the intent to the delegated address
@@ -132,6 +146,20 @@ interface IKSSmartIntentRouter {
     external
     view
     returns (bool approved);
+
+  /**
+   * @notice Hash the intent data with EIP712
+   * @param intentData The intent data
+   * @return hash The hash of the intent data
+   */
+  function hashTypedIntentData(IntentData calldata intentData) external view returns (bytes32);
+
+  /**
+   * @notice Hash the action data with EIP712
+   * @param actionData The action data
+   * @return hash The hash of the action data
+   */
+  function hashTypedActionData(ActionData calldata actionData) external view returns (bytes32);
 
   /// @notice mapping of nonces consumed by each intent, where a nonce is a single bit on the 256-bit bitmap
   /// @dev word is at most type(uint248).max

@@ -23,6 +23,8 @@ contract KSSmartIntentRouter is
 
   mapping(bytes32 => IntentStatus) public intentStatuses;
 
+  mapping(address => bool) public whitelistedActionContracts;
+
   constructor(
     address initialAdmin,
     address[] memory initialGuardians,
@@ -32,12 +34,29 @@ contract KSSmartIntentRouter is
   receive() external payable {}
 
   /// @inheritdoc IKSSmartIntentRouter
+  function hashTypedIntentData(IntentData calldata intentData) public view returns (bytes32) {
+    return _hashTypedDataV4(intentData.hash());
+  }
+
+  /// @inheritdoc IKSSmartIntentRouter
+  function hashTypedActionData(ActionData calldata actionData) public view returns (bytes32) {
+    return _hashTypedDataV4(actionData.hash());
+  }
+
+  /// @inheritdoc IKSSmartIntentRouter
+  function whitelistActionContracts(address[] calldata actionContracts, bool grantOrRevoke) public {
+    for (uint256 i = 0; i < actionContracts.length; i++) {
+      whitelistedActionContracts[actionContracts[i]] = grantOrRevoke;
+    }
+  }
+
+  /// @inheritdoc IKSSmartIntentRouter
   function delegate(IntentData calldata intentData) public {
     if (intentData.coreData.mainAddress != msg.sender) {
       revert NotMainAddress();
     }
 
-    _delegate(intentData, _hashTypedDataV4(intentData.hash()));
+    _delegate(intentData, hashTypedIntentData(intentData));
   }
 
   /// @inheritdoc IKSSmartIntentRouter
@@ -46,7 +65,7 @@ contract KSSmartIntentRouter is
       revert NotMainAddress();
     }
 
-    bytes32 intentHash = _hashTypedDataV4(intentData.hash());
+    bytes32 intentHash = hashTypedIntentData(intentData);
     intentStatuses[intentHash] = IntentStatus.REVOKED;
 
     emit RevokeIntent(intentHash);
@@ -60,7 +79,7 @@ contract KSSmartIntentRouter is
     bytes memory gdSignature,
     ActionData calldata actionData
   ) public {
-    bytes32 intentHash = _hashTypedDataV4(intentData.hash());
+    bytes32 intentHash = hashTypedIntentData(intentData);
     _execute(intentHash, intentData.coreData, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -73,7 +92,7 @@ contract KSSmartIntentRouter is
     bytes memory gdSignature,
     ActionData calldata actionData
   ) public {
-    bytes32 intentHash = _hashTypedDataV4(intentData.hash());
+    bytes32 intentHash = hashTypedIntentData(intentData);
     if (
       !SignatureChecker.isValidSignatureNow(intentData.coreData.mainAddress, intentHash, maSignature)
     ) {
@@ -91,14 +110,14 @@ contract KSSmartIntentRouter is
       intentData.coreData.actionSelectors.length
     )
   {
+    IntentCoreData calldata intent = intentData.coreData;
+
     _checkIntentStatus(intentHash, IntentStatus.NOT_DELEGATED);
+
     intentStatuses[intentHash] = IntentStatus.DELEGATED;
+    _approveTokens(intentHash, intentData.tokenData, intent.mainAddress);
 
-    _approveTokens(intentHash, intentData.tokenData, intentData.coreData.mainAddress);
-
-    emit DelegateIntent(
-      intentData.coreData.mainAddress, intentData.coreData.delegatedAddress, intentData
-    );
+    emit DelegateIntent(intent.mainAddress, intent.delegatedAddress, intentData);
   }
 
   function _execute(
@@ -120,15 +139,16 @@ contract KSSmartIntentRouter is
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 
-    actionData.validate(
-      _hashTypedDataV4(actionData.hash()), intent, daSignature, guardian, gdSignature
-    );
+    actionData.validate(hashTypedActionData(actionData), intent, daSignature, guardian, gdSignature);
 
     bytes memory beforeExecutionData = HookLibrary.beforeExecution(intentHash, intent, actionData);
 
     address actionContract = intent.actionContracts[actionData.actionSelectorId];
     bytes4 actionSelector = intent.actionSelectors[actionData.actionSelectorId];
 
+    if (!whitelistedActionContracts[actionContract]) {
+      revert NotWhitelistedActionContract(actionContract);
+    }
     _collectTokens(intentHash, intent.mainAddress, actionContract, actionData.tokenData);
 
     bytes memory actionResult =

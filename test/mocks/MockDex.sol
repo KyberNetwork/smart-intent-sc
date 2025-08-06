@@ -24,10 +24,9 @@ contract MockDex {
     cachedBalance = val;
   }
 
-  function mockSwap(address tokenIn, address tokenOut, address recipient, uint256 amountIn)
-    external
-    returns (uint256 _amountOut)
-  {
+  function execute(bytes calldata data) external returns (uint256 _amountOut) {
+    (address tokenIn, address tokenOut, address recipient, uint256 amountIn) =
+      abi.decode(data, (address, address, address, uint256));
     recipient = recipient == address(0) ? msg.sender : recipient;
     if (!isFirstPool) {
       IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);

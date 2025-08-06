@@ -16,7 +16,7 @@
 //     startTime = block.timestamp;
 //     endTime = type(uint32).max;
 
-//     KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData;
+//     KSPriceBasedDCAIntentValidator.DCAHookData memory validationData;
 //     validationData.srcToken = tokenIn;
 //     validationData.dstToken = tokenOut;
 //     validationData.amountIns = amountIns;
@@ -53,7 +53,7 @@
 //     startTime = block.timestamp;
 //     endTime = type(uint32).max;
 
-//     KSTimeBasedDCAIntentValidator.DCAValidationData memory validationData;
+//     KSTimeBasedDCAIntentValidator.DCAHookData memory validationData;
 //     validationData.srcToken = tokenIn;
 //     validationData.dstToken = tokenOut;
 //     validationData.amountIn = amountIn;
