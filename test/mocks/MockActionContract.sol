@@ -5,6 +5,8 @@ import {console} from 'forge-std/console.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 import 'src/interfaces/IWETH.sol';
+
+import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'src/interfaces/uniswapv4/IPositionManager.sol';
 import 'src/libraries/uniswapv4/StateLibrary.sol';
 
@@ -20,6 +22,8 @@ struct UniswapV4Data {
 contract MockActionContract {
   using TokenHelper for address;
   using StateLibrary for IPoolManager;
+
+  event Transferred(uint256 amount0, uint256 amount1);
 
   uint256 constant DECREASE_LIQUIDITY = 0x01;
   uint256 constant TAKE_PAIR = 0x11;
@@ -87,6 +91,68 @@ contract MockActionContract {
 
     token0.safeTransfer(admin, amount0Transfer);
     token1.safeTransfer(admin, amount1Transfer);
+  }
+
+  function removeUniswapV3(
+    IUniswapV3PM pm,
+    uint256 tokenId,
+    address owner,
+    address token0,
+    address token1,
+    uint256 liquidity,
+    uint256 transferPercent,
+    bool wrapOrUnwrap,
+    address weth,
+    bool takeFees,
+    uint256[2] memory amounts,
+    uint256[2] memory fees
+  ) external {
+    if (liquidity > 0) {
+      pm.decreaseLiquidity(
+        IUniswapV3PM.DecreaseLiquidityParams({
+          tokenId: tokenId,
+          liquidity: uint128(liquidity),
+          amount0Min: 0,
+          amount1Min: 0,
+          deadline: block.timestamp + 1 days
+        })
+      );
+    }
+
+    uint256[2] memory balancesBefore = [token0.selfBalance(), token1.selfBalance()];
+
+    pm.collect(
+      IUniswapV3PM.CollectParams({
+        tokenId: tokenId,
+        recipient: address(this),
+        amount0Max: type(uint128).max,
+        amount1Max: type(uint128).max
+      })
+    );
+    if (owner != address(0)) {
+      pm.transferFrom(msg.sender, owner, tokenId);
+    }
+
+    if (transferPercent == NOT_TRANSFER) {
+      // not transfer back to owner
+      return;
+    }
+
+    uint256[2] memory received =
+      [token0.selfBalance() - balancesBefore[0], token1.selfBalance() - balancesBefore[1]];
+
+    require(received[0] == amounts[0] + fees[0], 'Invalid amount0');
+    require(received[1] == amounts[1] + fees[1], 'Invalid amount1');
+
+    if (!takeFees) {
+      amounts[0] += fees[0];
+      amounts[1] += fees[1];
+    }
+
+    token0.safeTransfer(owner, amounts[0] * transferPercent / 1e6);
+    token1.safeTransfer(owner, amounts[1] * transferPercent / 1e6);
+
+    emit Transferred(amounts[0] * transferPercent / 1e6, amounts[1] * transferPercent / 1e6);
   }
 
   fallback() external payable {}

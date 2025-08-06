@@ -15,11 +15,6 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
   error InvalidOutputAmount();
   error InvalidLength();
 
-  ConditionType public constant UNISWAPV4_YIELD_BASED =
-    ConditionType.wrap(keccak256('UNISWAPV4_YIELD_BASED'));
-
-  uint256 public constant PRECISION = 1_000_000;
-  uint256 public constant Q96 = 1 << 96;
   address public immutable WETH;
 
   /**
@@ -102,10 +97,9 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
 
     Node[] calldata nodes = _cacheAndDecodeHookData(coreData.hookIntentData, localVar, index);
 
-    ConditionTree memory conditionTree =
-      _buildConditionTree(nodes, fee0Generated, fee1Generated, localVar.sqrtPriceX96);
-
-    this.validateConditionTree(conditionTree, 0);
+    this.validateConditionTree(
+      _buildConditionTree(nodes, fee0Generated, fee1Generated, localVar.sqrtPriceX96), 0
+    );
     (localVar.amounts[0], localVar.amounts[1], localVar.unclaimedFees[0], localVar.unclaimedFees[1])
     = localVar.positionManager.poolManager().computePositionValues(
       localVar.positionManager, localVar.tokenId, localVar.liquidity
@@ -133,6 +127,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     _validateOutput(localVar);
   }
 
+<<<<<<< HEAD:src/hooks/remove-liq/KSRemoveLiquidityUniswapV4Hook.sol
   /// @inheritdoc IKSConditionalHook
   function evaluateCondition(Condition calldata condition, bytes calldata additionalData)
     public
@@ -147,6 +142,8 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     }
   }
 
+=======
+>>>>>>> 47920c4 (feat: remove liq for univ3, pancake v4 cl):src/validators/remove-liq/KSRemoveLiquidityUniswapV4IntentValidator.sol
   function _buildConditionTree(
     Node[] calldata nodes,
     uint256 fee0Collected,
@@ -159,7 +156,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
       if (!nodes[i].isLeaf() || nodes[i].condition.isType(TIME_BASED)) {
         continue;
       }
-      if (nodes[i].condition.isType(UNISWAPV4_YIELD_BASED)) {
+      if (nodes[i].condition.isType(YIELD_BASED)) {
         conditionTree.additionalData[i] = abi.encode(fee0Collected, fee1Collected, sqrtPriceX96);
       } else if (nodes[i].condition.isType(PRICE_BASED)) {
         conditionTree.additionalData[i] = abi.encode(sqrtPriceX96);
@@ -247,56 +244,6 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     assembly ("memory-safe") {
       validationData := add(data.offset, calldataload(data.offset))
     }
-  }
-
-  /**
-   * @notice helper function to evaluate whether the yield condition is satisfied
-   * @dev Calculates yield as: (fees_in_token0_terms) / (initial_amounts_in_token0_terms)
-   * @param condition The yield condition containing target yield and initial amounts
-   * @param additionalData Encoded fee0, fee1, and sqrtPriceX96 values
-   * @return true if actual yield >= target yield, false otherwise
-   */
-  function _evaluateUniswapV4YieldCondition(
-    Condition calldata condition,
-    bytes calldata additionalData
-  ) internal pure returns (bool) {
-    uint256 fee0;
-    uint256 fee1;
-    uint160 sqrtPriceX96;
-
-    assembly ("memory-safe") {
-      fee0 := calldataload(additionalData.offset)
-      fee1 := calldataload(add(additionalData.offset, 0x20))
-      sqrtPriceX96 := calldataload(add(additionalData.offset, 0x40))
-    }
-
-    YieldCondition calldata yieldCondition = _decodeYieldCondition(condition.data);
-
-    uint256 initialAmount0 = yieldCondition.initialAmounts >> 128;
-    uint256 initialAmount1 = uint256(uint128(yieldCondition.initialAmounts));
-
-    uint256 numerator = fee0 + _convertToken1ToToken0(sqrtPriceX96, fee1);
-    uint256 denominator = initialAmount0 + _convertToken1ToToken0(sqrtPriceX96, initialAmount1);
-    if (denominator == 0) return false;
-
-    uint256 yield = (numerator * PRECISION) / denominator;
-
-    return yield >= yieldCondition.targetYield;
-  }
-
-  /**
-   * @notice Converts token1 amount to equivalent token0 amount using current price
-   * @dev formula: amount0 = amount1 * Q192 / sqrtPriceX96^2
-   * @param sqrtPriceX96 The pool's sqrt price
-   * @param amount1 Amount of token1 to convert
-   * @return amount0 Equivalent amount in token0 terms
-   */
-  function _convertToken1ToToken0(uint160 sqrtPriceX96, uint256 amount1)
-    internal
-    pure
-    returns (uint256 amount0)
-  {
-    amount0 = Math.mulDiv(Math.mulDiv(amount1, Q96, sqrtPriceX96), Q96, sqrtPriceX96);
   }
 
   function _adjustToken(address token) internal view returns (address adjustedToken) {
