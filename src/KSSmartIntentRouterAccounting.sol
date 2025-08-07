@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import './interfaces/IKSSmartIntentRouter.sol';
-import './interfaces/vendors/IKSBoringForwarder.sol';
 
 import 'ks-common-sc/src/base/ManagementRescuable.sol';
+
+import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
@@ -43,22 +44,43 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
     address mainAddress,
     address actionContract,
     TokenData calldata tokenData,
-    IKSBoringForwarder forwarder,
-    uint256[] memory fees
+    IKSGenericForwarder forwarder,
+    uint256[] memory fees,
+    uint256 approvalFlags
   ) internal {
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
       tokenData.erc20Data[i].collect(
-        erc20Allowances, intentHash, mainAddress, actionContract, forwarder, fees[i]
+        erc20Allowances,
+        intentHash,
+        mainAddress,
+        actionContract,
+        forwarder,
+        fees[i],
+        _checkFlag(approvalFlags, i)
       );
     }
+    approvalFlags >>= tokenData.erc20Data.length;
+
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
       tokenData.erc721Data[i].collect(
-        erc721Approvals, intentHash, mainAddress, actionContract, forwarder
+        erc721Approvals,
+        intentHash,
+        mainAddress,
+        actionContract,
+        forwarder,
+        _checkFlag(approvalFlags, i)
       );
     }
+    approvalFlags >>= tokenData.erc721Data.length;
+
     for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
       tokenData.erc1155Data[i].collect(
-        erc1155Allowances, intentHash, mainAddress, actionContract, forwarder
+        erc1155Allowances,
+        intentHash,
+        mainAddress,
+        actionContract,
+        forwarder,
+        _checkFlag(approvalFlags, i)
       );
     }
 
@@ -98,5 +120,11 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
 
   function _safeApproveInf(address token, address spender) internal {
     token.forceApprove(spender, type(uint256).max);
+  }
+
+  function _checkFlag(uint256 flag, uint256 index) internal pure returns (bool result) {
+    assembly ("memory-safe") {
+      result := and(shr(index, flag), 1)
+    }
   }
 }

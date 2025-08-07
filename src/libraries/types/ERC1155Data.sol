@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../../interfaces/vendors/IKSBoringForwarder.sol';
+import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
 
 import 'openzeppelin-contracts/contracts/interfaces/IERC1155.sol';
 
@@ -55,7 +55,8 @@ library ERC1155DataLibrary {
     bytes32 intentHash,
     address mainAddress,
     address actionContract,
-    IKSBoringForwarder forwarder
+    IKSGenericForwarder forwarder,
+    bool approvalFlag
   ) internal {
     address token = self.token;
     for (uint256 i = 0; i < self.tokenIds.length; i++) {
@@ -76,14 +77,18 @@ library ERC1155DataLibrary {
       IERC1155(token).safeBatchTransferFrom(
         mainAddress, address(this), self.tokenIds, self.amounts, ''
       );
-      IERC1155(token).setApprovalForAll(actionContract, true);
+      if (approvalFlag) {
+        IERC1155(token).setApprovalForAll(actionContract, true);
+      }
     } else {
       IERC1155(token).safeBatchTransferFrom(
         mainAddress, address(forwarder), self.tokenIds, self.amounts, ''
       );
-      bytes memory approveCalldata =
-        abi.encodeCall(IERC1155.setApprovalForAll, (actionContract, true));
-      forwarder.forwardPayable(token, approveCalldata);
+      if (approvalFlag) {
+        bytes memory approveCalldata =
+          abi.encodeCall(IERC1155.setApprovalForAll, (actionContract, true));
+        forwarder.forward(token, approveCalldata);
+      }
     }
   }
 }

@@ -478,7 +478,8 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData =
+      _getActionData(newTokenData, abi.encode(abi.encode(address(erc20Mock), address(router))));
 
     address[] memory tokens = new address[](1);
     uint256[] memory feesBefore = new uint256[](1);
@@ -588,8 +589,13 @@ contract MockActionTest is BaseTest {
     internal
     returns (ActionData memory actionData)
   {
+    uint256 approvalFlags = (
+      1 << (tokenData.erc20Data.length + tokenData.erc721Data.length + tokenData.erc1155Data.length)
+    ) - 1;
+
     actionData = ActionData({
       tokenData: tokenData,
+      approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       hookActionData: '',
