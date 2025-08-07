@@ -55,7 +55,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     view
     override
     checkTokenLengths(actionData.tokenData)
-    returns (address[] memory, uint256[] memory, bytes memory beforeExecutionData)
+    returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.hookActionData, (uint256));
 
@@ -84,6 +84,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint256 tokenBalanceBefore =
       zapOutHookData.outputTokens[index].balanceOf(zapOutHookData.recipient);
 
+    fees = new uint256[](actionData.tokenData.erc20Data.length);
     beforeExecutionData = abi.encode(
       zapOutHookData.nftAddresses[index],
       zapOutHookData.nftIds[index],

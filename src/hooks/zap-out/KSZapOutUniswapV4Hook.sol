@@ -55,7 +55,7 @@ contract KSZapOutUniswapV4Hook is BaseHook {
     view
     override
     checkTokenLengths(actionData.tokenData)
-    returns (address[] memory, uint256[] memory, bytes memory beforeExecutionData)
+    returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.hookActionData, (uint256));
 
@@ -88,6 +88,7 @@ contract KSZapOutUniswapV4Hook is BaseHook {
     uint256 liquidityBefore = positionManager.getPositionLiquidity(tokenId);
     uint256 tokenBalanceBefore = outputToken.balanceOf(zapOutHookData.recipient);
 
+    fees = new uint256[](actionData.tokenData.erc20Data.length);
     beforeExecutionData = abi.encode(
       positionManager,
       tokenId,

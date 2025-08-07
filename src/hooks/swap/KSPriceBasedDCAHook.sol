@@ -52,7 +52,7 @@ contract KSPriceBasedDCAHook is BaseStatefulHook {
     override
     onlyWhitelistedRouter
     checkTokenLengths(actionData.tokenData)
-    returns (address[] memory, uint256[] memory, bytes memory beforeExecutionData)
+    returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     DCAHookData memory dcaHookData = abi.decode(coreData.hookIntentData, (DCAHookData));
 
@@ -83,6 +83,7 @@ contract KSPriceBasedDCAHook is BaseStatefulHook {
 
     uint256 balanceBefore = dcaHookData.dstToken.balanceOf(dcaHookData.recipient);
 
+    fees = new uint256[](actionData.tokenData.erc20Data.length);
     beforeExecutionData = abi.encode(--swapNo, balanceBefore);
   }
 

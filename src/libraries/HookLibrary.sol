@@ -19,19 +19,17 @@ library HookLibrary {
     bytes32 intentHash,
     IntentCoreData calldata intent,
     ActionData calldata actionData
-  ) internal returns (bytes memory) {
-    (address[] memory tokens, uint256[] memory fees, bytes memory beforeExecutionData) =
+  ) internal returns (uint256[] memory fees, bytes memory beforeExecutionData) {
+    (fees, beforeExecutionData) =
       IKSSmartIntentHook(intent.hook).beforeExecution(intentHash, intent, actionData);
 
-    if (tokens.length != fees.length) {
+    if (actionData.tokenData.erc20Data.length != fees.length) {
       revert ICommon.MismatchedArrayLengths();
     }
 
-    for (uint256 i = 0; i < tokens.length; i++) {
-      emit CollectFee(tokens[i], fees[i]);
+    for (uint256 i = 0; i < actionData.tokenData.erc20Data.length; i++) {
+      emit CollectFee(actionData.tokenData.erc20Data[i].token, fees[i]);
     }
-
-    return beforeExecutionData;
   }
 
   function afterExecution(

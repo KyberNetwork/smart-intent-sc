@@ -89,7 +89,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     view
     override
     checkTokenLengths(actionData.tokenData)
-    returns (address[] memory, uint256[] memory, bytes memory beforeExecutionData)
+    returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     // to avoid stack too deep
     LocalVar memory localVar;
@@ -111,6 +111,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
       localVar.positionManager, localVar.tokenId, localVar.liquidity
     );
 
+    fees = new uint256[](actionData.tokenData.erc20Data.length);
     beforeExecutionData = abi.encode(localVar);
   }
 

@@ -11,11 +11,13 @@ contract MockHook is BaseHook {
   function beforeExecution(bytes32, IntentCoreData calldata, ActionData calldata actionData)
     external
     pure
-    returns (address[] memory tokens, uint256[] memory fees, bytes memory beforeExecutionData)
+    returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     if (actionData.hookActionData.length > 0) {
-      (tokens, fees) = abi.decode(actionData.hookActionData, (address[], uint256[]));
+      fees = abi.decode(actionData.hookActionData, (uint256[]));
       beforeExecutionData = actionData.extraData;
+    } else {
+      fees = new uint256[](actionData.tokenData.erc20Data.length);
     }
   }
 

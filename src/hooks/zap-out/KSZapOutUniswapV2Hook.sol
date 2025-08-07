@@ -51,7 +51,7 @@ contract KSZapOutUniswapV2Hook is BaseHook {
     external
     override
     checkTokenLengths(actionData.tokenData)
-    returns (address[] memory, uint256[] memory, bytes memory beforeExecutionData)
+    returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.hookActionData, (uint256));
 
@@ -82,6 +82,7 @@ contract KSZapOutUniswapV2Hook is BaseHook {
       )
     );
 
+    fees = new uint256[](actionData.tokenData.erc20Data.length);
     beforeExecutionData = abi.encode(
       zapOutHookData.srcTokens[index],
       zapOutHookData.dstTokens[index],

@@ -23,6 +23,12 @@ interface IKSSmartIntentRouter {
   /// @notice Thrown when the signature is not from the main address
   error InvalidMainAddressSignature();
 
+  /// @notice Thrown when the signature is not from the session wallet
+  error InvalidDelegatedAddressSignature();
+
+  /// @notice Thrown when the signature is not from the guardian
+  error InvalidGuardianSignature();
+
   /// @notice Thrown when the action contract is not whitelisted
   error NotWhitelistedActionContract(address actionContract);
 
@@ -51,6 +57,9 @@ interface IKSSmartIntentRouter {
 
   /// @notice Emitted when a nonce is consumed
   event UseNonce(bytes32 indexed intentHash, uint256 nonce);
+
+  /// @notice Emitted when extra data is set
+  event ExtraData(bytes32 indexed intentHash, bytes extraData);
 
   enum IntentStatus {
     NOT_DELEGATED,

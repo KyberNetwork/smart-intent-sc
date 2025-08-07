@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import '../../interfaces/vendors/IKSBoringForwarder.sol';
+
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
+import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 /**
  * @notice Data structure for ERC20 token
@@ -53,7 +57,9 @@ library ERC20DataLibrary {
     mapping(bytes32 => mapping(address => uint256)) storage allowances,
     bytes32 intentHash,
     address mainAddress,
-    address actionContract
+    address actionContract,
+    IKSBoringForwarder forwarder,
+    uint256 fee
   ) internal {
     address token = self.token;
     uint256 amount = self.amount;
@@ -67,7 +73,24 @@ library ERC20DataLibrary {
       allowances[intentHash][token] = allowance - amount;
     }
 
-    token.safeTransferFrom(mainAddress, address(this), amount);
-    token.forceApprove(actionContract, type(uint256).max);
+    if (address(forwarder) == address(0)) {
+      token.safeTransferFrom(mainAddress, address(this), amount);
+      token.forceApprove(actionContract, type(uint256).max);
+    } else {
+      token.safeTransferFrom(mainAddress, address(forwarder), amount - fee);
+      token.safeTransferFrom(mainAddress, address(this), fee);
+      forwardApproveInf(forwarder, token, actionContract);
+    }
+  }
+
+  function forwardApproveInf(IKSBoringForwarder forwarder, address token, address spender) internal {
+    bytes memory approveCalldata = abi.encodeCall(IERC20.approve, (spender, type(uint256).max));
+    try forwarder.forwardPayable(token, approveCalldata) {}
+    catch {
+      approveCalldata = abi.encodeCall(IERC20.approve, (spender, 0));
+      forwarder.forwardPayable(token, approveCalldata);
+      approveCalldata = abi.encodeCall(IERC20.approve, (spender, type(uint256).max));
+      forwarder.forwardPayable(token, approveCalldata);
+    }
   }
 }

@@ -488,7 +488,7 @@ contract MockActionTest is BaseTest {
       tokens[0] = address(erc20Mock);
 
       feesBefore[0] = bound(seed * 2, 0, actionData.tokenData.erc20Data[0].amount);
-      actionData.hookActionData = abi.encode(tokens, feesBefore);
+      actionData.hookActionData = abi.encode(feesBefore);
 
       amounts[0] = bound(seed * 3, 0, actionData.tokenData.erc20Data[0].amount - feesBefore[0]);
       feesAfter[0] =

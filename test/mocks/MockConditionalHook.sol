@@ -8,16 +8,18 @@ contract MockConditionalHook is BaseConditionalHook {
     _;
   }
 
-  function beforeExecution(
-    bytes32,
-    IntentCoreData calldata coreData,
-    ActionData calldata actionData
-  ) external view returns (address[] memory, uint256[] memory, bytes memory beforeExecutionData) {}
+  function beforeExecution(bytes32, IntentCoreData calldata, ActionData calldata actionData)
+    external
+    pure
+    returns (uint256[] memory fees, bytes memory)
+  {
+    fees = new uint256[](actionData.tokenData.erc20Data.length);
+  }
 
   function afterExecution(
     bytes32,
     IntentCoreData calldata coreData,
     bytes calldata beforeExecutionData,
     bytes calldata actionResult
-  ) external view returns (address[] memory, uint256[] memory, uint256[] memory, address) {}
+  ) external pure returns (address[] memory, uint256[] memory, uint256[] memory, address) {}
 }

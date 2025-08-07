@@ -8,8 +8,7 @@ interface IKSSmartIntentHook {
    * @notice Before execution hook
    * @param coreData the core data of the intent
    * @param actionData the data of the action
-   * @return tokens the tokens to be taken fees from
-   * @return fees the fees to be taken
+   * @return fees the amount of fees to be taken
    * @return beforeExecutionData the data representing the state before execution
    */
   function beforeExecution(
@@ -18,7 +17,7 @@ interface IKSSmartIntentHook {
     ActionData calldata actionData
   )
     external
-    returns (address[] memory tokens, uint256[] memory fees, bytes memory beforeExecutionData);
+    returns (uint256[] memory fees, bytes memory beforeExecutionData);
 
   /**
    * @notice After execution hook

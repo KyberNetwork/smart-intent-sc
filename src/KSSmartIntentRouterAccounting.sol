@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import './interfaces/IKSSmartIntentRouter.sol';
+import './interfaces/vendors/IKSBoringForwarder.sol';
 
 import 'ks-common-sc/src/base/ManagementRescuable.sol';
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
@@ -20,15 +21,6 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
   mapping(bytes32 => mapping(address => uint256)) public erc20Allowances;
 
   mapping(bytes32 => mapping(address => mapping(uint256 => bool))) public erc721Approvals;
-
-  constructor(
-    address initialAdmin,
-    address[] memory initialGuardians,
-    address[] memory initialRescuers
-  ) ManagementBase(0, initialAdmin) {
-    _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
-    _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
-  }
 
   /// @notice Set the tokens' allowances for the intent
   function _approveTokens(bytes32 intentHash, TokenData calldata tokenData, address mainAddress)
@@ -50,16 +42,24 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
     bytes32 intentHash,
     address mainAddress,
     address actionContract,
-    TokenData calldata tokenData
+    TokenData calldata tokenData,
+    IKSBoringForwarder forwarder,
+    uint256[] memory fees
   ) internal {
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
-      tokenData.erc20Data[i].collect(erc20Allowances, intentHash, mainAddress, actionContract);
+      tokenData.erc20Data[i].collect(
+        erc20Allowances, intentHash, mainAddress, actionContract, forwarder, fees[i]
+      );
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
-      tokenData.erc721Data[i].collect(erc721Approvals, intentHash, mainAddress, actionContract);
+      tokenData.erc721Data[i].collect(
+        erc721Approvals, intentHash, mainAddress, actionContract, forwarder
+      );
     }
     for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
-      tokenData.erc1155Data[i].collect(erc1155Allowances, intentHash, mainAddress, actionContract);
+      tokenData.erc1155Data[i].collect(
+        erc1155Allowances, intentHash, mainAddress, actionContract, forwarder
+      );
     }
 
     emit CollectTokens(intentHash, tokenData);

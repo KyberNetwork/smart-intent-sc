@@ -4,6 +4,10 @@ pragma solidity ^0.8.0;
 import './KSSmartIntentRouterAccounting.sol';
 import './KSSmartIntentRouterNonces.sol';
 
+import './interfaces/actions/IKSSwapRouterV2.sol';
+import './interfaces/actions/IKSSwapRouterV3.sol';
+import './interfaces/actions/IKSZapRouter.sol';
+
 import './libraries/HookLibrary.sol';
 
 import 'openzeppelin-contracts/contracts/utils/Address.sol';
@@ -25,11 +29,18 @@ contract KSSmartIntentRouter is
 
   mapping(address => bool) public whitelistedActionContracts;
 
+  IKSBoringForwarder public immutable forwarder;
+
   constructor(
     address initialAdmin,
     address[] memory initialGuardians,
-    address[] memory initialRescuers
-  ) KSSmartIntentRouterAccounting(initialAdmin, initialGuardians, initialRescuers) {}
+    address[] memory initialRescuers,
+    address _forwarder
+  ) ManagementBase(0, initialAdmin) {
+    _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
+    _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
+    forwarder = IKSBoringForwarder(_forwarder);
+  }
 
   receive() external payable {}
 
@@ -139,9 +150,10 @@ contract KSSmartIntentRouter is
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 
-    actionData.validate(hashTypedActionData(actionData), intent, daSignature, guardian, gdSignature);
+    _validateActionData(intent, daSignature, guardian, gdSignature, hashTypedActionData(actionData));
 
-    bytes memory beforeExecutionData = HookLibrary.beforeExecution(intentHash, intent, actionData);
+    (uint256[] memory fees, bytes memory beforeExecutionData) =
+      HookLibrary.beforeExecution(intentHash, intent, actionData);
 
     address actionContract = intent.actionContracts[actionData.actionSelectorId];
     bytes4 actionSelector = intent.actionSelectors[actionData.actionSelectorId];
@@ -149,14 +161,56 @@ contract KSSmartIntentRouter is
     if (!whitelistedActionContracts[actionContract]) {
       revert NotWhitelistedActionContract(actionContract);
     }
-    _collectTokens(intentHash, intent.mainAddress, actionContract, actionData.tokenData);
 
-    bytes memory actionResult =
-      actionContract.functionCall(abi.encodePacked(actionSelector, actionData.actionCalldata));
+    IKSBoringForwarder _forwarder = _needForwarder(actionSelector);
+    _collectTokens(
+      intentHash, intent.mainAddress, actionContract, actionData.tokenData, _forwarder, fees
+    );
+
+    bytes memory actionResult;
+    {
+      bytes memory data = abi.encodePacked(actionSelector, actionData.actionCalldata);
+      if (address(_forwarder) != address(0)) {
+        actionResult = _forwarder.forwardPayable(actionContract, data);
+      } else {
+        actionResult = actionContract.functionCall(data);
+      }
+    }
 
     HookLibrary.afterExecution(intentHash, intent, beforeExecutionData, actionResult);
 
     emit ExecuteIntent(intentHash, actionData, actionResult);
+    emit ExtraData(intentHash, actionData.extraData);
+  }
+
+  function _needForwarder(bytes4 selector) internal view returns (IKSBoringForwarder) {
+    if (
+      selector == IKSSwapRouterV2.swap.selector
+        || selector == IKSSwapRouterV2.swapSimpleMode.selector
+        || selector == IKSSwapRouterV3.swap.selector || selector == IKSZapRouter.zap.selector
+    ) {
+      return IKSBoringForwarder(address(0));
+    }
+    return forwarder;
+  }
+
+  function _validateActionData(
+    IntentCoreData calldata intent,
+    bytes memory daSignature,
+    address guardian,
+    bytes memory gdSignature,
+    bytes32 actionHash
+  ) internal view {
+    if (msg.sender != intent.delegatedAddress) {
+      if (!SignatureChecker.isValidSignatureNow(intent.delegatedAddress, actionHash, daSignature)) {
+        revert InvalidDelegatedAddressSignature();
+      }
+    }
+    if (msg.sender != guardian) {
+      if (!SignatureChecker.isValidSignatureNow(guardian, actionHash, gdSignature)) {
+        revert InvalidGuardianSignature();
+      }
+    }
   }
 
   function _checkIntentStatus(bytes32 intentHash, IntentStatus expectedStatus) internal view {
