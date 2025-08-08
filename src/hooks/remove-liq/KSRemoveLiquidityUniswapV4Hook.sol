@@ -97,7 +97,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     uint256 fee0Generated;
     uint256 fee1Generated;
     (index, fee0Generated, fee1Generated, localVar.liquidity) =
-      _decodeValidatorData(actionData.hookActionData);
+      _decodeHookActionData(actionData.hookActionData);
 
     Node[] calldata nodes = _cacheAndDecodeHookData(coreData.hookIntentData, localVar, index);
 
@@ -183,15 +183,15 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     view
     returns (Node[] calldata nodes)
   {
-    RemoveLiquidityHookData calldata validationData = _decodeHookData(data);
-    nodes = validationData.nodes[index];
+    RemoveLiquidityHookData calldata removeHookData = _decodeHookIntentData(data);
+    nodes = removeHookData.nodes[index];
 
-    localVar.recipient = validationData.recipient;
-    localVar.tokenId = validationData.nftIds[index];
-    localVar.positionManager = IPositionManager(validationData.nftAddresses[index]);
+    localVar.recipient = removeHookData.recipient;
+    localVar.tokenId = removeHookData.nftIds[index];
+    localVar.positionManager = IPositionManager(removeHookData.nftAddresses[index]);
     localVar.liquidityBefore = localVar.positionManager.getPositionLiquidity(localVar.tokenId);
     localVar.maxFees =
-      [validationData.maxFees[index] >> 128, uint128(validationData.maxFees[index])];
+      [removeHookData.maxFees[index] >> 128, uint128(removeHookData.maxFees[index])];
 
     {
       IPoolManager poolManager = localVar.positionManager.poolManager();
@@ -205,7 +205,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
       ];
     }
 
-    if (validationData.wrapOrUnwrap[index]) {
+    if (removeHookData.wrapOrUnwrap[index]) {
       localVar.tokens = [_adjustToken(localVar.tokens[0]), _adjustToken(localVar.tokens[1])];
     }
 
@@ -215,7 +215,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     ];
   }
 
-  function _decodeValidatorData(bytes calldata data)
+  function _decodeHookActionData(bytes calldata data)
     internal
     pure
     returns (uint256 index, uint256 fee0Generated, uint256 fee1Generated, uint256 liquidity)
@@ -238,13 +238,13 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
     }
   }
 
-  function _decodeHookData(bytes calldata data)
+  function _decodeHookIntentData(bytes calldata data)
     internal
     pure
-    returns (RemoveLiquidityHookData calldata validationData)
+    returns (RemoveLiquidityHookData calldata removeHookData)
   {
     assembly ("memory-safe") {
-      validationData := add(data.offset, calldataload(data.offset))
+      removeHookData := add(data.offset, calldataload(data.offset))
     }
   }
 

@@ -16,14 +16,14 @@ contract DCAScript is BaseOnchainScript {
     startTime = block.timestamp;
     endTime = type(uint32).max;
 
-    KSPriceBasedDCAHook.DCAHookData memory validationData;
-    validationData.srcToken = tokenIn;
-    validationData.dstToken = tokenOut;
-    validationData.amountIns = amountIns;
-    validationData.amountOutLimits = amountOutLimits;
-    validationData.recipient = recipient;
+    KSPriceBasedDCAHook.DCAHookData memory hookData;
+    hookData.srcToken = tokenIn;
+    hookData.dstToken = tokenOut;
+    hookData.amountIns = amountIns;
+    hookData.amountOutLimits = amountOutLimits;
+    hookData.recipient = recipient;
 
-    IntentData memory intentData = _getIntentData(abi.encode(validationData));
+    IntentData memory intentData = _getIntentData(abi.encode(hookData));
     ActionData memory actionData = _getActionData(intentData.tokenData, callData);
 
     vm.startBroadcast(mainWalletPrivateKey);
@@ -52,15 +52,15 @@ contract DCAScript is BaseOnchainScript {
     startTime = block.timestamp;
     endTime = type(uint32).max;
 
-    KSTimeBasedDCAHook.DCAHookData memory validationData;
-    validationData.srcToken = tokenIn;
-    validationData.dstToken = tokenOut;
-    validationData.amountIn = amountIn;
-    validationData.amountOutLimits = (1 << 128) | (2 ** 128 - 1);
-    validationData.executionParams = executionParams;
-    validationData.recipient = recipient;
+    KSTimeBasedDCAHook.DCAHookData memory hookData;
+    hookData.srcToken = tokenIn;
+    hookData.dstToken = tokenOut;
+    hookData.amountIn = amountIn;
+    hookData.amountOutLimits = (1 << 128) | (2 ** 128 - 1);
+    hookData.executionParams = executionParams;
+    hookData.recipient = recipient;
 
-    IntentData memory intentData = _getIntentData(abi.encode(validationData));
+    IntentData memory intentData = _getIntentData(abi.encode(hookData));
     ActionData memory actionData = _getActionData(intentData.tokenData, callData);
 
     vm.startBroadcast(mainWalletPrivateKey);

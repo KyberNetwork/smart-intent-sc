@@ -15,7 +15,7 @@ contract ConditionTreeTest is Test {
   bytes internal _mockPriceData = abi.encode(1000);
   Node[] internal _nodes;
   mapping(uint256 => bool) internal _isLeaf;
-  MockConditionalHook internal _validator = new MockConditionalHook();
+  MockConditionalHook internal _hook = new MockConditionalHook();
 
   function setUp() public {
     vm.warp(1_000_000_000);
@@ -58,7 +58,7 @@ contract ConditionTreeTest is Test {
     if (!pass) {
       vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
     }
-    _validator.validateConditionTree(tree, 0);
+    _hook.validateConditionTree(tree, 0);
   }
 
   function testEvaluateNode_LeafNode_TrueCondition() public view {
@@ -67,7 +67,7 @@ contract ConditionTreeTest is Test {
     Node[] memory nodes = new Node[](1);
     nodes[0] = _createLeafNode(condition);
 
-    _validator.validateConditionTree(_buildTree(nodes), 0);
+    _hook.validateConditionTree(_buildTree(nodes), 0);
   }
 
   function testRevert_LeafNode_FalseCondition() public {
@@ -80,7 +80,7 @@ contract ConditionTreeTest is Test {
     ConditionTree memory tree = _buildTree(nodes);
 
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    _validator.validateConditionTree(tree, 0);
+    _hook.validateConditionTree(tree, 0);
   }
 
   function testEvaluateNode_AndNode_AllChildrenTrue() public view {
@@ -97,7 +97,7 @@ contract ConditionTreeTest is Test {
     children[1] = 1;
     nodes[2] = _createNode(children, AND); // (root)
 
-    _validator.validateConditionTree(_buildTree(nodes), 2);
+    _hook.validateConditionTree(_buildTree(nodes), 2);
   }
 
   function testRevert_AndNode_OneChildFalse() public {
@@ -116,7 +116,7 @@ contract ConditionTreeTest is Test {
 
     ConditionTree memory tree = _buildTree(nodes);
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    _validator.validateConditionTree(tree, 2);
+    _hook.validateConditionTree(tree, 2);
   }
 
   function testRevert_OrNode_AllChildrenFalse() public {
@@ -136,7 +136,7 @@ contract ConditionTreeTest is Test {
     ConditionTree memory tree = _buildTree(nodes);
 
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    _validator.validateConditionTree(tree, 2);
+    _hook.validateConditionTree(tree, 2);
   }
 
   function testEvaluateNode_OrNode_OneChildTrue() public view {
@@ -153,7 +153,7 @@ contract ConditionTreeTest is Test {
     children[1] = 1;
     nodes[2] = _createNode(children, OR); // index 2
 
-    _validator.validateConditionTree(_buildTree(nodes), 2);
+    _hook.validateConditionTree(_buildTree(nodes), 2);
   }
 
   function testEvaluateNode_NestedNodes() public view {
@@ -196,7 +196,7 @@ contract ConditionTreeTest is Test {
     orChildren[1] = 5; // C AND D
     nodes[6] = _createNode(orChildren, OR); // (A AND B) OR (C AND D)
 
-    _validator.validateConditionTree(_buildTree(nodes), 6);
+    _hook.validateConditionTree(_buildTree(nodes), 6);
   }
 
   function testRevert_InvalidNodeIndex() public {
@@ -207,7 +207,7 @@ contract ConditionTreeTest is Test {
     ConditionTree memory tree = _buildTree(nodes);
 
     vm.expectRevert(ConditionTreeLibrary.InvalidNodeIndex.selector);
-    _validator.validateConditionTree(tree, 1);
+    _hook.validateConditionTree(tree, 1);
   }
 
   function testEvaluateNode_SingleNode() public view {
@@ -218,7 +218,7 @@ contract ConditionTreeTest is Test {
     nodes[0] =
       Node({operationType: OperationType.AND, condition: condition, childrenIndexes: emptyChildren});
 
-    _validator.validateConditionTree(_buildTree(nodes), 0);
+    _hook.validateConditionTree(_buildTree(nodes), 0);
   }
 
   function testEvaluateNode_SingleChildAnd() public view {
@@ -231,7 +231,7 @@ contract ConditionTreeTest is Test {
     children[0] = 0;
     nodes[1] = _createNode(children, AND); // index 1
 
-    _validator.validateConditionTree(_buildTree(nodes), 1);
+    _hook.validateConditionTree(_buildTree(nodes), 1);
   }
 
   function testRevert_SingleChildOr() public {
@@ -246,7 +246,7 @@ contract ConditionTreeTest is Test {
 
     ConditionTree memory tree = _buildTree(nodes);
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    _validator.validateConditionTree(tree, 1);
+    _hook.validateConditionTree(tree, 1);
   }
 
   function testEvaluateNode_MultipleAndLevels() public view {
@@ -288,7 +288,7 @@ contract ConditionTreeTest is Test {
     outerChildren[1] = 5; // B AND (C AND D)
     nodes[6] = _createNode(outerChildren, AND); // root
 
-    _validator.validateConditionTree(_buildTree(nodes), 6);
+    _hook.validateConditionTree(_buildTree(nodes), 6);
   }
 
   function _createRandomCondition(uint256 seed, bool isTrue)
@@ -372,7 +372,7 @@ contract ConditionTreeTest is Test {
     view
     returns (bool)
   {
-    return _validator.evaluateCondition(condition, additionalData);
+    return _hook.evaluateCondition(condition, additionalData);
   }
 
   function createMockData(Node[] calldata nodes) external view returns (bytes[] memory) {

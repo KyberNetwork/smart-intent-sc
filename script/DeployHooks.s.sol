@@ -6,7 +6,7 @@ import 'ks-common-sc/script/Base.s.sol';
 import 'src/hooks/swap/KSPriceBasedDCAHook.sol';
 import 'src/hooks/swap/KSTimeBasedDCAHook.sol';
 
-contract DeployValidators is BaseScript {
+contract DeployHooks is BaseScript {
   function run() external {
     address router = _readAddress('router');
 
