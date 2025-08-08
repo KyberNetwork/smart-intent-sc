@@ -58,37 +58,6 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
   }
 
-  function testMockActionCollectERC1155MoreThanAllowanceShouldRevert(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
-    IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
-
-    vm.prank(mainAddress);
-    router.delegate(intentData);
-
-    TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    newTokenData.erc1155Data[0].amounts[0] =
-      intentData.tokenData.erc1155Data[0].amounts[0] + bound(seed, 1, 1e18);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
-
-    vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        ERC1155DataLibrary.ERC1155InsufficientIntentAllowance.selector,
-        intentHash,
-        newTokenData.erc1155Data[0].token,
-        newTokenData.erc1155Data[0].tokenIds[0],
-        intentData.tokenData.erc1155Data[0].amounts[0],
-        newTokenData.erc1155Data[0].amounts[0]
-      )
-    );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-  }
-
   function testMockActionCollectERC20MoreThanAllowanceShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
@@ -347,61 +316,6 @@ contract MockActionTest is BaseTest {
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testMockActionExecuteDifferentActions(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
-    IntentData memory intentData = _getIntentData(seed);
-
-    //add actions to intent
-    intentData.coreData.actionContracts = new address[](2);
-    intentData.coreData.actionContracts[0] = address(mockActionContract);
-    intentData.coreData.actionContracts[1] = address(mockDex);
-
-    intentData.coreData.actionSelectors = new bytes4[](2);
-    intentData.coreData.actionSelectors[0] = MockActionContract.execute.selector;
-    intentData.coreData.actionSelectors[1] = MockDex.execute.selector;
-
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
-
-    vm.prank(mainAddress);
-    router.delegate(intentData);
-    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
-
-    TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
-    actionData.actionSelectorId = 0;
-
-    vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    //execute first time
-    vm.prank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-
-    amountIn = newTokenData.erc20Data[0].amount;
-
-    newTokenData.erc1155Data = new ERC1155Data[](0);
-    newTokenData.erc20Data = new ERC20Data[](1);
-    newTokenData.erc20Data[0] = ERC20Data({
-      token: address(erc20Mock),
-      amount: newTokenData.erc20Data[0].amount,
-      permitData: ''
-    });
-    newTokenData.erc721Data = new ERC721Data[](0);
-
-    actionData.actionSelectorId = 1;
-    actionData.actionCalldata =
-      abi.encode(abi.encode(address(erc20Mock), tokenOut, recipient, amountIn));
-    actionData.nonce = nonce++;
-
-    vm.warp(block.timestamp + 200);
-    (caller, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
-
-    //execute second time
-    vm.prank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-  }
-
   function testMockActionExecuteSuccessShouldEmitExtraData(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
@@ -522,15 +436,6 @@ contract MockActionTest is BaseTest {
   {
     uint256 size = bound(seed, 1, 10);
 
-    newTokenData.erc1155Data = new ERC1155Data[](1);
-    newTokenData.erc1155Data[0].token = address(erc1155Mock);
-    newTokenData.erc1155Data[0].tokenIds = new uint256[](size);
-    newTokenData.erc1155Data[0].amounts = new uint256[](size);
-    for (uint256 i = 0; i < size; i++) {
-      newTokenData.erc1155Data[0].tokenIds[i] = i;
-      newTokenData.erc1155Data[0].amounts[i] = bound(seed, 1, tokenData.erc1155Data[0].amounts[i]);
-    }
-
     newTokenData.erc20Data = new ERC20Data[](1);
     newTokenData.erc20Data[0] = ERC20Data({
       token: address(erc20Mock),
@@ -558,17 +463,6 @@ contract MockActionTest is BaseTest {
 
     uint256 size = bound(seed, 1, 10);
 
-    tokenData.erc1155Data = new ERC1155Data[](1);
-    tokenData.erc1155Data[0].token = address(erc1155Mock);
-    tokenData.erc1155Data[0].tokenIds = new uint256[](size);
-    tokenData.erc1155Data[0].amounts = new uint256[](size);
-    for (uint256 i = 0; i < size; i++) {
-      tokenData.erc1155Data[0].tokenIds[i] = i;
-      tokenData.erc1155Data[0].amounts[i] = bound(seed / (i + 1), 1, 1e18);
-      erc1155Mock.mint(mainAddress, i, tokenData.erc1155Data[0].amounts[i]);
-    }
-    erc1155Mock.setApprovalForAll(address(router), true);
-
     tokenData.erc20Data = new ERC20Data[](1);
     tokenData.erc20Data[0] =
       ERC20Data({token: address(erc20Mock), amount: bound(seed, 1, 1e18), permitData: ''});
@@ -590,7 +484,7 @@ contract MockActionTest is BaseTest {
     returns (ActionData memory actionData)
   {
     uint256 approvalFlags = (
-      1 << (tokenData.erc20Data.length + tokenData.erc721Data.length + tokenData.erc1155Data.length)
+      1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)
     ) - 1;
 
     actionData = ActionData({
@@ -609,16 +503,6 @@ contract MockActionTest is BaseTest {
     internal
     view
   {
-    for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
-      ERC1155Data memory erc1155Data = tokenData.erc1155Data[i];
-      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
-        assertEq(
-          router.erc1155Allowances(intentHash, erc1155Data.token, erc1155Data.tokenIds[j]),
-          erc1155Data.amounts[j],
-          'ERC1155 allowance not set correctly after delegation'
-        );
-      }
-    }
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
       ERC20Data memory erc20Data = tokenData.erc20Data[i];
       assertEq(
@@ -641,16 +525,6 @@ contract MockActionTest is BaseTest {
     TokenData memory tokenData,
     TokenData memory newTokenData
   ) internal view {
-    for (uint256 i = 0; i < tokenData.erc1155Data.length; i++) {
-      ERC1155Data memory erc1155Data = tokenData.erc1155Data[i];
-      for (uint256 j = 0; j < erc1155Data.tokenIds.length; j++) {
-        assertEq(
-          router.erc1155Allowances(intentHash, erc1155Data.token, erc1155Data.tokenIds[j]),
-          erc1155Data.amounts[j] - newTokenData.erc1155Data[i].amounts[j],
-          'ERC1155 allowance not updated correctly after execution'
-        );
-      }
-    }
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
       ERC20Data memory erc20Data = tokenData.erc20Data[i];
       assertEq(

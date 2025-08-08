@@ -136,7 +136,7 @@ contract ZapOutUniswapV2Test is BaseTest {
     returns (ActionData memory actionData)
   {
     uint256 approvalFlags = (
-      1 << (tokenData.erc20Data.length + tokenData.erc721Data.length + tokenData.erc1155Data.length)
+      1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)
     ) - 1;
 
     actionData = ActionData({

@@ -122,18 +122,6 @@ interface IKSSmartIntentRouter {
   ) external;
 
   /**
-   * @notice Return the ERC1155 allowance for a specific intent
-   * @param intentHash The hash of the intent
-   * @param token The address of the ERC1155 token
-   * @param tokenId The ID of the ERC1155 token
-   * @return allowance The allowance for the specified token and token ID
-   */
-  function erc1155Allowances(bytes32 intentHash, address token, uint256 tokenId)
-    external
-    view
-    returns (uint256 allowance);
-
-  /**
    * @notice Return the ERC20 allowance for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC20 token

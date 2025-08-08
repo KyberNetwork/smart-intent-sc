@@ -21,7 +21,7 @@ using IntentDataLibrary for IntentData global;
 library IntentDataLibrary {
   bytes32 constant INTENT_DATA_TYPE_HASH = keccak256(
     abi.encodePacked(
-      'IntentData(IntentCoreData coreData,TokenData tokenData,bytes extraData)ERC1155Data(address token,uint256[] tokenIds,uint256[] amounts)ERC20Data(address token,uint256 amount,bytes permitData)ERC721Data(address token,uint256 tokenId,bytes permitData)IntentCoreData(address mainAddress,address delegatedAddress,address[] actionContracts,bytes4[] actionSelectors,address hook,bytes hookIntentData)TokenData(ERC20Data[] erc20Data,ERC721Data[] erc721Data,ERC1155Data[] erc1155Data)'
+      'IntentData(IntentCoreData coreData,TokenData tokenData,bytes extraData)ERC20Data(address token,uint256 amount,bytes permitData)ERC721Data(address token,uint256 tokenId,bytes permitData)IntentCoreData(address mainAddress,address delegatedAddress,address[] actionContracts,bytes4[] actionSelectors,address hook,bytes hookIntentData)TokenData(ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
     )
   );
 

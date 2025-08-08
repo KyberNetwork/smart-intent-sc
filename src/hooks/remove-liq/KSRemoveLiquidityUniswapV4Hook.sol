@@ -75,7 +75,6 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseConditionalHook {
   modifier checkTokenLengths(TokenData calldata tokenData) override {
     require(tokenData.erc20Data.length == 0, InvalidTokenData());
     require(tokenData.erc721Data.length == 1, InvalidTokenData());
-    require(tokenData.erc1155Data.length == 0, InvalidTokenData());
     _;
   }
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './mocks/ERC1155Mock.sol';
 import './mocks/ERC721Mock.sol';
 import './mocks/MockActionContract.sol';
 import './mocks/MockDex.sol';
@@ -41,7 +40,6 @@ contract BaseTest is Test {
   MockActionContract mockActionContract;
   MockDex mockDex;
 
-  ERC1155Mock erc1155Mock;
   ERC20Mock erc20Mock;
   ERC721Mock erc721Mock;
 
@@ -71,7 +69,6 @@ contract BaseTest is Test {
       vm.stopPrank();
     }
 
-    erc1155Mock = new ERC1155Mock();
     erc20Mock = new ERC20Mock();
     erc721Mock = new ERC721Mock();
   }
