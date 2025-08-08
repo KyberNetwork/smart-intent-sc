@@ -160,6 +160,13 @@ interface IKSSmartIntentRouter {
   function updateForwarder(IKSGenericForwarder newForwarder) external;
 
   /**
+   * @notice Return if an action contract is whitelisted
+   * @param actionContract The address of the action contract
+   * @return whitelisted True if the action contract is whitelisted, false otherwise
+   */
+  function whitelistedActionContracts(address actionContract) external view returns (bool);
+
+  /**
    * @notice Hash the intent data with EIP712
    * @param intentData The intent data
    * @return hash The hash of the intent data

@@ -453,8 +453,6 @@ contract MockActionTest is BaseTest {
     view
     returns (TokenData memory newTokenData)
   {
-    uint256 size = bound(seed, 1, 10);
-
     newTokenData.erc20Data = new ERC20Data[](1);
     newTokenData.erc20Data[0] = ERC20Data({
       token: address(erc20Mock),
@@ -479,8 +477,6 @@ contract MockActionTest is BaseTest {
     });
 
     TokenData memory tokenData;
-
-    uint256 size = bound(seed, 1, 10);
 
     tokenData.erc20Data = new ERC20Data[](1);
     tokenData.erc20Data[0] =

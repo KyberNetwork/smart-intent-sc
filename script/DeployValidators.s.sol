@@ -1,42 +1,26 @@
-// // SPDX-License-Identifier: GPL-3.0-or-later
-// pragma solidity ^0.8.0;
+// SPDX-License-Identifier: GPL-3.0-or-later
+pragma solidity ^0.8.0;
 
-// import './Base.s.sol';
+import 'ks-common-sc/script/Base.s.sol';
 
-// import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
-// import 'src/validators/swap/KSTimeBasedDCAIntentValidator.sol';
+import 'src/hooks/swap/KSPriceBasedDCAHook.sol';
+import 'src/hooks/swap/KSTimeBasedDCAHook.sol';
 
-// contract DeployValidators is BaseScript {
-//   function run() external {
-//     string memory root = vm.projectRoot();
-//     uint256 chainId;
-//     assembly ("memory-safe") {
-//       chainId := chainid()
-//     }
-//     console.log('chainId is %s', chainId);
+contract DeployValidators is BaseScript {
+  function run() external {
+    address router = _readAddress('router');
 
-//     address router =
-//       _readAddress(string(abi.encodePacked(root, '/script/deployedAddresses/router.json')), chainId);
-//     console.log('router is %s', router);
+    vm.startBroadcast();
 
-//     vm.startBroadcast();
+    address[] memory routers = new address[](1);
+    routers[0] = router;
 
-//     KSPriceBasedDCAIntentValidator priceBasedDCAValidator =
-//       new KSPriceBasedDCAIntentValidator(_toArray(router));
-//     KSTimeBasedDCAIntentValidator timeBasedDCAValidator =
-//       new KSTimeBasedDCAIntentValidator(_toArray(router));
+    KSPriceBasedDCAHook priceBasedDCAHook = new KSPriceBasedDCAHook(routers);
+    KSTimeBasedDCAHook timeBasedDCAHook = new KSTimeBasedDCAHook(routers);
 
-//     string memory path = string(abi.encodePacked(root, '/script/deployedAddresses/'));
-//     string[] memory keys = new string[](2);
-//     keys[0] = 'KSPriceBasedDCAIntentValidator';
-//     keys[1] = 'KSTimeBasedDCAIntentValidator';
+    _writeAddress('price-based-dca-hook', address(priceBasedDCAHook));
+    _writeAddress('time-based-dca-hook', address(timeBasedDCAHook));
 
-//     address[] memory addresses = new address[](2);
-//     addresses[0] = address(priceBasedDCAValidator);
-//     addresses[1] = address(timeBasedDCAValidator);
-
-//     _writeAddress(path, 'validators', chainId, keys, addresses);
-
-//     vm.stopBroadcast();
-//   }
-// }
+    vm.stopBroadcast();
+  }
+}
