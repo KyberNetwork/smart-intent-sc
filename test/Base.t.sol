@@ -54,7 +54,7 @@ contract BaseTest is Test {
     initialGuardians[0] = guardian;
 
     forwarder = new KSGenericForwarder();
-    router = new KSSmartIntentRouter(admin, initialGuardians, initialGuardians, address(forwarder));
+    router = new KSSmartIntentRouter(admin, initialGuardians, initialGuardians, forwarder);
 
     mockActionContract = new MockActionContract();
     mockDex = new MockDex();

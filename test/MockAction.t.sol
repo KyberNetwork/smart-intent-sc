@@ -5,6 +5,8 @@ import './Base.t.sol';
 
 import './mocks/MockHook.sol';
 
+import 'openzeppelin-contracts/contracts/access/IAccessControl.sol';
+
 contract MockActionTest is BaseTest {
   using SafeERC20 for IERC20;
 
@@ -15,6 +17,23 @@ contract MockActionTest is BaseTest {
     super.setUp();
 
     mockHook = new MockHook();
+  }
+
+  function testUpdateForwarder() public {
+    forwarder = new KSGenericForwarder();
+
+    vm.prank(makeAddr('random'));
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, makeAddr('random'), 0
+      )
+    );
+    router.updateForwarder(forwarder);
+
+    vm.prank(admin);
+    router.updateForwarder(forwarder);
+
+    assertEq(address(router.forwarder()), address(forwarder), 'Forwarder not updated');
   }
 
   function testMockActionExecuteSuccess(uint256 seed) public {

@@ -29,17 +29,17 @@ contract KSSmartIntentRouter is
 
   mapping(address => bool) public whitelistedActionContracts;
 
-  IKSGenericForwarder public immutable forwarder;
+  IKSGenericForwarder public forwarder;
 
   constructor(
     address initialAdmin,
     address[] memory initialGuardians,
     address[] memory initialRescuers,
-    address _forwarder
+    IKSGenericForwarder _forwarder
   ) ManagementBase(0, initialAdmin) {
     _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
     _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
-    forwarder = IKSGenericForwarder(_forwarder);
+    _updateForwarder(_forwarder);
   }
 
   receive() external payable {}
@@ -59,6 +59,17 @@ contract KSSmartIntentRouter is
     for (uint256 i = 0; i < actionContracts.length; i++) {
       whitelistedActionContracts[actionContracts[i]] = grantOrRevoke;
     }
+  }
+
+  /// @inheritdoc IKSSmartIntentRouter
+  function updateForwarder(IKSGenericForwarder newForwarder) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    _updateForwarder(newForwarder);
+  }
+
+  function _updateForwarder(IKSGenericForwarder newForwarder) internal {
+    forwarder = newForwarder;
+
+    emit UpdateForwarder(newForwarder);
   }
 
   /// @inheritdoc IKSSmartIntentRouter

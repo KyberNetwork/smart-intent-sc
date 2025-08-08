@@ -41,6 +41,9 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when an action contract is whitelisted or revoked
   event WhitelistActionContract(address actionContract, bool grantOrRevoke);
 
+  /// @notice Emitted when the forwarder is updated
+  event UpdateForwarder(IKSGenericForwarder newForwarder);
+
   /// @notice Emitted when an intent is delegated
   event DelegateIntent(
     address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
@@ -143,6 +146,18 @@ interface IKSSmartIntentRouter {
     external
     view
     returns (bool approved);
+
+  /**
+   * @notice Return the forwarder address
+   * @return forwarder The address of the forwarder
+   */
+  function forwarder() external view returns (IKSGenericForwarder);
+
+  /**
+   * @notice Update the forwarder address
+   * @param newForwarder The new forwarder address
+   */
+  function updateForwarder(IKSGenericForwarder newForwarder) external;
 
   /**
    * @notice Hash the intent data with EIP712
