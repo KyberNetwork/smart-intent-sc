@@ -96,9 +96,7 @@ contract SwapTest is BaseTest {
     view
     returns (ActionData memory actionData)
   {
-    uint256 approvalFlags = (
-      1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)
-    ) - 1;
+    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     actionData = ActionData({
       tokenData: tokenData,
