@@ -15,9 +15,7 @@ interface IKSSmartIntentHook {
     bytes32 intentHash,
     IntentCoreData calldata coreData,
     ActionData calldata actionData
-  )
-    external
-    returns (uint256[] memory fees, bytes memory beforeExecutionData);
+  ) external returns (uint256[] memory fees, bytes memory beforeExecutionData);
 
   /**
    * @notice After execution hook

@@ -2,12 +2,14 @@
 pragma solidity ^0.8.0;
 
 import './BaseHook.sol';
-import 'src/interfaces/hooks/IKSConditionalHook.sol';
 
+import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
+import 'src/interfaces/hooks/IKSConditionalHook.sol';
 /**
  * @param startTimestamp the start timestamp of the condition
  * @param endTimestamp the end timestamp of the condition
  */
+
 struct TimeCondition {
   uint256 startTimestamp;
   uint256 endTimestamp;
@@ -64,7 +66,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     } else if (condition.isType(PRICE_BASED)) {
       isSatisfied = _evaluatePriceCondition(condition, additionalData);
     } else if (condition.isType(YIELD_BASED)) {
-      isSatisfied = _evaluateSqrtPriceX96YieldCondition(condition, additionalData);
+      isSatisfied = _evaluateYieldCondition(condition, additionalData);
     } else {
       revert WrongConditionType();
     }
@@ -110,24 +112,26 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
   }
 
   /**
-   * @notice helper function to evaluate whether the yield condition (univ3 pool type) is satisfied
+   * @notice helper function to evaluate whether the yield condition is satisfied
    * @dev Calculates yield as: (fees_in_token0_terms) / (initial_amounts_in_token0_terms)
    * @param condition The yield condition containing target yield and initial amounts
-   * @param additionalData Encoded fee0, fee1, and sqrtPriceX96 values
+   * @param additionalData Encoded fee0, fee1, and poolPrice (sqrtPriceX96 if uni v3 pool type) values
    * @return true if actual yield >= target yield, false otherwise
    */
-  function _evaluateSqrtPriceX96YieldCondition(
-    Condition calldata condition,
-    bytes calldata additionalData
-  ) internal pure virtual returns (bool) {
+  function _evaluateYieldCondition(Condition calldata condition, bytes calldata additionalData)
+    internal
+    pure
+    virtual
+    returns (bool)
+  {
     uint256 fee0;
     uint256 fee1;
-    uint160 sqrtPriceX96;
+    uint256 poolPrice;
 
     assembly ("memory-safe") {
       fee0 := calldataload(additionalData.offset)
       fee1 := calldataload(add(additionalData.offset, 0x20))
-      sqrtPriceX96 := calldataload(add(additionalData.offset, 0x40))
+      poolPrice := calldataload(add(additionalData.offset, 0x40))
     }
 
     YieldCondition calldata yieldCondition = _decodeYieldCondition(condition.data);
@@ -135,8 +139,8 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     uint256 initialAmount0 = yieldCondition.initialAmounts >> 128;
     uint256 initialAmount1 = uint256(uint128(yieldCondition.initialAmounts));
 
-    uint256 numerator = fee0 + _convertToken1ToToken0(sqrtPriceX96, fee1);
-    uint256 denominator = initialAmount0 + _convertToken1ToToken0(sqrtPriceX96, initialAmount1);
+    uint256 numerator = fee0 + _convertToken1ToToken0(poolPrice, fee1);
+    uint256 denominator = initialAmount0 + _convertToken1ToToken0(poolPrice, initialAmount1);
     if (denominator == 0) return false;
 
     uint256 yield = (numerator * PRECISION) / denominator;
