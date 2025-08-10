@@ -339,6 +339,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     actionData = ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
+      approvalFlags: 0,
       actionCalldata: abi.encode(
         positionManager,
         tokenId,

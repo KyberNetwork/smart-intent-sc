@@ -477,6 +477,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     actionData = ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
+      approvalFlags: 0,
       actionCalldata: abi.encode(
         pm,
         tokenId,
