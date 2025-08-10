@@ -30,7 +30,13 @@ contract MockActionContract {
   uint256 constant TAKE_PAIR = 0x11;
   uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
 
-  function execute(bytes calldata) external {}
+  function execute(bytes calldata data) external {
+    if (data.length > 0) {
+      (address token, address router) = abi.decode(data, (address, address));
+      uint256 amount = token.balanceOf(msg.sender);
+      token.safeTransferFrom(msg.sender, router, amount);
+    }
+  }
 
   struct RemoveUniswapV4Params {
     IPositionManager posManager;

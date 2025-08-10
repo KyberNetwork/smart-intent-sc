@@ -123,8 +123,11 @@ contract ZapOutUniswapV3Test is BaseTest {
     view
     returns (ActionData memory actionData)
   {
+    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+
     actionData = ActionData({
       tokenData: tokenData,
+      approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,
       hookActionData: abi.encode(0),

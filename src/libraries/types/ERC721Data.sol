@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../../interfaces/vendors/IKSBoringForwarder.sol';
+import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
 
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 
@@ -53,7 +53,8 @@ library ERC721DataLibrary {
     bytes32 intentHash,
     address mainAddress,
     address actionContract,
-    IKSBoringForwarder forwarder
+    IKSGenericForwarder forwarder,
+    bool approvalFlag
   ) internal {
     address token = self.token;
     uint256 tokenId = self.tokenId;
@@ -64,11 +65,15 @@ library ERC721DataLibrary {
 
     if (address(forwarder) == address(0)) {
       IERC721(token).safeTransferFrom(mainAddress, address(this), tokenId);
-      IERC721(token).approve(actionContract, tokenId);
+      if (approvalFlag) {
+        IERC721(token).approve(actionContract, tokenId);
+      }
     } else {
       IERC721(token).safeTransferFrom(mainAddress, address(forwarder), tokenId);
-      bytes memory approveCalldata = abi.encodeCall(IERC721.approve, (actionContract, tokenId));
-      forwarder.forwardPayable(token, approveCalldata);
+      if (approvalFlag) {
+        bytes memory approveCalldata = abi.encodeCall(IERC721.approve, (actionContract, tokenId));
+        forwarder.forward(token, approveCalldata);
+      }
     }
   }
 }

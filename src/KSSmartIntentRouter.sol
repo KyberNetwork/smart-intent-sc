@@ -29,17 +29,17 @@ contract KSSmartIntentRouter is
 
   mapping(address => bool) public whitelistedActionContracts;
 
-  IKSBoringForwarder public immutable forwarder;
+  IKSGenericForwarder public forwarder;
 
   constructor(
     address initialAdmin,
     address[] memory initialGuardians,
     address[] memory initialRescuers,
-    address _forwarder
+    IKSGenericForwarder _forwarder
   ) ManagementBase(0, initialAdmin) {
     _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
     _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
-    forwarder = IKSBoringForwarder(_forwarder);
+    _updateForwarder(_forwarder);
   }
 
   receive() external payable {}
@@ -59,6 +59,17 @@ contract KSSmartIntentRouter is
     for (uint256 i = 0; i < actionContracts.length; i++) {
       whitelistedActionContracts[actionContracts[i]] = grantOrRevoke;
     }
+  }
+
+  /// @inheritdoc IKSSmartIntentRouter
+  function updateForwarder(IKSGenericForwarder newForwarder) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    _updateForwarder(newForwarder);
+  }
+
+  function _updateForwarder(IKSGenericForwarder newForwarder) internal {
+    forwarder = newForwarder;
+
+    emit UpdateForwarder(newForwarder);
   }
 
   /// @inheritdoc IKSSmartIntentRouter
@@ -162,16 +173,22 @@ contract KSSmartIntentRouter is
       revert NotWhitelistedActionContract(actionContract);
     }
 
-    IKSBoringForwarder _forwarder = _needForwarder(actionSelector);
+    IKSGenericForwarder _forwarder = _needForwarder(actionSelector);
     _collectTokens(
-      intentHash, intent.mainAddress, actionContract, actionData.tokenData, _forwarder, fees
+      intentHash,
+      intent.mainAddress,
+      actionContract,
+      actionData.tokenData,
+      _forwarder,
+      fees,
+      actionData.approvalFlags
     );
 
     bytes memory actionResult;
     {
       bytes memory data = abi.encodePacked(actionSelector, actionData.actionCalldata);
       if (address(_forwarder) != address(0)) {
-        actionResult = _forwarder.forwardPayable(actionContract, data);
+        actionResult = _forwarder.forward(actionContract, data);
       } else {
         actionResult = actionContract.functionCall(data);
       }
@@ -183,13 +200,13 @@ contract KSSmartIntentRouter is
     emit ExtraData(intentHash, actionData.extraData);
   }
 
-  function _needForwarder(bytes4 selector) internal view returns (IKSBoringForwarder) {
+  function _needForwarder(bytes4 selector) internal view returns (IKSGenericForwarder) {
     if (
       selector == IKSSwapRouterV2.swap.selector
         || selector == IKSSwapRouterV2.swapSimpleMode.selector
         || selector == IKSSwapRouterV3.swap.selector || selector == IKSZapRouter.zap.selector
     ) {
-      return IKSBoringForwarder(address(0));
+      return IKSGenericForwarder(address(0));
     }
     return forwarder;
   }

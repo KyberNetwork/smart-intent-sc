@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../../interfaces/vendors/IKSBoringForwarder.sol';
+import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
 
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
@@ -58,8 +58,9 @@ library ERC20DataLibrary {
     bytes32 intentHash,
     address mainAddress,
     address actionContract,
-    IKSBoringForwarder forwarder,
-    uint256 fee
+    IKSGenericForwarder forwarder,
+    uint256 fee,
+    bool approvalFlag
   ) internal {
     address token = self.token;
     uint256 amount = self.amount;
@@ -75,22 +76,28 @@ library ERC20DataLibrary {
 
     if (address(forwarder) == address(0)) {
       token.safeTransferFrom(mainAddress, address(this), amount);
-      token.forceApprove(actionContract, type(uint256).max);
+      if (approvalFlag) {
+        token.forceApprove(actionContract, type(uint256).max);
+      }
     } else {
       token.safeTransferFrom(mainAddress, address(forwarder), amount - fee);
       token.safeTransferFrom(mainAddress, address(this), fee);
-      forwardApproveInf(forwarder, token, actionContract);
+      if (approvalFlag) {
+        forwardApproveInf(forwarder, token, actionContract);
+      }
     }
   }
 
-  function forwardApproveInf(IKSBoringForwarder forwarder, address token, address spender) internal {
+  function forwardApproveInf(IKSGenericForwarder forwarder, address token, address spender)
+    internal
+  {
     bytes memory approveCalldata = abi.encodeCall(IERC20.approve, (spender, type(uint256).max));
-    try forwarder.forwardPayable(token, approveCalldata) {}
+    try forwarder.forward(token, approveCalldata) {}
     catch {
       approveCalldata = abi.encodeCall(IERC20.approve, (spender, 0));
-      forwarder.forwardPayable(token, approveCalldata);
+      forwarder.forward(token, approveCalldata);
       approveCalldata = abi.encodeCall(IERC20.approve, (spender, type(uint256).max));
-      forwarder.forwardPayable(token, approveCalldata);
+      forwarder.forward(token, approveCalldata);
     }
   }
 }

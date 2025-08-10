@@ -41,6 +41,9 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when an action contract is whitelisted or revoked
   event WhitelistActionContract(address actionContract, bool grantOrRevoke);
 
+  /// @notice Emitted when the forwarder is updated
+  event UpdateForwarder(IKSGenericForwarder newForwarder);
+
   /// @notice Emitted when an intent is delegated
   event DelegateIntent(
     address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
@@ -122,18 +125,6 @@ interface IKSSmartIntentRouter {
   ) external;
 
   /**
-   * @notice Return the ERC1155 allowance for a specific intent
-   * @param intentHash The hash of the intent
-   * @param token The address of the ERC1155 token
-   * @param tokenId The ID of the ERC1155 token
-   * @return allowance The allowance for the specified token and token ID
-   */
-  function erc1155Allowances(bytes32 intentHash, address token, uint256 tokenId)
-    external
-    view
-    returns (uint256 allowance);
-
-  /**
    * @notice Return the ERC20 allowance for a specific intent
    * @param intentHash The hash of the intent
    * @param token The address of the ERC20 token
@@ -155,6 +146,25 @@ interface IKSSmartIntentRouter {
     external
     view
     returns (bool approved);
+
+  /**
+   * @notice Return the forwarder address
+   * @return forwarder The address of the forwarder
+   */
+  function forwarder() external view returns (IKSGenericForwarder);
+
+  /**
+   * @notice Update the forwarder address
+   * @param newForwarder The new forwarder address
+   */
+  function updateForwarder(IKSGenericForwarder newForwarder) external;
+
+  /**
+   * @notice Return if an action contract is whitelisted
+   * @param actionContract The address of the action contract
+   * @return whitelisted True if the action contract is whitelisted, false otherwise
+   */
+  function whitelistedActionContracts(address actionContract) external view returns (bool);
 
   /**
    * @notice Hash the intent data with EIP712
