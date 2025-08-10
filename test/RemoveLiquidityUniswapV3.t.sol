@@ -2,9 +2,8 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
-
-import 'src/interfaces/validators/IKSConditionalValidator.sol';
-import 'src/validators/remove-liq/KSRemoveLiquidityUniswapV3IntentValidator.sol';
+import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV3Hook.sol';
+import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniswapV3Test is BaseTest {
   using SafeERC20 for IERC20;
@@ -24,6 +23,8 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
   uint256 maxFeePercents = 20_000; // 2%
   uint256 transferPercent = 1_000_000; // 100%
+  uint256 intentFeesPercent0 = 10_000; // 1%
+  uint256 intentFeesPercent1 = 10_000; // 1%
   uint256[2] amounts;
   uint256[2] fees;
   bool takeUnclaimedFees;
@@ -37,48 +38,45 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   mapping(uint256 => bool) internal _isLeaf;
   uint256 public constant Q128 = 1 << 128;
 
-  KSRemoveLiquidityUniswapV3IntentValidator.LocalVar internal localVar;
-  KSRemoveLiquidityUniswapV3IntentValidator rmLqValidator;
+  KSRemoveLiquidityUniswapV3Hook.UniswapV3Params internal uniswapV3;
+  KSRemoveLiquidityUniswapV3Hook rmLqValidator;
 
   function setUp() public override {
     super.setUp();
 
-    rmLqValidator = new KSRemoveLiquidityUniswapV3IntentValidator(weth);
+    rmLqValidator = new KSRemoveLiquidityUniswapV3Hook(weth);
     tokenOwner = pm.ownerOf(tokenId);
 
     (currentPrice, currentTick,,,,,) = pool.slot0();
     (,, token0, token1,, tickLower, tickUpper, liquidity,,,,) = pm.positions(tokenId);
 
-    address[] memory validators = new address[](1);
-    validators[0] = address(rmLqValidator);
-    vm.prank(owner);
-    router.whitelistValidators(validators, true);
     vm.prank(tokenOwner);
     IERC721(pm).safeTransferFrom(tokenOwner, mainAddress, tokenId);
     tokenOwner = mainAddress;
 
-    localVar.pool = address(pool);
-    localVar.recipient = mainAddress;
-    localVar.tokenId = tokenId;
-    localVar.positionManager = IUniswapV3PM(address(pm));
+    uniswapV3.pool = address(pool);
+    uniswapV3.removeLiqParams.recipient = mainAddress;
+    uniswapV3.removeLiqParams.positionInfo.nftId = tokenId;
+    uniswapV3.removeLiqParams.positionInfo.nftAddress = address(pm);
     (
       ,
       ,
-      localVar.tokens[0],
-      localVar.tokens[1],
+      uniswapV3.outputParams.tokens[0],
+      uniswapV3.outputParams.tokens[1],
       ,
-      localVar.ticks[0],
-      localVar.ticks[2],
+      uniswapV3.removeLiqParams.positionInfo.ticks[0],
+      uniswapV3.removeLiqParams.positionInfo.ticks[1],
       ,
-      localVar.feesGrowthInsideLast[0],
-      localVar.feesGrowthInsideLast[1],
-      localVar.unclaimedFees[0],
-      localVar.unclaimedFees[1]
-    ) = localVar.positionManager.positions(localVar.tokenId);
-    localVar.ticks[1] = currentTick;
-    localVar.sqrtPriceX96 = currentPrice;
-    localVar.liquidityBefore = liquidity;
-    localVar.liquidityToRemove = liquidity;
+      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[0],
+      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[1],
+      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
+      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
+    ) = pm.positions(tokenId);
+    uniswapV3.removeLiqParams.currentTick = currentTick;
+    uniswapV3.removeLiqParams.sqrtPriceX96 = currentPrice;
+    uniswapV3.removeLiqParams.positionInfo.liquidity = liquidity;
+    uniswapV3.removeLiqParams.liquidityToRemove = liquidity;
+    uniswapV3.outputParams.maxFees = [maxFeePercents, maxFeePercents];
   }
 
   struct FuzzStruct {
@@ -99,26 +97,26 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   }
 
   function testFuzz_RemoveLiquidityUniswapV3(FuzzStruct memory fuzz) public {
-    _computePositionValues();
     _boundStruct(fuzz);
+    _computePositionValues();
     if (!fuzz.positionOutRange) {
       _overrideParams();
       _computePositionValues();
     }
 
-    amounts = localVar.amounts;
-    fees = localVar.unclaimedFees;
+    amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
+    fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
 
     Node[] memory nodes = _randomNodes(fuzz);
     ConditionTree memory conditionTree =
       this.buildConditionTree(nodes, fees[0], fees[1], currentPrice);
     bool conditionPass = this.callLibrary(conditionTree, 0);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(nodes);
+    IntentData memory intentData = _getIntentData(nodes);
 
     _setUpMainAddress(intentData, false, tokenId);
 
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, localVar.liquidityToRemove);
+    ActionData memory actionData =
+      _getActionData(intentData.tokenData, uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -130,56 +128,105 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     if (conditionPass) {
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     } else {
-      vm.expectRevert(IKSConditionalValidator.ConditionsNotMet.selector);
+      vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     }
 
     if (conditionPass) {
       uint256 balance0After = token0.balanceOf(mainAddress);
       uint256 balance1After = token1.balanceOf(mainAddress);
+      uint256 intentFee0 =
+        uniswapV3.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1_000_000;
+      uint256 intentFee1 =
+        uniswapV3.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1_000_000;
       assertEq(
         balance0After - balance0Before,
-        localVar.amounts[0] + localVar.unclaimedFees[0],
+        uniswapV3.removeLiqParams.positionInfo.amounts[0] - intentFee0
+          + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
         'invalid token0 received'
       );
       assertEq(
         balance1After - balance1Before,
-        localVar.amounts[1] + localVar.unclaimedFees[1],
+        uniswapV3.removeLiqParams.positionInfo.amounts[1] - intentFee1
+          + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1],
         'invalid token1 received'
       );
     }
   }
 
-  function testFuzz_ValidateAmountOut(uint256 seed) public {
-    takeUnclaimedFees = bound(seed, 0, 1) == 1;
-    transferPercent = takeUnclaimedFees ? 1_000_000 : bound(seed, 0, 1_000_000);
-
-    wrapOrUnwrap = bound(seed, 0, 1) == 1;
-    localVar.liquidityToRemove = bound(seed, 0, liquidity);
+  function testFuzz_ValidateAmountOutUniswapV3(uint256 seed) public {
+    seed = bound(seed, 0, type(uint128).max);
+    uniswapV3.removeLiqParams.liquidityToRemove = bound(seed, 0, liquidity);
+    wrapOrUnwrap = bound(seed + 1, 0, 1) == 1;
+    takeUnclaimedFees = bound(seed + 2, 0, 1) == 1;
+    intentFeesPercent0 = bound(seed + 3, 0, 1_000_000);
+    intentFeesPercent1 = bound(seed + 4, 0, 1_000_000);
 
     _computePositionValues();
 
-    amounts = localVar.amounts;
-    fees = localVar.unclaimedFees;
+    amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
+    fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
 
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(new Node[](0));
+    IntentData memory intentData = _getIntentData(new Node[](0));
 
     _setUpMainAddress(intentData, false, tokenId);
 
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, localVar.liquidityToRemove);
+    ActionData memory actionData =
+      _getActionData(intentData.tokenData, uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    vm.startPrank(caller);
-    if ((transferPercent < (1_000_000 - maxFeePercents) && !takeUnclaimedFees) || takeUnclaimedFees)
-    {
-      vm.expectRevert(KSRemoveLiquidityUniswapV3IntentValidator.InvalidOutputAmount.selector);
+    // always success when dont charge fees on the user's unclaimed fees
+    if (uniswapV3.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-    } else {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
     }
+
+    uint256 minReceived0 = uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0]
+      + (
+        uniswapV3.removeLiqParams.positionInfo.amounts[0]
+          * (1_000_000 - uniswapV3.outputParams.maxFees[0])
+      ) / 1_000_000;
+    uint256 minReceived1 = uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
+      + (
+        uniswapV3.removeLiqParams.positionInfo.amounts[1]
+          * (1_000_000 - uniswapV3.outputParams.maxFees[1])
+      ) / 1_000_000;
+
+    uint256 actualReceived0 = uniswapV3.removeLiqParams.positionInfo.amounts[0]
+      + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0];
+    uint256 actualReceived1 = uniswapV3.removeLiqParams.positionInfo.amounts[1]
+      + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1];
+
+    uint256 intentFee0 =
+      uniswapV3.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 =
+      uniswapV3.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1e6;
+
+    if (takeUnclaimedFees) {
+      actualReceived0 -= uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0];
+      actualReceived1 -= uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1];
+    }
+
+    actualReceived0 -= intentFee0;
+    actualReceived1 -= intentFee1;
+
+    vm.startPrank(caller);
+    if (
+      takeUnclaimedFees
+        && (
+          uniswapV3.removeLiqParams.positionInfo.amounts[0]
+            < uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0]
+            || uniswapV3.removeLiqParams.positionInfo.amounts[1]
+              < uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
+        )
+    ) {
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
+    } else if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
+    }
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function buildConditionTree(
@@ -272,11 +319,9 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     return rmLqValidator.evaluateCondition(condition, additionalData);
   }
 
-  function _setUpMainAddress(
-    IKSSessionIntentRouter.IntentData memory intentData,
-    bool withSignedIntent,
-    uint256 tokenId
-  ) internal {
+  function _setUpMainAddress(IntentData memory intentData, bool withSignedIntent, uint256 tokenId)
+    internal
+  {
     vm.startPrank(mainAddress);
     if (!withSignedIntent) {
       router.delegate(intentData);
@@ -285,25 +330,23 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     vm.stopPrank();
   }
 
-  function _getIntentData(Node[] memory nodes)
-    internal
-    view
-    returns (IKSSessionIntentRouter.IntentData memory intentData)
-  {
-    KSRemoveLiquidityUniswapV3IntentValidator.RemoveLiquidityValidationData memory validationData;
-    validationData.pools = new address[](1);
-    validationData.pools[0] = address(pool);
-    validationData.nftAddresses = new address[](1);
-    validationData.nftAddresses[0] = address(pm);
-    validationData.nftIds = new uint256[](1);
-    validationData.nftIds[0] = tokenId;
-    validationData.maxFees = new uint256[](1);
-    validationData.maxFees[0] = (maxFeePercents << 128) | maxFeePercents;
-    validationData.recipient = mainAddress;
+  function _getIntentData(Node[] memory nodes) internal view returns (IntentData memory intentData) {
+    KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityHookData memory hookData;
+    hookData.nftAddresses = new address[](1);
+    hookData.nftAddresses[0] = address(pm);
+    hookData.nftIds = new uint256[](1);
+    hookData.nftIds[0] = tokenId;
+    hookData.maxFees = new uint256[](1);
+    hookData.maxFees[0] = (maxFeePercents << 128) | maxFeePercents;
+    hookData.recipient = mainAddress;
 
-    validationData.nodes = new Node[][](1);
+    address[] memory pools = new address[](1);
+    pools[0] = address(pool);
+    hookData.additionalData = abi.encode(pools);
+
+    hookData.nodes = new Node[][](1);
     if (nodes.length > 0) {
-      validationData.nodes[0] = nodes;
+      hookData.nodes[0] = nodes;
     } else {
       // Tree structure:
       //          OR (index 0)
@@ -341,27 +384,25 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       orChildren[1] = 2; // C AND D
       nodes[0] = _createNode(orChildren, OR); // (A AND B) OR (C AND D)
 
-      validationData.nodes[0] = nodes;
+      hookData.nodes[0] = nodes;
     }
 
-    validationData.recipient = mainAddress;
+    hookData.recipient = mainAddress;
 
-    IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
+    IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
       actionContracts: _toArray(address(mockActionContract)),
       actionSelectors: _toArray(MockActionContract.removeUniswapV3.selector),
-      validator: address(rmLqValidator),
-      validationData: abi.encode(validationData)
+      hook: address(rmLqValidator),
+      hookIntentData: abi.encode(hookData)
     });
 
-    IKSSessionIntentRouter.TokenData memory tokenData;
-    tokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
-    tokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(pm), tokenId: tokenId, permitData: ''});
+    TokenData memory tokenData;
+    tokenData.erc721Data = new ERC721Data[](1);
+    tokenData.erc721Data[0] = ERC721Data({token: address(pm), tokenId: tokenId, permitData: ''});
 
-    intentData =
-      IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
   }
 
   function _createLeafNode(Condition memory condition) internal pure returns (Node memory) {
@@ -428,18 +469,19 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     return Condition({conditionType: PRICE_BASED, data: abi.encode(priceCondition)});
   }
 
-  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData, uint256 _liquidity)
+  function _getActionData(TokenData memory tokenData, uint256 _liquidity)
     internal
     view
-    returns (IKSSessionIntentRouter.ActionData memory actionData)
+    returns (ActionData memory actionData)
   {
-    actionData = IKSSessionIntentRouter.ActionData({
+    actionData = ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
       actionCalldata: abi.encode(
         pm,
         tokenId,
         tokenOwner,
+        address(router),
         token0,
         token1,
         _liquidity,
@@ -450,7 +492,9 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
         amounts,
         fees
       ),
-      validatorData: abi.encode(0, fees[0], fees[1], _liquidity, wrapOrUnwrap),
+      hookActionData: abi.encode(
+        0, fees[0], fees[1], _liquidity, wrapOrUnwrap, intentFeesPercent0 << 128 | intentFeesPercent1
+      ),
       extraData: '',
       deadline: block.timestamp + 1 days,
       nonce: 0
@@ -458,45 +502,56 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   }
 
   function _computePositionValues() internal returns (uint256 amount0, uint256 amount1) {
-    if (localVar.liquidityToRemove != 0) {
-      uint160 sqrtPriceLower = TickMath.getSqrtRatioAtTick(localVar.ticks[0]);
-      uint160 sqrtPriceUpper = TickMath.getSqrtRatioAtTick(localVar.ticks[2]);
-      (localVar.amounts[0], localVar.amounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
-        localVar.sqrtPriceX96, sqrtPriceLower, sqrtPriceUpper, uint128(localVar.liquidityToRemove)
+    KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityParams storage removeLiqParams =
+      uniswapV3.removeLiqParams;
+    KSRemoveLiquidityUniswapV3Hook.OutputValidationParams storage outputParams =
+      uniswapV3.outputParams;
+    KSRemoveLiquidityUniswapV3Hook.PositionInfo storage positionInfo = removeLiqParams.positionInfo;
+
+    int24 lower = positionInfo.ticks[0];
+    int24 current = removeLiqParams.currentTick;
+    int24 upper = positionInfo.ticks[1];
+
+    if (removeLiqParams.liquidityToRemove != 0) {
+      uint160 sqrtPriceLower = TickMath.getSqrtRatioAtTick(lower);
+      uint160 sqrtPriceUpper = TickMath.getSqrtRatioAtTick(upper);
+      (positionInfo.amounts[0], positionInfo.amounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
+        removeLiqParams.sqrtPriceX96,
+        sqrtPriceLower,
+        sqrtPriceUpper,
+        uint128(removeLiqParams.liquidityToRemove)
       );
     }
 
-    (uint256 feeGrowthInside0, uint256 feeGrowthInside1) = _getFeeGrowthInside(
-      IUniswapV3Pool(localVar.pool), localVar.ticks[0], localVar.ticks[2], localVar.ticks[1]
-    );
+    (uint256 feeGrowthInside0, uint256 feeGrowthInside1) =
+      _getFeeGrowthInside(IUniswapV3Pool(uniswapV3.pool), lower, current, upper);
 
     unchecked {
-      localVar.unclaimedFees[0] += Math.mulDiv(
-        feeGrowthInside0 - localVar.feesGrowthInsideLast[0], localVar.liquidityBefore, Q128
+      positionInfo.unclaimedFees[0] += Math.mulDiv(
+        feeGrowthInside0 - positionInfo.feesGrowthInsideLast[0], positionInfo.liquidity, Q128
       );
-      localVar.unclaimedFees[1] += Math.mulDiv(
-        feeGrowthInside1 - localVar.feesGrowthInsideLast[1], localVar.liquidityBefore, Q128
+      positionInfo.unclaimedFees[1] += Math.mulDiv(
+        feeGrowthInside1 - positionInfo.feesGrowthInsideLast[1], positionInfo.liquidity, Q128
       );
     }
   }
 
-  function _getFeeGrowthInside(
-    IUniswapV3Pool pool,
-    int24 tickLower,
-    int24 tickUpper,
-    int24 tickCurrent
-  ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+  function _getFeeGrowthInside(IUniswapV3Pool univ3pool, int24 lower, int24 current, int24 upper)
+    internal
+    view
+    returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
+  {
     (uint256 feeGrowthGlobal0X128, uint256 feeGrowthGlobal1X128) =
-      (pool.feeGrowthGlobal0X128(), pool.feeGrowthGlobal1X128());
+      (univ3pool.feeGrowthGlobal0X128(), univ3pool.feeGrowthGlobal1X128());
     (,, uint256 feeGrowthOutside0X128Lower, uint256 feeGrowthOutside1X128Lower,,,,) =
-      pool.ticks(tickLower);
+      univ3pool.ticks(lower);
     (,, uint256 feeGrowthOutside0X128Upper, uint256 feeGrowthOutside1X128Upper,,,,) =
-      pool.ticks(tickUpper);
+      univ3pool.ticks(upper);
 
     uint256 feeGrowthBelow0X128;
     uint256 feeGrowthBelow1X128;
     unchecked {
-      if (tickCurrent >= tickLower) {
+      if (current >= lower) {
         feeGrowthBelow0X128 = feeGrowthOutside0X128Lower;
         feeGrowthBelow1X128 = feeGrowthOutside1X128Lower;
       } else {
@@ -506,7 +561,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
       uint256 feeGrowthAbove0X128;
       uint256 feeGrowthAbove1X128;
-      if (tickCurrent < tickUpper) {
+      if (current < upper) {
         feeGrowthAbove0X128 = feeGrowthOutside0X128Upper;
         feeGrowthAbove1X128 = feeGrowthOutside1X128Upper;
       } else {
@@ -551,21 +606,22 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     (
       ,
       ,
-      localVar.tokens[0],
-      localVar.tokens[1],
+      uniswapV3.outputParams.tokens[0],
+      uniswapV3.outputParams.tokens[1],
       ,
-      localVar.ticks[0],
-      localVar.ticks[2],
+      uniswapV3.removeLiqParams.positionInfo.ticks[0],
+      uniswapV3.removeLiqParams.positionInfo.ticks[1],
       ,
-      localVar.feesGrowthInsideLast[0],
-      localVar.feesGrowthInsideLast[1],
-      localVar.unclaimedFees[0],
-      localVar.unclaimedFees[1]
+      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[0],
+      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[1],
+      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
+      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
     ) = IUniswapV3PM(pm).positions(tokenId);
-    localVar.liquidityBefore = liquidity;
-    localVar.ticks[1] = currentTick;
-    localVar.sqrtPriceX96 = currentPrice;
-    localVar.liquidityToRemove = liquidity;
+    uniswapV3.removeLiqParams.positionInfo.liquidity = liquidity;
+    uniswapV3.removeLiqParams.currentTick = currentTick;
+    uniswapV3.removeLiqParams.sqrtPriceX96 = currentPrice;
+
+    uniswapV3.removeLiqParams.liquidityToRemove = liquidity;
   }
 
   function _boundStruct(FuzzStruct memory fuzzStruct) internal {
