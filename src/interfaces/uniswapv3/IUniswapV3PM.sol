@@ -4,6 +4,21 @@ pragma solidity ^0.8.0;
 import 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
 
 interface IUniswapV3PM is IERC721 {
+  function multicall(bytes[] calldata data) external payable returns (bytes[] memory results);
+
+  /// @notice Unwraps the contract's WETH9 balance and sends it to recipient as ETH.
+  /// @dev The amountMinimum parameter prevents malicious contracts from stealing WETH9 from users.
+  /// @param amountMinimum The minimum amount of WETH9 to unwrap
+  /// @param recipient The address receiving ETH
+  function unwrapWETH9(uint256 amountMinimum, address recipient) external payable;
+
+  /// @notice Transfers the full amount of a token held by this contract to recipient
+  /// @dev The amountMinimum parameter prevents malicious contracts from stealing the token from users
+  /// @param token The contract address of the token which will be transferred to `recipient`
+  /// @param amountMinimum The minimum amount of token required for a transfer
+  /// @param recipient The destination address of the token
+  function sweepToken(address token, uint256 amountMinimum, address recipient) external payable;
+
   struct DecreaseLiquidityParams {
     uint256 tokenId;
     uint128 liquidity;

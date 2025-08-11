@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV3Hook.sol';
+
+import {IERC721} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniswapV3Test is BaseTest {
@@ -35,6 +37,14 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   function setUp() public override {
     super.setUp();
 
+    {
+      vm.startPrank(admin);
+      address[] memory actionContracts = new address[](2);
+      actionContracts[0] = address(pm);
+      router.whitelistActionContracts(actionContracts, true);
+      vm.stopPrank();
+    }
+
     rmLqValidator = new KSRemoveLiquidityUniswapV3Hook(weth);
     tokenOwner = pm.ownerOf(tokenId);
 
@@ -44,8 +54,6 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     _cacheInfo();
   }
-
-  function test() public {}
 
   struct FuzzStruct {
     uint256 seed;
@@ -185,6 +193,139 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
     }
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function test_multiCallToUniV3PositionManager(bool wrap) public {
+    wrap = true;
+    bytes[] memory multiCalldata;
+    if (!wrap) {
+      multiCalldata = new bytes[](5);
+      multiCalldata[0] = abi.encodeWithSelector(
+        IUniswapV3PM.decreaseLiquidity.selector,
+        IUniswapV3PM.DecreaseLiquidityParams({
+          tokenId: tokenId,
+          liquidity: uint128(uniswapV3.removeLiqParams.liquidityToRemove),
+          amount0Min: 0,
+          amount1Min: 0,
+          deadline: block.timestamp + 1 days
+        })
+      );
+      multiCalldata[1] = abi.encodeWithSelector(
+        IUniswapV3PM.collect.selector,
+        IUniswapV3PM.CollectParams({
+          tokenId: tokenId,
+          recipient: address(pm),
+          amount0Max: type(uint128).max,
+          amount1Max: type(uint128).max
+        })
+      );
+      multiCalldata[2] = abi.encodeWithSelector(
+        IERC721.transferFrom.selector, address(forwarder), mainAddress, tokenId
+      );
+      multiCalldata[3] = abi.encodeWithSelector(
+        IUniswapV3PM.sweepToken.selector, uniswapV3.outputParams.tokens[0], 0, address(router)
+      );
+      multiCalldata[4] = abi.encodeWithSelector(
+        IUniswapV3PM.sweepToken.selector, uniswapV3.outputParams.tokens[1], 0, address(router)
+      );
+    } else {
+      multiCalldata = new bytes[](5);
+      multiCalldata[0] = abi.encodeWithSelector(
+        IUniswapV3PM.decreaseLiquidity.selector,
+        IUniswapV3PM.DecreaseLiquidityParams({
+          tokenId: tokenId,
+          liquidity: uint128(uniswapV3.removeLiqParams.liquidityToRemove),
+          amount0Min: 0,
+          amount1Min: 0,
+          deadline: block.timestamp + 1 days
+        })
+      );
+      multiCalldata[1] = abi.encodeWithSelector(
+        IUniswapV3PM.collect.selector,
+        IUniswapV3PM.CollectParams({
+          tokenId: tokenId,
+          recipient: address(pm),
+          amount0Max: type(uint128).max,
+          amount1Max: type(uint128).max
+        })
+      );
+      multiCalldata[2] = abi.encodeWithSelector(
+        IERC721.transferFrom.selector, address(forwarder), mainAddress, tokenId
+      );
+      multiCalldata[3] =
+        abi.encodeWithSelector(IUniswapV3PM.unwrapWETH9.selector, 0, address(router));
+      multiCalldata[4] = abi.encodeWithSelector(
+        IUniswapV3PM.sweepToken.selector, uniswapV3.outputParams.tokens[0], 0, address(router)
+      );
+    }
+
+    _computePositionValues();
+
+    IntentData memory intentData = _getIntentData(new Node[](0));
+
+    _setUpMainAddress(intentData, false, tokenId);
+
+    ActionData memory actionData = ActionData({
+      tokenData: intentData.tokenData,
+      actionSelectorId: 1,
+      approvalFlags: type(uint256).max,
+      actionCalldata: abi.encode(multiCalldata),
+      hookActionData: abi.encode(
+        0,
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1],
+        uniswapV3.removeLiqParams.liquidityToRemove,
+        wrap,
+        intentFeesPercent0 << 128 | intentFeesPercent1
+      ),
+      extraData: '',
+      deadline: block.timestamp + 1 days,
+      nonce: 0
+    });
+
+    if (wrap) {
+      uniswapV3.outputParams.tokens[1] = TokenHelper.NATIVE_ADDRESS;
+    }
+
+    uint256[2] memory routerBefore = [
+      uniswapV3.outputParams.tokens[0].balanceOf(address(router)),
+      uniswapV3.outputParams.tokens[1].balanceOf(address(router))
+    ];
+    uint256[2] memory mainAddrBefore = [
+      uniswapV3.outputParams.tokens[0].balanceOf(mainAddress),
+      uniswapV3.outputParams.tokens[1].balanceOf(mainAddress)
+    ];
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+
+    uint256 intentFee0 =
+      uniswapV3.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 =
+      uniswapV3.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1e6;
+
+    uint256 received0 = uniswapV3.removeLiqParams.positionInfo.amounts[0]
+      + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0] - intentFee0;
+    uint256 received1 = uniswapV3.removeLiqParams.positionInfo.amounts[1]
+      + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1] - intentFee1;
+
+    uint256[2] memory routerAfter = [
+      uniswapV3.outputParams.tokens[0].balanceOf(address(router)),
+      uniswapV3.outputParams.tokens[1].balanceOf(address(router))
+    ];
+
+    assertEq(routerAfter[0] - routerBefore[0], intentFee0, 'invalid intent fee 0');
+    assertEq(routerAfter[1] - routerBefore[1], intentFee1, 'invalid token1 fee 1');
+
+    uint256[2] memory mainAddrAfter = [
+      uniswapV3.outputParams.tokens[0].balanceOf(mainAddress),
+      uniswapV3.outputParams.tokens[1].balanceOf(mainAddress)
+    ];
+
+    assertEq(mainAddrAfter[0] - mainAddrBefore[0], received0, 'invalid token0 received');
+    assertEq(mainAddrAfter[1] - mainAddrBefore[1], received1, 'invalid token1 received');
   }
 
   function buildConditionTree(
@@ -347,11 +488,19 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     hookData.recipient = mainAddress;
 
+    address[] memory actionContracts = new address[](2);
+    actionContracts[0] = address(mockActionContract);
+    actionContracts[1] = address(pm);
+
+    bytes4[] memory actionSelectors = new bytes4[](2);
+    actionSelectors[0] = MockActionContract.removeUniswapV3.selector;
+    actionSelectors[1] = IUniswapV3PM.multicall.selector;
+
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(address(mockActionContract)),
-      actionSelectors: _toArray(MockActionContract.removeUniswapV3.selector),
+      actionContracts: actionContracts,
+      actionSelectors: actionSelectors,
       hook: address(rmLqValidator),
       hookIntentData: abi.encode(hookData)
     });

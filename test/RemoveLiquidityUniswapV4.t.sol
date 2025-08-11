@@ -5,6 +5,8 @@ import './Base.t.sol';
 
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV4Hook.sol';
+
+import {Actions} from 'src/interfaces/pancakev4/Types.sol';
 import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniswapV4Test is BaseTest {
@@ -61,6 +63,14 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   function setUp() public override {
     FORK_BLOCK = 22_937_800;
     super.setUp();
+
+    {
+      vm.startPrank(admin);
+      address[] memory actionContracts = new address[](2);
+      actionContracts[0] = address(pm);
+      router.whitelistActionContracts(actionContracts, true);
+      vm.stopPrank();
+    }
 
     rmLqHook = new KSRemoveLiquidityUniswapV4Hook(weth);
     nftOwner = mainAddress;
@@ -228,6 +238,113 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     vm.startPrank(caller);
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function test_multiCallToUniV4PositionManager(uint256 seed) public {
+    bool unwrap = seed % 2 == 1;
+    uint256 liquidityToRemove = bound(seed, 0, liquidity);
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
+    IPositionManager(pm).poolManager().computePositionValues(
+      IPositionManager(pm), uniV4TokenId, liquidityToRemove
+    );
+
+    bytes[] memory multiCalldata;
+    if (!unwrap) {
+      bytes memory actions = new bytes(2);
+      bytes[] memory params = new bytes[](2);
+      actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
+      params[0] = abi.encode(uniV4TokenId, liquidityToRemove, 0, 0, '');
+      actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
+      params[1] = abi.encode(address(0), token1, address(router));
+
+      multiCalldata = new bytes[](2);
+      multiCalldata[0] = abi.encodeWithSelector(
+        ICLPositionManager.modifyLiquidities.selector,
+        abi.encode(actions, params),
+        type(uint256).max
+      );
+      multiCalldata[1] = abi.encodeWithSelector(
+        IERC721.transferFrom.selector, address(forwarder), mainAddress, uniV4TokenId
+      );
+    } else {
+      bytes memory actions = new bytes(5);
+      bytes[] memory params = new bytes[](5);
+      actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
+      params[0] = abi.encode(uniV4TokenId, liquidityToRemove, 0, 0, '');
+      actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
+      params[1] = abi.encode(address(0), token1, address(pm));
+      actions[2] = bytes1(uint8(Actions.WRAP));
+
+      uint256 amount = 0x8000000000000000000000000000000000000000000000000000000000000000; //contract balance
+      params[2] = abi.encode(amount);
+      actions[3] = bytes1(uint8(Actions.SWEEP));
+      params[3] = abi.encode(weth, address(router));
+      actions[4] = bytes1(uint8(Actions.SWEEP));
+      params[4] = abi.encode(token1, address(router));
+
+      multiCalldata = new bytes[](2);
+      multiCalldata[0] = abi.encodeWithSelector(
+        ICLPositionManager.modifyLiquidities.selector,
+        abi.encode(actions, params),
+        type(uint256).max
+      );
+      multiCalldata[1] = abi.encodeWithSelector(
+        IERC721.transferFrom.selector, address(forwarder), mainAddress, uniV4TokenId
+      );
+    }
+
+    IntentData memory intentData = _getIntentData(false, new Node[](0));
+
+    _setUpMainAddress(intentData, false, uniV4TokenId, true);
+
+    ActionData memory actionData = ActionData({
+      tokenData: intentData.tokenData,
+      actionSelectorId: 1,
+      approvalFlags: type(uint256).max,
+      actionCalldata: abi.encode(multiCalldata),
+      hookActionData: abi.encode(
+        0,
+        unclaimedFee0,
+        unclaimedFee1,
+        liquidityToRemove,
+        unwrap,
+        intentFeesPercent0 << 128 | intentFeesPercent1
+      ),
+      extraData: '',
+      deadline: block.timestamp + 1 days,
+      nonce: 0
+    });
+
+    if (unwrap) {
+      token0 = weth;
+    }
+
+    uint256[2] memory routerBefore =
+      [token0.balanceOf(address(router)), token1.balanceOf(address(router))];
+    uint256[2] memory mainAddrBefore =
+      [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+
+    uint256 intentFee0 = liqAmount0 * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 = liqAmount1 * intentFeesPercent1 / 1e6;
+
+    uint256 received0 = liqAmount0 + unclaimedFee0 - intentFee0;
+    uint256 received1 = liqAmount1 + unclaimedFee1 - intentFee1;
+
+    uint256[2] memory routerAfter =
+      [token0.balanceOf(address(router)), token1.balanceOf(address(router))];
+
+    assertEq(routerAfter[0] - routerBefore[0], intentFee0, 'invalid intent fee 0');
+    assertEq(routerAfter[1] - routerBefore[1], intentFee1, 'invalid token1 fee 1');
+
+    uint256[2] memory mainAddrAfter = [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
+
+    assertEq(mainAddrAfter[0] - mainAddrBefore[0], received0, 'invalid token0 received');
+    assertEq(mainAddrAfter[1] - mainAddrBefore[1], received1, 'invalid token1 received');
   }
 
   function testRevert_NotMeetConditions_YieldBased(bool withPermit) public {
@@ -532,11 +649,19 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     hookData.recipient = mainAddress;
 
+    address[] memory actionContracts = new address[](2);
+    actionContracts[0] = address(mockActionContract);
+    actionContracts[1] = address(pm);
+
+    bytes4[] memory actionSelectors = new bytes4[](2);
+    actionSelectors[0] = MockActionContract.removeUniswapV4.selector;
+    actionSelectors[1] = IUniswapV3PM.multicall.selector;
+
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(address(mockActionContract)),
-      actionSelectors: _toArray(MockActionContract.removeUniswapV4.selector),
+      actionContracts: actionContracts,
+      actionSelectors: actionSelectors,
       hook: address(rmLqHook),
       hookIntentData: abi.encode(hookData)
     });

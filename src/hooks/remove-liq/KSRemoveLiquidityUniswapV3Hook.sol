@@ -90,10 +90,8 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
       outputParams.tokens =
         [_adjustToken(outputParams.tokens[0]), _adjustToken(outputParams.tokens[1])];
     }
-    outputParams.balancesBefore = [
-      outputParams.tokens[0].balanceOf(removeLiqParams.recipient),
-      outputParams.tokens[1].balanceOf(removeLiqParams.recipient)
-    ];
+    (outputParams.balancesBefore[0], outputParams.balancesBefore[1]) =
+      _recordRouterBalances(msg.sender, outputParams.tokens);
 
     _computePositionValues(uniswapV3);
   }

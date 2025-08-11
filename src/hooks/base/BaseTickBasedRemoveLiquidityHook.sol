@@ -180,19 +180,19 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
 
   /**
    * @notice Validate the output after removing liquidity
-   * @param outputValidationParams The params used to validate output after execution
+   * @param outputParams The params used to validate output after execution
    * @return fees The fees will be charged
    * @return userReceived The amounts of tokens user will receive after removing liquidity
    */
   function _validateOutput(
-    OutputValidationParams calldata outputValidationParams,
+    OutputValidationParams calldata outputParams,
     PositionInfo calldata positionInfo
   ) internal view virtual returns (uint256[] memory fees, uint256[] memory userReceived) {
     (uint256 routerReceived0, uint256 routerReceived1) =
-      _recordRouterBalances(outputValidationParams.router, outputValidationParams.tokens);
+      _recordRouterBalances(outputParams.router, outputParams.tokens);
 
-    routerReceived0 -= outputValidationParams.balancesBefore[0];
-    routerReceived1 -= outputValidationParams.balancesBefore[1];
+    routerReceived0 -= outputParams.balancesBefore[0];
+    routerReceived1 -= outputParams.balancesBefore[1];
 
     require(
       routerReceived0 >= positionInfo.unclaimedFees[0]
@@ -205,17 +205,17 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
 
     // not charge fee on the user's unclaimed fees
     fees = new uint256[](2);
-    fees[0] = amount0ReceivedForLiquidity * outputValidationParams.intentFeesPercent[0] / PRECISION;
-    fees[1] = amount1ReceivedForLiquidity * outputValidationParams.intentFeesPercent[1] / PRECISION;
+    fees[0] = amount0ReceivedForLiquidity * outputParams.intentFeesPercent[0] / PRECISION;
+    fees[1] = amount1ReceivedForLiquidity * outputParams.intentFeesPercent[1] / PRECISION;
 
     userReceived = new uint256[](2);
     userReceived[0] = routerReceived0 - fees[0];
     userReceived[1] = routerReceived1 - fees[1];
 
     uint256 minReceived0 = positionInfo.unclaimedFees[0]
-      + (positionInfo.amounts[0] * (PRECISION - outputValidationParams.maxFees[0])) / PRECISION;
+      + (positionInfo.amounts[0] * (PRECISION - outputParams.maxFees[0])) / PRECISION;
     uint256 minReceived1 = positionInfo.unclaimedFees[1]
-      + (positionInfo.amounts[1] * (PRECISION - outputValidationParams.maxFees[1])) / PRECISION;
+      + (positionInfo.amounts[1] * (PRECISION - outputParams.maxFees[1])) / PRECISION;
 
     require(
       userReceived[0] >= minReceived0 && userReceived[1] >= minReceived1, NotEnoughOutputAmount()

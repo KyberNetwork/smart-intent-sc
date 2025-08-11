@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'src/hooks/base/BaseConditionalHook.sol';
+import {Actions} from 'src/interfaces/pancakev4/Types.sol';
 
 import {
   ActionData,
@@ -73,8 +74,17 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   function setUp() public override {
     super.setUp();
 
+    {
+      vm.startPrank(admin);
+      address[] memory actionContracts = new address[](2);
+      actionContracts[0] = address(positionManager);
+      router.whitelistActionContracts(actionContracts, true);
+      vm.stopPrank();
+    }
+
     vm.label(token0, 'BNB');
     vm.label(token1, 'CAKE');
+    vm.label(address(positionManager), 'CLPositionManager');
 
     rmLqValidator = new KSRemoveLiquidityPancakeV4CLHook(wbnb);
     address[] memory validators = new address[](1);
@@ -168,6 +178,114 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
         'invalid token1 received'
       );
     }
+  }
+
+  function test_multiCallToPancakeV4CLPositionManager(uint256 seed) public {
+    bool unwrap = seed % 2 == 1;
+    pancakeCL.removeLiqParams.liquidityToRemove = bound(seed, 0, liquidity);
+    _computePositionValues();
+
+    bytes[] memory multiCalldata;
+    if (!unwrap) {
+      bytes memory actions = new bytes(2);
+      bytes[] memory params = new bytes[](2);
+      actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
+      params[0] = abi.encode(tokenId, pancakeCL.removeLiqParams.liquidityToRemove, 0, 0, '');
+      actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
+      params[1] = abi.encode(address(0), token1, address(router));
+
+      multiCalldata = new bytes[](2);
+      multiCalldata[0] = abi.encodeWithSelector(
+        ICLPositionManager.modifyLiquidities.selector,
+        abi.encode(actions, params),
+        type(uint256).max
+      );
+      multiCalldata[1] = abi.encodeWithSelector(
+        IERC721.transferFrom.selector, address(forwarder), mainAddress, tokenId
+      );
+    } else {
+      bytes memory actions = new bytes(5);
+      bytes[] memory params = new bytes[](5);
+      actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
+      params[0] = abi.encode(tokenId, pancakeCL.removeLiqParams.liquidityToRemove, 0, 0, '');
+      actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
+      params[1] = abi.encode(address(0), token1, address(positionManager));
+      actions[2] = bytes1(uint8(Actions.WRAP));
+
+      uint256 amount = 0x8000000000000000000000000000000000000000000000000000000000000000; //contract balance
+      params[2] = abi.encode(amount);
+      actions[3] = bytes1(uint8(Actions.SWEEP));
+      params[3] = abi.encode(wbnb, address(router));
+      actions[4] = bytes1(uint8(Actions.SWEEP));
+      params[4] = abi.encode(token1, address(router));
+
+      multiCalldata = new bytes[](2);
+      multiCalldata[0] = abi.encodeWithSelector(
+        ICLPositionManager.modifyLiquidities.selector,
+        abi.encode(actions, params),
+        type(uint256).max
+      );
+      multiCalldata[1] = abi.encodeWithSelector(
+        IERC721.transferFrom.selector, address(forwarder), mainAddress, tokenId
+      );
+    }
+
+    IntentData memory intentData = _getIntentData(false, new Node[](0));
+
+    _setUpMainAddress(intentData, false, tokenId, true);
+
+    ActionData memory actionData = ActionData({
+      tokenData: intentData.tokenData,
+      actionSelectorId: 1,
+      approvalFlags: type(uint256).max,
+      actionCalldata: abi.encode(multiCalldata),
+      hookActionData: abi.encode(
+        0,
+        pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0],
+        pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1],
+        pancakeCL.removeLiqParams.liquidityToRemove,
+        unwrap,
+        intentFeesPercent0 << 128 | intentFeesPercent1
+      ),
+      extraData: '',
+      deadline: block.timestamp + 1 days,
+      nonce: 0
+    });
+
+    if (unwrap) {
+      token0 = wbnb;
+    }
+
+    uint256[2] memory routerBefore =
+      [token0.balanceOf(address(router)), token1.balanceOf(address(router))];
+    uint256[2] memory mainAddrBefore =
+      [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+
+    uint256 intentFee0 =
+      pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 =
+      pancakeCL.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1e6;
+
+    uint256 received0 = pancakeCL.removeLiqParams.positionInfo.amounts[0]
+      + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0] - intentFee0;
+    uint256 received1 = pancakeCL.removeLiqParams.positionInfo.amounts[1]
+      + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1] - intentFee1;
+
+    uint256[2] memory routerAfter =
+      [token0.balanceOf(address(router)), token1.balanceOf(address(router))];
+
+    assertEq(routerAfter[0] - routerBefore[0], intentFee0, 'invalid intent fee 0');
+    assertEq(routerAfter[1] - routerBefore[1], intentFee1, 'invalid token1 fee 1');
+
+    uint256[2] memory mainAddrAfter = [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
+
+    assertEq(mainAddrAfter[0] - mainAddrBefore[0], received0, 'invalid token0 received');
+    assertEq(mainAddrAfter[1] - mainAddrBefore[1], received1, 'invalid token1 received');
   }
 
   function testFuzz_ValidateOutputPancakeV4CL(FuzzStruct memory fuzz) public {
@@ -314,11 +432,19 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     validationData.recipient = mainAddress;
 
+    address[] memory actionContracts = new address[](2);
+    actionContracts[0] = address(mockActionContract);
+    actionContracts[1] = address(positionManager);
+
+    bytes4[] memory actionSelectors = new bytes4[](2);
+    actionSelectors[0] = MockActionContract.removePancakeV4CL.selector;
+    actionSelectors[1] = IUniswapV3PM.multicall.selector;
+
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(address(mockActionContract)),
-      actionSelectors: _toArray(MockActionContract.removePancakeV4CL.selector),
+      actionContracts: actionContracts,
+      actionSelectors: actionSelectors,
       hook: address(rmLqValidator),
       hookIntentData: abi.encode(validationData)
     });
