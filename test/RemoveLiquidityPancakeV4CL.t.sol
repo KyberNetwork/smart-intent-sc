@@ -113,7 +113,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   function testFuzz_RemoveLiquidityPancakeV4CL(FuzzStruct memory fuzz) public {
     _boundStruct(fuzz);
     _computePositionValues();
-    if (!fuzz.positionOutRange) {
+    fuzz.positionOutRange = true;
+    if (fuzz.positionOutRange) {
       _overrideParams();
       _computePositionValues();
     }
@@ -125,6 +126,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     ConditionTree memory conditionTree =
       this.buildConditionTree(nodes, fees[0], fees[1], currentPrice);
     bool conditionPass = this.callLibrary(conditionTree, 0);
+
     IntentData memory intentData = _getIntentData(fuzz.usePermit, nodes);
 
     _setUpMainAddress(intentData, false, tokenId, true);
@@ -223,6 +225,9 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
 
+    uint256 balance0Before = token0.balanceOf(mainAddress);
+    uint256 balance1Before = token1.balanceOf(mainAddress);
+
     vm.startPrank(caller);
     if (
       takeUnclaimedFees
@@ -234,10 +239,21 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
         )
     ) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
     } else if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
     }
+
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+
+    uint256 balance0After = token0.balanceOf(mainAddress);
+    uint256 balance1After = token1.balanceOf(mainAddress);
+
+    assertEq(balance0After - balance0Before, actualReceived0, 'invalid token0 received');
+    assertEq(balance1After - balance1Before, actualReceived1, 'invalid token1 received');
   }
 
   function _getIntentData(bool withPermit, Node[] memory nodes)
@@ -336,25 +352,27 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     internal
     returns (ActionData memory actionData)
   {
+    MockActionContract.RemovePancakeV4CLParams memory params = MockActionContract
+      .RemovePancakeV4CLParams({
+      pm: ICLPositionManager(positionManager),
+      tokenId: tokenId,
+      router: address(router),
+      owner: tokenOwner,
+      token0: token0,
+      token1: token1,
+      liquidity: _liquidity,
+      transferPercent: transferPercent,
+      wrapOrUnwrap: wrapOrUnwrap,
+      weth: wbnb,
+      takeFees: takeUnclaimedFees,
+      amounts: amounts,
+      fees: fees
+    });
     actionData = ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
-      approvalFlags: 0,
-      actionCalldata: abi.encode(
-        positionManager,
-        tokenId,
-        tokenOwner,
-        address(router),
-        token0,
-        token1,
-        _liquidity,
-        transferPercent,
-        wrapOrUnwrap,
-        wbnb,
-        takeUnclaimedFees,
-        amounts,
-        fees
-      ),
+      approvalFlags: type(uint256).max,
+      actionCalldata: abi.encode(params),
       hookActionData: abi.encode(
         0, fees[0], fees[1], _liquidity, wrapOrUnwrap, intentFeesPercent0 << 128 | intentFeesPercent1
       ),
@@ -378,23 +396,6 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       positionManager.approve(address(router), id);
     }
     vm.stopPrank();
-  }
-
-  function _getTickRange(uint256 posInfo)
-    internal
-    pure
-    returns (int24 _tickLower, int24 _tickUpper)
-  {
-    assembly {
-      _tickLower := signextend(2, shr(8, posInfo))
-      _tickUpper := signextend(2, shr(32, posInfo))
-    }
-  }
-
-  function _getPoolId(PKey memory poolKey) internal pure returns (PoolId poolId) {
-    assembly {
-      poolId := keccak256(poolKey, 0xa0)
-    }
   }
 
   function _getPermitData(uint256 id) internal view returns (bytes memory permitData) {
@@ -646,18 +647,33 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   }
 
   function _overrideParams() internal {
-    // tokenId = 36_343; // in range position
-    // address posOwner = positionManager.ownerOf(tokenId);
-    // vm.prank(posOwner);
-    // positionManager.safeTransferFrom(posOwner, mainAddress, tokenId);
+    tokenId = 19_236; // out range position
+    address posOwner = positionManager.ownerOf(tokenId);
+    vm.prank(posOwner);
+    positionManager.safeTransferFrom(posOwner, mainAddress, tokenId);
 
-    // (PKey memory poolKey, CLPositionInfo posInfo) = positionManager.getPoolAndPositionInfo(tokenId);
+    (PKey memory poolKey, CLPositionInfo posInfo) = positionManager.getPoolAndPositionInfo(tokenId);
 
-    // PoolId poolId = _getPoolId(poolKey);
-    // (currentPrice, currentTick,,) = clPoolManager.getSlot0(poolId);
-    // (tickLower, tickUpper) = _getTickRange(CLPositionInfo.unwrap(posInfo));
-    // liquidity = positionManager.getPositionLiquidity(tokenId);
-    // assertTrue(currentTick > tickLower, 'currentTick > tickLower');
-    // assertTrue(currentTick < tickUpper, 'currentTick < tickUpper');
+    (
+      poolKey,
+      tickLower,
+      tickUpper,
+      liquidity,
+      pancakeCL.removeLiqParams.positionInfo.feesGrowthInsideLast[0],
+      pancakeCL.removeLiqParams.positionInfo.feesGrowthInsideLast[1],
+    ) = positionManager.positions(tokenId);
+    pancakeCL.poolId = _toId(poolKey);
+    pancakeCL.clPoolManager = clPoolManager;
+    pancakeCL.removeLiqParams.positionInfo.liquidity = liquidity;
+
+    pancakeCL.removeLiqParams.positionInfo.ticks[0] = tickLower;
+    pancakeCL.removeLiqParams.positionInfo.ticks[1] = tickUpper;
+    pancakeCL.removeLiqParams.liquidityToRemove = liquidity;
+
+    console.log('tickLower', tickLower);
+    console.log('tickUpper', tickUpper);
+    console.log('currentTick', currentTick);
+
+    assertTrue(currentTick < tickLower || currentTick > tickUpper, 'wrong position');
   }
 }

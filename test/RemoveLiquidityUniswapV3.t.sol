@@ -12,21 +12,12 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   IUniswapV3PM pm = IUniswapV3PM(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
   IUniswapV3Pool pool = IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
   uint256 tokenId = 963_424;
-  address token0;
-  address token1;
-  int24 tickLower;
-  int24 tickUpper;
-  int24 currentTick;
-  uint160 currentPrice;
-  uint256 liquidity;
   address tokenOwner;
   address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
   uint256 maxFeePercents = 20_000; // 2%
   uint256 transferPercent = 1_000_000; // 100%
   uint256 intentFeesPercent0 = 10_000; // 1%
   uint256 intentFeesPercent1 = 10_000; // 1%
-  uint256[2] amounts;
-  uint256[2] fees;
   bool takeUnclaimedFees;
   bool wrapOrUnwrap;
   ConditionType constant TIME_BASED = ConditionType.wrap(keccak256('TIME_BASED'));
@@ -47,37 +38,14 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     rmLqValidator = new KSRemoveLiquidityUniswapV3Hook(weth);
     tokenOwner = pm.ownerOf(tokenId);
 
-    (currentPrice, currentTick,,,,,) = pool.slot0();
-    (,, token0, token1,, tickLower, tickUpper, liquidity,,,,) = pm.positions(tokenId);
-
     vm.prank(tokenOwner);
     IERC721(pm).safeTransferFrom(tokenOwner, mainAddress, tokenId);
     tokenOwner = mainAddress;
 
-    uniswapV3.pool = address(pool);
-    uniswapV3.removeLiqParams.recipient = mainAddress;
-    uniswapV3.removeLiqParams.positionInfo.nftId = tokenId;
-    uniswapV3.removeLiqParams.positionInfo.nftAddress = address(pm);
-    (
-      ,
-      ,
-      uniswapV3.outputParams.tokens[0],
-      uniswapV3.outputParams.tokens[1],
-      ,
-      uniswapV3.removeLiqParams.positionInfo.ticks[0],
-      uniswapV3.removeLiqParams.positionInfo.ticks[1],
-      ,
-      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[0],
-      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[1],
-      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
-      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
-    ) = pm.positions(tokenId);
-    uniswapV3.removeLiqParams.currentTick = currentTick;
-    uniswapV3.removeLiqParams.sqrtPriceX96 = currentPrice;
-    uniswapV3.removeLiqParams.positionInfo.liquidity = liquidity;
-    uniswapV3.removeLiqParams.liquidityToRemove = liquidity;
-    uniswapV3.outputParams.maxFees = [maxFeePercents, maxFeePercents];
+    _cacheInfo();
   }
+
+  function test() public {}
 
   struct FuzzStruct {
     uint256 seed;
@@ -104,12 +72,12 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       _computePositionValues();
     }
 
-    amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
-    fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
+    uint256[2] memory amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
+    uint256[2] memory fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
 
     Node[] memory nodes = _randomNodes(fuzz);
     ConditionTree memory conditionTree =
-      this.buildConditionTree(nodes, fees[0], fees[1], currentPrice);
+      this.buildConditionTree(nodes, fees[0], fees[1], uniswapV3.removeLiqParams.sqrtPriceX96);
     bool conditionPass = this.callLibrary(conditionTree, 0);
     IntentData memory intentData = _getIntentData(nodes);
 
@@ -121,8 +89,8 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
-    uint256 balance0Before = token0.balanceOf(mainAddress);
-    uint256 balance1Before = token1.balanceOf(mainAddress);
+    uint256 balance0Before = uniswapV3.outputParams.tokens[0].balanceOf(mainAddress);
+    uint256 balance1Before = uniswapV3.outputParams.tokens[1].balanceOf(mainAddress);
 
     vm.startPrank(caller);
     if (conditionPass) {
@@ -133,39 +101,29 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     }
 
     if (conditionPass) {
-      uint256 balance0After = token0.balanceOf(mainAddress);
-      uint256 balance1After = token1.balanceOf(mainAddress);
-      uint256 intentFee0 =
-        uniswapV3.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1_000_000;
-      uint256 intentFee1 =
-        uniswapV3.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1_000_000;
+      uint256 balance0After = uniswapV3.outputParams.tokens[0].balanceOf(mainAddress);
+      uint256 balance1After = uniswapV3.outputParams.tokens[1].balanceOf(mainAddress);
+      uint256 intentFee0 = amounts[0] * intentFeesPercent0 / 1_000_000;
+      uint256 intentFee1 = amounts[1] * intentFeesPercent1 / 1_000_000;
       assertEq(
-        balance0After - balance0Before,
-        uniswapV3.removeLiqParams.positionInfo.amounts[0] - intentFee0
-          + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
-        'invalid token0 received'
+        balance0After - balance0Before, amounts[0] - intentFee0 + fees[0], 'invalid token0 received'
       );
       assertEq(
-        balance1After - balance1Before,
-        uniswapV3.removeLiqParams.positionInfo.amounts[1] - intentFee1
-          + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1],
-        'invalid token1 received'
+        balance1After - balance1Before, amounts[1] - intentFee1 + fees[1], 'invalid token1 received'
       );
     }
   }
 
   function testFuzz_ValidateAmountOutUniswapV3(uint256 seed) public {
     seed = bound(seed, 0, type(uint128).max);
-    uniswapV3.removeLiqParams.liquidityToRemove = bound(seed, 0, liquidity);
+    uniswapV3.removeLiqParams.liquidityToRemove =
+      bound(seed, 0, uniswapV3.removeLiqParams.positionInfo.liquidity);
     wrapOrUnwrap = bound(seed + 1, 0, 1) == 1;
     takeUnclaimedFees = bound(seed + 2, 0, 1) == 1;
     intentFeesPercent0 = bound(seed + 3, 0, 1_000_000);
     intentFeesPercent1 = bound(seed + 4, 0, 1_000_000);
 
     _computePositionValues();
-
-    amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
-    fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
 
     IntentData memory intentData = _getIntentData(new Node[](0));
 
@@ -434,14 +392,16 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       condition.data = abi.encode(
         YieldCondition({
           targetYield: 10, // 0.001%
-          initialAmounts: (uint256(amounts[0]) << 128) | uint256(amounts[1])
+          initialAmounts: (uint256(uniswapV3.removeLiqParams.positionInfo.amounts[0]) << 128)
+            | uint256(uniswapV3.removeLiqParams.positionInfo.amounts[1])
         })
       );
     } else {
       condition.data = abi.encode(
         YieldCondition({
           targetYield: 10_000_000, // 1000%
-          initialAmounts: (uint256(amounts[0]) << 128) | uint256(amounts[1])
+          initialAmounts: (uint256(uniswapV3.removeLiqParams.positionInfo.amounts[0]) << 128)
+            | uint256(uniswapV3.removeLiqParams.positionInfo.amounts[1])
         })
       );
     }
@@ -458,9 +418,10 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
   function _createPriceCondition(bool isTrue) internal view returns (Condition memory) {
     PriceCondition memory priceCondition;
+    uint256 currentPrice = uniswapV3.removeLiqParams.sqrtPriceX96;
     if (isTrue) {
       priceCondition.minPrice = currentPrice - 100;
-      priceCondition.maxPrice = currentPrice + 100;
+      priceCondition.maxPrice = currentPrice + 1000;
     } else {
       priceCondition.minPrice = currentPrice + 100;
       priceCondition.maxPrice = currentPrice + 1000;
@@ -477,24 +438,29 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     actionData = ActionData({
       tokenData: tokenData,
       actionSelectorId: 0,
-      approvalFlags: 0,
+      approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(
         pm,
         tokenId,
         tokenOwner,
         address(router),
-        token0,
-        token1,
+        uniswapV3.outputParams.tokens[0],
+        uniswapV3.outputParams.tokens[1],
         _liquidity,
         transferPercent,
         wrapOrUnwrap,
         weth,
         takeUnclaimedFees,
-        amounts,
-        fees
+        uniswapV3.removeLiqParams.positionInfo.amounts,
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees
       ),
       hookActionData: abi.encode(
-        0, fees[0], fees[1], _liquidity, wrapOrUnwrap, intentFeesPercent0 << 128 | intentFeesPercent1
+        0,
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1],
+        _liquidity,
+        wrapOrUnwrap,
+        intentFeesPercent0 << 128 | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,
@@ -503,6 +469,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   }
 
   function _computePositionValues() internal returns (uint256 amount0, uint256 amount1) {
+    _cacheInfo();
     KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityParams storage removeLiqParams =
       uniswapV3.removeLiqParams;
     KSRemoveLiquidityUniswapV3Hook.OutputValidationParams storage outputParams =
@@ -575,59 +542,55 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     }
   }
 
+  function _cacheInfo() internal {
+    {
+      uniswapV3.pool = address(pool);
+      uniswapV3.removeLiqParams.recipient = mainAddress;
+      uniswapV3.removeLiqParams.positionInfo.nftId = tokenId;
+      uniswapV3.removeLiqParams.positionInfo.nftAddress = address(pm);
+    }
+    {
+      (
+        ,
+        ,
+        uniswapV3.outputParams.tokens[0],
+        uniswapV3.outputParams.tokens[1],
+        ,
+        uniswapV3.removeLiqParams.positionInfo.ticks[0],
+        uniswapV3.removeLiqParams.positionInfo.ticks[1],
+        uniswapV3.removeLiqParams.positionInfo.liquidity,
+        uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[0],
+        uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[1],
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
+        uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
+      ) = pm.positions(tokenId);
+    }
+    (uniswapV3.removeLiqParams.sqrtPriceX96, uniswapV3.removeLiqParams.currentTick,,,,,) =
+      pool.slot0();
+    uniswapV3.removeLiqParams.liquidityToRemove = uniswapV3.removeLiqParams.positionInfo.liquidity;
+    uniswapV3.outputParams.maxFees = [maxFeePercents, maxFeePercents];
+  }
+
   function _overrideParams() internal {
     tokenId = 963_350; // out range position
     address posOwner = IUniswapV3PM(pm).ownerOf(tokenId);
     vm.prank(posOwner);
     IERC721(pm).safeTransferFrom(posOwner, mainAddress, tokenId);
+    _cacheInfo();
 
-    (
-      ,
-      ,
-      address _token0,
-      address _token1,
-      ,
-      int24 _tickLower,
-      int24 _tickUpper,
-      uint128 _liquidity,
-      ,
-      ,
-      ,
-    ) = pm.positions(tokenId);
+    int24 _tickLower = uniswapV3.removeLiqParams.positionInfo.ticks[0];
+    int24 _tickUpper = uniswapV3.removeLiqParams.positionInfo.ticks[1];
+    int24 _currentTick = uniswapV3.removeLiqParams.currentTick;
+    uint256 _liquidity = uniswapV3.removeLiqParams.positionInfo.liquidity;
 
-    assertTrue(_tickLower > currentTick || _tickUpper < currentTick);
+    assertTrue(_tickLower > _currentTick || _tickUpper < _currentTick);
     assertTrue(_liquidity > 0, '_liquidity > 0');
-    assertTrue(_token0 == token0, '_token0 == token0');
-    assertTrue(_token1 == token1, '_token1 == token1');
-
-    tickLower = _tickLower;
-    tickUpper = _tickUpper;
-    liquidity = _liquidity;
-
-    (
-      ,
-      ,
-      uniswapV3.outputParams.tokens[0],
-      uniswapV3.outputParams.tokens[1],
-      ,
-      uniswapV3.removeLiqParams.positionInfo.ticks[0],
-      uniswapV3.removeLiqParams.positionInfo.ticks[1],
-      ,
-      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[0],
-      uniswapV3.removeLiqParams.positionInfo.feesGrowthInsideLast[1],
-      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
-      uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
-    ) = IUniswapV3PM(pm).positions(tokenId);
-    uniswapV3.removeLiqParams.positionInfo.liquidity = liquidity;
-    uniswapV3.removeLiqParams.currentTick = currentTick;
-    uniswapV3.removeLiqParams.sqrtPriceX96 = currentPrice;
-
-    uniswapV3.removeLiqParams.liquidityToRemove = liquidity;
   }
 
   function _boundStruct(FuzzStruct memory fuzzStruct) internal {
     fuzzStruct.seed = bound(fuzzStruct.seed, 0, type(uint128).max);
-    fuzzStruct.liquidityToRemove = bound(fuzzStruct.liquidityToRemove, 0, liquidity);
+    fuzzStruct.liquidityToRemove =
+      bound(fuzzStruct.liquidityToRemove, 0, uniswapV3.removeLiqParams.positionInfo.liquidity);
     maxFeePercents = bound(maxFeePercents, 0, type(uint128).max);
     fuzzStruct.maxFeePercents = maxFeePercents;
 

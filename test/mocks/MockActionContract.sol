@@ -104,77 +104,81 @@ contract MockActionContract {
     params.token1.safeTransfer(params.admin, amount1Transfer);
   }
 
-  function removePancakeV4CL(
-    ICLPositionManager pm,
-    uint256 tokenId,
-    address owner,
-    address router,
-    address token0,
-    address token1,
-    uint256 liquidity,
-    uint256 transferPercent,
-    bool wrapOrUnwrap,
-    address weth,
-    bool takeFees,
-    uint256[2] memory amounts,
-    uint256[2] memory fees
-  ) external {
-    uint256[2] memory balancesBefore = [token0.selfBalance(), token1.selfBalance()];
+  struct RemovePancakeV4CLParams {
+    ICLPositionManager pm;
+    uint256 tokenId;
+    address owner;
+    address router;
+    address token0;
+    address token1;
+    uint256 liquidity;
+    uint256 transferPercent;
+    bool wrapOrUnwrap;
+    address weth;
+    bool takeFees;
+    uint256[2] amounts;
+    uint256[2] fees;
+  }
+
+  function removePancakeV4CL(RemovePancakeV4CLParams memory params) external {
+    uint256[2] memory balancesBefore = [params.token0.selfBalance(), params.token1.selfBalance()];
 
     bytes memory actions = new bytes(2);
     bytes[] memory pancakeParams = new bytes[](2);
     actions[0] = bytes1(uint8(DECREASE_LIQUIDITY));
-    pancakeParams[0] = abi.encode(tokenId, liquidity, 0, 0, '');
+    pancakeParams[0] = abi.encode(params.tokenId, params.liquidity, 0, 0, '');
     actions[1] = bytes1(uint8(TAKE_PAIR));
     pancakeParams[1] = abi.encode(
-      token0 == TokenHelper.NATIVE_ADDRESS ? address(0) : token0,
-      token1 == TokenHelper.NATIVE_ADDRESS ? address(0) : token1,
+      params.token0 == TokenHelper.NATIVE_ADDRESS ? address(0) : params.token0,
+      params.token1 == TokenHelper.NATIVE_ADDRESS ? address(0) : params.token1,
       address(this)
     );
-    pm.modifyLiquidities(abi.encode(actions, pancakeParams), type(uint256).max);
-    if (owner != address(0)) {
-      pm.transferFrom(msg.sender, owner, tokenId);
+    params.pm.modifyLiquidities(abi.encode(actions, pancakeParams), type(uint256).max);
+    if (params.owner != address(0)) {
+      params.pm.transferFrom(msg.sender, params.owner, params.tokenId);
     }
 
-    uint256[2] memory received =
-      [token0.selfBalance() - balancesBefore[0], token1.selfBalance() - balancesBefore[1]];
+    uint256[2] memory received = [
+      params.token0.selfBalance() - balancesBefore[0],
+      params.token1.selfBalance() - balancesBefore[1]
+    ];
 
-    require(received[0] == amounts[0] + fees[0], 'Invalid amount0');
-    require(received[1] == amounts[1] + fees[1], 'Invalid amount1');
+    require(received[0] == params.amounts[0] + params.fees[0], 'Invalid amount0');
+    require(received[1] == params.amounts[1] + params.fees[1], 'Invalid amount1');
 
-    if (transferPercent == NOT_TRANSFER) {
+    if (params.transferPercent == NOT_TRANSFER) {
       // not transfer back to router
       return;
     }
 
-    if (wrapOrUnwrap) {
-      if (token0 == TokenHelper.NATIVE_ADDRESS) {
-        IWETH(weth).deposit{value: received[0]}();
-        token0 = weth;
-      } else if (token0 == weth) {
-        IWETH(weth).withdraw(received[0]);
-        token0 = TokenHelper.NATIVE_ADDRESS;
+    if (params.wrapOrUnwrap) {
+      if (params.token0 == TokenHelper.NATIVE_ADDRESS) {
+        IWETH(params.weth).deposit{value: received[0]}();
+        params.token0 = params.weth;
+      } else if (params.token0 == params.weth) {
+        IWETH(params.weth).withdraw(received[0]);
+        params.token0 = TokenHelper.NATIVE_ADDRESS;
       }
 
-      if (token1 == TokenHelper.NATIVE_ADDRESS) {
-        IWETH(weth).deposit{value: received[1]}();
-        token1 = weth;
-      } else if (token1 == weth) {
-        IWETH(weth).withdraw(received[1]);
-        token1 = TokenHelper.NATIVE_ADDRESS;
+      if (params.token1 == TokenHelper.NATIVE_ADDRESS) {
+        IWETH(params.weth).deposit{value: received[1]}();
+        params.token1 = params.weth;
+      } else if (params.token1 == params.weth) {
+        IWETH(params.weth).withdraw(received[1]);
+        params.token1 = TokenHelper.NATIVE_ADDRESS;
       }
     }
 
-    uint256 amount0Transfer = amounts[0] * transferPercent / 1e6;
-    uint256 amount1Transfer = amounts[1] * transferPercent / 1e6;
+    uint256 amount0Transfer = params.amounts[0] * params.transferPercent / 1e6;
+    uint256 amount1Transfer = params.amounts[1] * params.transferPercent / 1e6;
 
-    if (!takeFees) {
-      amount0Transfer += fees[0];
-      amount1Transfer += fees[1];
+    if (!params.takeFees) {
+      amount0Transfer += params.fees[0];
+      amount1Transfer += params.fees[1];
     }
 
-    token0.safeTransfer(router, amount0Transfer);
-    token1.safeTransfer(router, amount1Transfer);
+    params.token0.safeTransfer(params.router, amount0Transfer);
+    params.token1.safeTransfer(params.router, amount1Transfer);
   }
 
   function removeUniswapV3(
