@@ -8,7 +8,7 @@ contract DCAScript is BaseOnchainScript {
   using SafeERC20 for IERC20;
 
   function priceBased() external {
-    _prepareData('KSPriceBasedDCAIntentValidator');
+    _prepareData('KSPriceBasedDCAHook');
 
     //prepare data for validation
     amountIns.push(amountIn);
@@ -16,16 +16,15 @@ contract DCAScript is BaseOnchainScript {
     startTime = block.timestamp;
     endTime = type(uint32).max;
 
-    KSPriceBasedDCAIntentValidator.DCAValidationData memory validationData;
-    validationData.srcToken = tokenIn;
-    validationData.dstToken = tokenOut;
-    validationData.amountIns = amountIns;
-    validationData.amountOutLimits = amountOutLimits;
-    validationData.recipient = recipient;
+    KSPriceBasedDCAHook.DCAHookData memory hookData;
+    hookData.srcToken = tokenIn;
+    hookData.dstToken = tokenOut;
+    hookData.amountIns = amountIns;
+    hookData.amountOutLimits = amountOutLimits;
+    hookData.recipient = recipient;
 
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(abi.encode(validationData));
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, callData);
+    IntentData memory intentData = _getIntentData(abi.encode(hookData));
+    ActionData memory actionData = _getActionData(intentData.tokenData, callData);
 
     vm.startBroadcast(mainWalletPrivateKey);
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);
@@ -39,7 +38,7 @@ contract DCAScript is BaseOnchainScript {
   }
 
   function timeBased() external {
-    _prepareData('KSTimeBasedDCAIntentValidator');
+    _prepareData('KSTimeBasedDCAHook');
 
     //prepare data for validation
     uint32 duration = uint32(1 days);
@@ -53,17 +52,16 @@ contract DCAScript is BaseOnchainScript {
     startTime = block.timestamp;
     endTime = type(uint32).max;
 
-    KSTimeBasedDCAIntentValidator.DCAValidationData memory validationData;
-    validationData.srcToken = tokenIn;
-    validationData.dstToken = tokenOut;
-    validationData.amountIn = amountIn;
-    validationData.amountOutLimits = (1 << 128) | (2 ** 128 - 1);
-    validationData.executionParams = executionParams;
-    validationData.recipient = recipient;
+    KSTimeBasedDCAHook.DCAHookData memory hookData;
+    hookData.srcToken = tokenIn;
+    hookData.dstToken = tokenOut;
+    hookData.amountIn = amountIn;
+    hookData.amountOutLimits = (1 << 128) | (2 ** 128 - 1);
+    hookData.executionParams = executionParams;
+    hookData.recipient = recipient;
 
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData(abi.encode(validationData));
-    IKSSessionIntentRouter.ActionData memory actionData =
-      _getActionData(intentData.tokenData, callData);
+    IntentData memory intentData = _getIntentData(abi.encode(hookData));
+    ActionData memory actionData = _getActionData(intentData.tokenData, callData);
 
     vm.startBroadcast(mainWalletPrivateKey);
     IERC20(tokenIn).safeIncreaseAllowance(address(router), amountIn);

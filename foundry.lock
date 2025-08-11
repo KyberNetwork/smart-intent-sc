@@ -1,0 +1,8 @@
+{
+  "lib/ks-common-sc": {
+    "tag": {
+      "name": "v1.0.7",
+      "rev": "799e4c8d0f3969ed10d7f47a29fab55e1e448524"
+    }
+  }
+}

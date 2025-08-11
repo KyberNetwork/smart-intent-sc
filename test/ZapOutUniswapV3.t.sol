@@ -3,11 +3,11 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import 'src/interfaces/routers/IKSZapRouter.sol';
-import 'src/validators/zap-out/KSZapOutUniswapV3IntentValidator.sol';
+import 'src/hooks/zap-out/KSZapOutUniswapV3Hook.sol';
+import 'src/interfaces/actions/IKSZapRouter.sol';
 
 contract ZapOutUniswapV3Test is BaseTest {
-  KSZapOutUniswapV3IntentValidator zapOutValidator;
+  KSZapOutUniswapV3Hook zapOutHook;
 
   address zapRouter = 0x0e97C887b61cCd952a53578B04763E7134429e05;
   IUniswapV3PM pm = IUniswapV3PM(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
@@ -20,18 +20,11 @@ contract ZapOutUniswapV3Test is BaseTest {
   function setUp() public override {
     super.setUp();
 
-    zapOutValidator = new KSZapOutUniswapV3IntentValidator();
-    address[] memory validators = new address[](1);
-    validators[0] = address(zapOutValidator);
-    vm.prank(owner);
-    router.whitelistValidators(validators, true);
+    zapOutHook = new KSZapOutUniswapV3Hook();
 
     address[] memory actionContracts = new address[](1);
     actionContracts[0] = address(zapRouter);
-    bytes4[] memory actionSelectors = new bytes4[](1);
-    actionSelectors[0] = IKSZapRouter.zap.selector;
-    vm.prank(owner);
-    router.whitelistActions(actionContracts, actionSelectors, true);
+    router.whitelistActionContracts(actionContracts, true);
 
     recipient = 0x6dE36caC9520173d31dc6748d7bd90e41b9D192f;
     minRate = 22_060_326_920_328;
@@ -48,11 +41,11 @@ contract ZapOutUniswapV3Test is BaseTest {
 
   function testZapOutUniswapV3Success(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    IntentData memory intentData = _getIntentData();
 
     _setUpMainAddress(intentData, false);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    ActionData memory actionData = _getActionData(intentData.tokenData);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
@@ -63,11 +56,11 @@ contract ZapOutUniswapV3Test is BaseTest {
 
   function testZapOutUniswapV3WithSignedIntentSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    IntentData memory intentData = _getIntentData();
 
     _setUpMainAddress(intentData, true);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    ActionData memory actionData = _getActionData(intentData.tokenData);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
@@ -79,53 +72,44 @@ contract ZapOutUniswapV3Test is BaseTest {
     );
   }
 
-  function _getIntentData()
-    internal
-    view
-    returns (IKSSessionIntentRouter.IntentData memory intentData)
-  {
-    KSZapOutUniswapV3IntentValidator.ZapOutUniswapV3ValidationData memory validationData;
-    validationData.nftAddresses = new address[](1);
-    validationData.nftAddresses[0] = address(pm);
-    validationData.nftIds = new uint256[](1);
-    validationData.nftIds[0] = tokenId;
-    validationData.pools = new address[](1);
-    validationData.pools[0] = address(pool);
-    validationData.outputTokens = new address[](1);
-    validationData.outputTokens[0] = outputToken;
-    validationData.offsets = new uint256[](1);
-    validationData.offsets[0] = 7; // 7 is the liquidity offset
-    validationData.offsets[0] |= (uint256(0) << 128); // 0 is the sqrtPriceX96 offset
-    validationData.sqrtPLowers = new uint160[](1);
-    validationData.sqrtPLowers[0] = 0;
-    validationData.sqrtPUppers = new uint160[](1);
-    validationData.sqrtPUppers[0] = type(uint160).max;
-    validationData.minRates = new uint256[](1);
-    validationData.minRates[0] = minRate;
-    validationData.recipient = recipient;
+  function _getIntentData() internal view returns (IntentData memory intentData) {
+    KSZapOutUniswapV3Hook.ZapOutUniswapV3HookData memory hookData;
+    hookData.nftAddresses = new address[](1);
+    hookData.nftAddresses[0] = address(pm);
+    hookData.nftIds = new uint256[](1);
+    hookData.nftIds[0] = tokenId;
+    hookData.pools = new address[](1);
+    hookData.pools[0] = address(pool);
+    hookData.outputTokens = new address[](1);
+    hookData.outputTokens[0] = outputToken;
+    hookData.offsets = new uint256[](1);
+    hookData.offsets[0] = 7; // 7 is the liquidity offset
+    hookData.offsets[0] |= (uint256(0) << 128); // 0 is the sqrtPriceX96 offset
+    hookData.sqrtPLowers = new uint160[](1);
+    hookData.sqrtPLowers[0] = 0;
+    hookData.sqrtPUppers = new uint160[](1);
+    hookData.sqrtPUppers[0] = type(uint160).max;
+    hookData.minRates = new uint256[](1);
+    hookData.minRates[0] = minRate;
+    hookData.recipient = recipient;
 
-    IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
+    IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
       actionContracts: _toArray(zapRouter),
       actionSelectors: _toArray(IKSZapRouter.zap.selector),
-      validator: address(zapOutValidator),
-      validationData: abi.encode(validationData)
+      hook: address(zapOutHook),
+      hookIntentData: abi.encode(hookData)
     });
 
-    IKSSessionIntentRouter.TokenData memory tokenData;
-    tokenData.erc721Data = new IKSSessionIntentRouter.ERC721Data[](1);
-    tokenData.erc721Data[0] =
-      IKSSessionIntentRouter.ERC721Data({token: address(pm), tokenId: tokenId, permitData: ''});
+    TokenData memory tokenData;
+    tokenData.erc721Data = new ERC721Data[](1);
+    tokenData.erc721Data[0] = ERC721Data({token: address(pm), tokenId: tokenId, permitData: ''});
 
-    intentData =
-      IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
   }
 
-  function _setUpMainAddress(
-    IKSSessionIntentRouter.IntentData memory intentData,
-    bool withSignedIntent
-  ) internal {
+  function _setUpMainAddress(IntentData memory intentData, bool withSignedIntent) internal {
     vm.startPrank(mainAddress);
     pm.approve(address(router), tokenId);
     if (!withSignedIntent) {
@@ -134,16 +118,19 @@ contract ZapOutUniswapV3Test is BaseTest {
     vm.stopPrank();
   }
 
-  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData)
+  function _getActionData(TokenData memory tokenData)
     internal
     view
-    returns (IKSSessionIntentRouter.ActionData memory actionData)
+    returns (ActionData memory actionData)
   {
-    actionData = IKSSessionIntentRouter.ActionData({
+    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+
+    actionData = ActionData({
       tokenData: tokenData,
+      approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,
-      validatorData: abi.encode(0),
+      hookActionData: abi.encode(0),
       extraData: '',
       deadline: block.timestamp + 1 days,
       nonce: 0

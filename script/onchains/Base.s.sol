@@ -4,16 +4,15 @@ pragma solidity ^0.8.0;
 import 'forge-std/Script.sol';
 import 'forge-std/StdJson.sol';
 
-import '../Base.s.sol';
+import 'ks-common-sc/script/Base.s.sol';
 
-import 'src/KSSessionIntentRouter.sol';
-import 'src/interfaces/routers/IKSSwapRouter.sol';
-import 'src/validators/swap/KSPriceBasedDCAIntentValidator.sol';
-import 'src/validators/swap/KSSwapIntentValidator.sol';
-import 'src/validators/swap/KSTimeBasedDCAIntentValidator.sol';
-import 'src/validators/zap-out/KSZapOutUniswapV2IntentValidator.sol';
-import 'src/validators/zap-out/KSZapOutUniswapV3IntentValidator.sol';
-import 'src/validators/zap-out/KSZapOutUniswapV4IntentValidator.sol';
+import 'src/KSSmartIntentRouter.sol';
+import 'src/hooks/swap/KSPriceBasedDCAHook.sol';
+import 'src/hooks/swap/KSSwapHook.sol';
+import 'src/hooks/swap/KSTimeBasedDCAHook.sol';
+import 'src/hooks/zap-out/KSZapOutUniswapV2Hook.sol';
+import 'src/hooks/zap-out/KSZapOutUniswapV3Hook.sol';
+import 'src/hooks/zap-out/KSZapOutUniswapV4Hook.sol';
 
 contract BaseOnchainScript is BaseScript {
   using stdJson for string;
@@ -27,6 +26,13 @@ contract BaseOnchainScript is BaseScript {
     address sender;
     address recipient;
     uint256 slippage;
+  }
+
+  struct SwapInputs {
+    uint256 amountIn;
+    address recipient;
+    address tokenIn;
+    address tokenOut;
   }
 
   //swapData
@@ -50,46 +56,25 @@ contract BaseOnchainScript is BaseScript {
   uint256 startTime;
   uint256 endTime;
   address swapRouter;
-  KSSessionIntentRouter router;
-  address validator;
+  KSSmartIntentRouter router;
+  address hook;
 
-  function _prepareData(string memory validatorType) internal {
-    string memory root = vm.projectRoot();
-    uint256 chainId;
-    assembly ("memory-safe") {
-      chainId := chainid()
-    }
-    console.log('chainId is %s', chainId);
-
+  function _prepareData(string memory hookType) internal {
     (guardian, guardianPrivateKey) = makeAddrAndKey('guardian');
 
-    (address[] memory swapRouters,) = _readSwapRouterAddresses(
-      string(abi.encodePacked(root, '/script/config/whitelisted-actions.json')), chainId
-    );
-    swapRouter = swapRouters[0];
-    router = KSSessionIntentRouter(
-      _readAddress(string(abi.encodePacked(root, '/script/deployedAddresses/router.json')), chainId)
-    );
+    address[] memory actionContracts = _readAddressArray('whitelisted-contracts');
+    swapRouter = actionContracts[0];
+    router = KSSmartIntentRouter(payable(_readAddress('router')));
 
     //add guardian
     {
-      address owner =
-        _readAddress(string(abi.encodePacked(root, '/script/config/router-owner.json')), chainId);
-      vm.startBroadcast(owner);
+      address admin = _readAddress('router-admin');
+      vm.startBroadcast(admin);
       router.grantRole(KSRoles.GUARDIAN_ROLE, guardian);
       vm.stopBroadcast();
     }
 
-    (string[] memory validators, address[] memory addresses) = _readValidatorAddresses(
-      string(abi.encodePacked(root, '/script/deployedAddresses/validators.json')), chainId
-    );
-
-    for (uint256 i; i < validators.length; i++) {
-      if (_compareStrings(validators[i], validatorType)) {
-        validator = addresses[i];
-        break;
-      }
-    }
+    hook = _readAddress(hookType);
 
     mainWalletPrivateKey = vm.envUint('MAIN_WALLET_PRIVATE_KEY');
     mainWallet = vm.addr(mainWalletPrivateKey);
@@ -97,10 +82,8 @@ contract BaseOnchainScript is BaseScript {
     (sessionWallet, sessionWalletPrivateKey) = makeAddrAndKey('sessionWallet');
 
     //read data for swap
-    SwapInputs memory swapInputs =
-      _readSwapInputs(string(abi.encodePacked(root, '/script/config/swap-inputs.json')), chainId);
-    string memory chainName =
-      _readString(string(abi.encodePacked(root, '/script/config/chain-name.json')), chainId);
+    SwapInputs memory swapInputs = _readSwapInputs();
+    string memory chainName = _readString('chain-name');
 
     tokenIn = swapInputs.tokenIn;
     tokenOut = swapInputs.tokenOut;
@@ -119,59 +102,51 @@ contract BaseOnchainScript is BaseScript {
     );
   }
 
-  function _getIntentData(bytes memory validationData)
+  function _getIntentData(bytes memory hookIntentData)
     internal
     view
-    returns (IKSSessionIntentRouter.IntentData memory intentData)
+    returns (IntentData memory intentData)
   {
-    IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
+    IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainWallet,
       delegatedAddress: sessionWallet,
       actionContracts: _toArray(swapRouter),
       actionSelectors: _toArray(selector),
-      validator: validator,
-      validationData: validationData
+      hook: hook,
+      hookIntentData: hookIntentData
     });
 
-    IKSSessionIntentRouter.TokenData memory tokenData;
-    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] =
-      IKSSessionIntentRouter.ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
+    TokenData memory tokenData;
+    tokenData.erc20Data = new ERC20Data[](1);
+    tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: amountIn, permitData: ''});
 
-    intentData =
-      IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
   }
 
-  function _getActionData(
-    IKSSessionIntentRouter.TokenData memory tokenData,
-    bytes memory actionCalldata
-  ) internal view returns (IKSSessionIntentRouter.ActionData memory actionData) {
-    actionData = IKSSessionIntentRouter.ActionData({
+  function _getActionData(TokenData memory tokenData, bytes memory actionCalldata)
+    internal
+    view
+    returns (ActionData memory actionData)
+  {
+    actionData = ActionData({
       tokenData: tokenData,
+      approvalFlags: type(uint256).max,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
-      validatorData: abi.encode(0), //swapNo, but this script only swap once
+      hookActionData: abi.encode(0), //swapNo, but this script only swap once
       extraData: '',
       deadline: endTime - 100,
       nonce: 0
     });
   }
 
-  function _getMWSignature(IKSSessionIntentRouter.IntentData memory intentData)
-    internal
-    view
-    returns (bytes memory)
-  {
+  function _getMWSignature(IntentData memory intentData) internal view returns (bytes memory) {
     bytes32 intentHash = router.hashTypedIntentData(intentData);
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(mainWalletPrivateKey, intentHash);
     return abi.encodePacked(r, s, v);
   }
 
-  function _getSWSignature(IKSSessionIntentRouter.ActionData memory actionData)
-    internal
-    view
-    returns (bytes memory)
-  {
+  function _getSWSignature(ActionData memory actionData) internal view returns (bytes memory) {
     bytes32 actionHash = router.hashTypedActionData(actionData);
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(sessionWalletPrivateKey, actionHash);
     return abi.encodePacked(r, s, v);
@@ -222,5 +197,27 @@ contract BaseOnchainScript is BaseScript {
       returnValue[i - 4] = data[i];
     }
     return returnValue;
+  }
+
+  function _readSwapInputs() internal view returns (SwapInputs memory swapInputs) {
+    string memory json = _getJsonString('swap-inputs');
+    (swapInputs) = abi.decode(json.parseRaw(dotChainId), (SwapInputs));
+  }
+
+  function _readString(string memory key) internal view returns (string memory) {
+    string memory json = _getJsonString(key);
+    return json.readString(dotChainId);
+  }
+
+  function _toArray(address value) internal pure returns (address[] memory) {
+    address[] memory array = new address[](1);
+    array[0] = value;
+    return array;
+  }
+
+  function _toArray(bytes4 value) internal pure returns (bytes4[] memory) {
+    bytes4[] memory array = new bytes4[](1);
+    array[0] = value;
+    return array;
   }
 }

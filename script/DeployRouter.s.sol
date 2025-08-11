@@ -1,35 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './Base.s.sol';
-import 'src/KSSessionIntentRouter.sol';
+import 'ks-common-sc/script/Base.s.sol';
+import 'src/KSSmartIntentRouter.sol';
 
 contract DeployRouter is BaseScript {
   function run() external {
-    string memory root = vm.projectRoot();
-    uint256 chainId;
-    assembly ("memory-safe") {
-      chainId := chainid()
-    }
-    console.log('chainId is %s', chainId);
-
-    address owner =
-      _readAddress(string(abi.encodePacked(root, '/script/config/router-owner.json')), chainId);
-
-    address[] memory guardians = _readAddressArray(
-      string(abi.encodePacked(root, '/script/config/router-guardians.json')), chainId
-    );
-
-    address[] memory rescuers = _readAddressArray(
-      string(abi.encodePacked(root, '/script/config/router-rescuers.json')), chainId
-    );
+    address admin = _readAddress('router-admin');
+    address[] memory guardians = _readAddressArray('router-guardians');
+    address[] memory rescuers = _readAddressArray('router-rescuers');
+    address forwarder = _readAddress('forwarder');
 
     vm.startBroadcast();
 
-    KSSessionIntentRouter router = new KSSessionIntentRouter(owner, guardians, rescuers);
+    KSSmartIntentRouter router =
+      new KSSmartIntentRouter(admin, guardians, rescuers, IKSGenericForwarder(forwarder));
 
-    string memory path = string(abi.encodePacked(root, '/script/deployedAddresses/'));
-    _writeAddress(path, 'router', chainId, address(router));
+    _writeAddress('router', address(router));
 
     vm.stopBroadcast();
   }

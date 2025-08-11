@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IERC721Permit_v3} from 'ks-common-sc/libraries/token/PermitHelper.sol';
+import {IERC721Permit_v3} from 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 
 library Permit {
   function uniswapV4Permit(

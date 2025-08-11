@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import 'src/interfaces/routers/IKSZapRouter.sol';
-import 'src/validators/zap-out/KSZapOutUniswapV2IntentValidator.sol';
+import 'src/hooks/zap-out/KSZapOutUniswapV2Hook.sol';
+import 'src/interfaces/actions/IKSZapRouter.sol';
 
 contract ZapOutUniswapV2Test is BaseTest {
   using SafeERC20 for IERC20;
 
-  KSZapOutUniswapV2IntentValidator zapOutValidator;
+  KSZapOutUniswapV2Hook zapOutHook;
 
   address zapRouter = 0x0e97C887b61cCd952a53578B04763E7134429e05;
   address pool = 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc;
@@ -23,18 +23,12 @@ contract ZapOutUniswapV2Test is BaseTest {
   function setUp() public override {
     super.setUp();
 
-    zapOutValidator = new KSZapOutUniswapV2IntentValidator();
-    address[] memory validators = new address[](1);
-    validators[0] = address(zapOutValidator);
-    vm.prank(owner);
-    router.whitelistValidators(validators, true);
+    zapOutHook = new KSZapOutUniswapV2Hook();
 
     address[] memory actionContracts = new address[](1);
     actionContracts[0] = address(zapRouter);
-    bytes4[] memory actionSelectors = new bytes4[](1);
-    actionSelectors[0] = IKSZapRouter.zap.selector;
-    vm.prank(owner);
-    router.whitelistActions(actionContracts, actionSelectors, true);
+    vm.prank(admin);
+    router.whitelistActionContracts(actionContracts, true);
 
     minRate = 256_914_906_835_989_424_150_694_571;
 
@@ -56,11 +50,11 @@ contract ZapOutUniswapV2Test is BaseTest {
 
   function testZapOutUniswapV2Success(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    IntentData memory intentData = _getIntentData();
 
     _setUpMainAddress(intentData, false);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    ActionData memory actionData = _getActionData(intentData.tokenData);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -72,11 +66,11 @@ contract ZapOutUniswapV2Test is BaseTest {
 
   function testZapOutUniswapV2WithSignedIntentSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    IKSSessionIntentRouter.IntentData memory intentData = _getIntentData();
+    IntentData memory intentData = _getIntentData();
 
     _setUpMainAddress(intentData, true);
 
-    IKSSessionIntentRouter.ActionData memory actionData = _getActionData(intentData.tokenData);
+    ActionData memory actionData = _getActionData(intentData.tokenData);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -89,53 +83,44 @@ contract ZapOutUniswapV2Test is BaseTest {
     );
   }
 
-  function _getIntentData()
-    internal
-    view
-    returns (IKSSessionIntentRouter.IntentData memory intentData)
-  {
-    KSZapOutUniswapV2IntentValidator.ZapOutUniswapV2ValidationData memory validationData;
-    validationData.srcTokens = new address[](1);
-    validationData.srcTokens[0] = pool;
-    validationData.dstTokens = new address[](1);
-    validationData.dstTokens[0] = dai;
-    validationData.minRates = new uint256[](1);
-    validationData.minRates[0] = minRate;
-    validationData.recipient = recipient;
+  function _getIntentData() internal view returns (IntentData memory intentData) {
+    KSZapOutUniswapV2Hook.ZapOutUniswapV2HookData memory hookData;
+    hookData.srcTokens = new address[](1);
+    hookData.srcTokens[0] = pool;
+    hookData.dstTokens = new address[](1);
+    hookData.dstTokens[0] = dai;
+    hookData.minRates = new uint256[](1);
+    hookData.minRates[0] = minRate;
+    hookData.recipient = recipient;
     {
       address token0 = IUniswapV2Pair(pool).token0();
       address token1 = IUniswapV2Pair(pool).token1();
       uint256 reserve0 = IERC20(token0).balanceOf(pool);
       uint256 reserve1 = IERC20(token1).balanceOf(pool);
       uint256 priceCurrent = (reserve1 * 1e18) / reserve0;
-      validationData.priceLowers = new uint256[](1);
-      validationData.priceLowers[0] = (priceCurrent * 95) / 100;
-      validationData.priceUppers = new uint256[](1);
-      validationData.priceUppers[0] = (priceCurrent * 105) / 100;
+      hookData.priceLowers = new uint256[](1);
+      hookData.priceLowers[0] = (priceCurrent * 95) / 100;
+      hookData.priceUppers = new uint256[](1);
+      hookData.priceUppers[0] = (priceCurrent * 105) / 100;
     }
 
-    IKSSessionIntentRouter.IntentCoreData memory coreData = IKSSessionIntentRouter.IntentCoreData({
+    IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
       actionContracts: _toArray(zapRouter),
       actionSelectors: _toArray(IKSZapRouter.zap.selector),
-      validator: address(zapOutValidator),
-      validationData: abi.encode(validationData)
+      hook: address(zapOutHook),
+      hookIntentData: abi.encode(hookData)
     });
 
-    IKSSessionIntentRouter.TokenData memory tokenData;
-    tokenData.erc20Data = new IKSSessionIntentRouter.ERC20Data[](1);
-    tokenData.erc20Data[0] =
-      IKSSessionIntentRouter.ERC20Data({token: pool, amount: amountIn, permitData: ''});
+    TokenData memory tokenData;
+    tokenData.erc20Data = new ERC20Data[](1);
+    tokenData.erc20Data[0] = ERC20Data({token: pool, amount: amountIn, permitData: ''});
 
-    intentData =
-      IKSSessionIntentRouter.IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
   }
 
-  function _setUpMainAddress(
-    IKSSessionIntentRouter.IntentData memory intentData,
-    bool withSignedIntent
-  ) internal {
+  function _setUpMainAddress(IntentData memory intentData, bool withSignedIntent) internal {
     deal(pool, mainAddress, amountIn);
     vm.startPrank(mainAddress);
     IERC20(pool).safeIncreaseAllowance(address(router), amountIn);
@@ -145,16 +130,19 @@ contract ZapOutUniswapV2Test is BaseTest {
     vm.stopPrank();
   }
 
-  function _getActionData(IKSSessionIntentRouter.TokenData memory tokenData)
+  function _getActionData(TokenData memory tokenData)
     internal
     view
-    returns (IKSSessionIntentRouter.ActionData memory actionData)
+    returns (ActionData memory actionData)
   {
-    actionData = IKSSessionIntentRouter.ActionData({
+    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+
+    actionData = ActionData({
       tokenData: tokenData,
+      approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,
-      validatorData: abi.encode(0),
+      hookActionData: abi.encode(0),
       extraData: '',
       deadline: block.timestamp + 1 days,
       nonce: 0
