@@ -9,6 +9,7 @@ on:
 
 env:
   ETH_NODE_URL: ${{ secrets.ETH_NODE_URL }}
+  BSC_NODE_URL: ${{ secrets.BSC_NODE_URL }}
 
 jobs:
   test:
