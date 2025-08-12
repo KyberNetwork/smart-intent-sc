@@ -24,28 +24,6 @@ interface IKSSwapRouterV2 {
     bytes clientData; // client data
   }
 
-  event Swapped(
-    address sender,
-    address srcToken,
-    address dstToken,
-    address dstReceiver,
-    uint256 spentAmount,
-    uint256 returnAmount
-  );
-
-  event ClientData(bytes clientData);
-
-  event Exchange(address pair, uint256 amountOut, address output);
-
-  event Fee(
-    address token,
-    uint256 totalAmount,
-    uint256 totalFee,
-    address[] recipients,
-    uint256[] amounts,
-    bool isBps
-  );
-
   function swapGeneric(SwapExecutionParams memory)
     external
     payable

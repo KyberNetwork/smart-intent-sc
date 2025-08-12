@@ -457,11 +457,15 @@ contract MockActionTest is BaseTest {
 
     uint256 feeRecipientBalanceBefore = erc20Mock.balanceOf(feeRecipient);
 
-    vm.expectEmit(true, true, true, true);
-    emit HookLibrary.CollectFee(address(erc20Mock), feesBefore[0]);
+    if (feesBefore[0] > 0) {
+      vm.expectEmit(true, true, true, true);
+      emit HookLibrary.CollectFee(feeRecipient, address(erc20Mock), feesBefore[0]);
+    }
 
-    vm.expectEmit(true, true, true, true);
-    emit HookLibrary.CollectFee(address(erc20Mock), feesAfter[0]);
+    if (feesAfter[0] > 0) {
+      vm.expectEmit(true, true, true, true);
+      emit HookLibrary.CollectFee(feeRecipient, address(erc20Mock), feesAfter[0]);
+    }
 
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);

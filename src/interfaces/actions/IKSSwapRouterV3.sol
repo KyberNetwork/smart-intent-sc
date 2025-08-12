@@ -2,35 +2,6 @@
 pragma solidity ^0.8.0;
 
 interface IKSSwapRouterV3 {
-  /// @notice Thrown when the msg.value is less than the required amount
-  error NotEnoughMsgValue(uint256 required, uint256 provided);
-
-  /// @notice Thrown when the output amount is less than the minimum amount
-  error NotEnoughOutputAmount(uint256 minAmount, uint256 outputAmount);
-
-  /// @notice Thrown when failed to call the executor
-  error CallExecutorFailed();
-
-  /// @notice Thrown when failed to call permit2
-  error Permit2Failed();
-
-  /// @notice Emitted when a swap is executed
-  event Swap(
-    address indexed sender,
-    address indexed executor,
-    address indexed recipient,
-    address[] inputTokens,
-    uint256[] inputAmounts,
-    address[] outputTokens,
-    uint256[] outputAmounts
-  );
-
-  /// @notice Emitted when the client data is set
-  event ClientData(bytes clientData);
-
-  /// @notice Emitted when the fee is collected
-  event CollectFee(address token, uint256 totalAmount, uint256 feeAmount, address recipient);
-
   /// @notice Contains the additional data for an input token
   /// @param permitData The permit data
   /// @param feeRecipients The fee recipients
