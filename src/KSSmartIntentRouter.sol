@@ -179,7 +179,7 @@ contract KSSmartIntentRouter is
     _validateActionData(intent, daSignature, guardian, gdSignature, hashTypedActionData(actionData));
 
     (uint256[] memory fees, bytes memory beforeExecutionData) =
-      HookLibrary.beforeExecution(intentHash, intent, actionData);
+      HookLibrary.beforeExecution(intentHash, intent, feeRecipient, actionData);
 
     address actionContract = intent.actionContracts[actionData.actionSelectorId];
     bytes4 actionSelector = intent.actionSelectors[actionData.actionSelectorId];
