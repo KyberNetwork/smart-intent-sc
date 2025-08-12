@@ -13,11 +13,12 @@ library HookLibrary {
   using TokenHelper for address;
 
   /// @notice Emitted when a fee on a token is collected
-  event CollectFee(address token, uint256 fee);
+  event CollectFee(address indexed feeRecipient, address indexed token, uint256 fee);
 
   function beforeExecution(
     bytes32 intentHash,
     IntentCoreData calldata intent,
+    address feeRecipient,
     ActionData calldata actionData
   ) internal returns (uint256[] memory fees, bytes memory beforeExecutionData) {
     (fees, beforeExecutionData) =
@@ -28,7 +29,9 @@ library HookLibrary {
     }
 
     for (uint256 i = 0; i < actionData.tokenData.erc20Data.length; i++) {
-      emit CollectFee(actionData.tokenData.erc20Data[i].token, fees[i]);
+      if (fees[i] > 0) {
+        emit CollectFee(feeRecipient, actionData.tokenData.erc20Data[i].token, fees[i]);
+      }
     }
   }
 
@@ -55,7 +58,9 @@ library HookLibrary {
       tokens[i].safeTransfer(recipient, amounts[i]);
       tokens[i].safeTransfer(feeRecipient, fees[i]);
 
-      emit CollectFee(tokens[i], fees[i]);
+      if (fees[i] > 0) {
+        emit CollectFee(feeRecipient, tokens[i], fees[i]);
+      }
     }
   }
 }
