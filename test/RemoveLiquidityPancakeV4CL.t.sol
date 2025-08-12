@@ -265,6 +265,10 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
+    vm.expectEmit(false, false, false, true, address(rmLqValidator));
+    emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
+      address(positionManager), tokenId, pancakeCL.removeLiqParams.liquidityToRemove
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
     uint256 intentFee0 =
@@ -288,21 +292,28 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     assertEq(mainAddrAfter[1] - mainAddrBefore[1], received1, 'invalid token1 received');
   }
 
-  function testFuzz_ValidateOutputPancakeV4CL(FuzzStruct memory fuzz) public {
-    wrapOrUnwrap = bound(fuzz.seed, 0, 1) == 1;
-    pancakeCL.removeLiqParams.liquidityToRemove = bound(fuzz.seed, 0, liquidity);
-    takeUnclaimedFees = bound(fuzz.seed, 0, 1) == 1;
-    intentFeesPercent0 = bound(fuzz.seed, 0, 1_000_000);
-    intentFeesPercent1 = bound(fuzz.seed, 0, 1_000_000);
+  function testFuzz_ValidateOutputPancakeV4CL(
+    uint256 liquidityToRemove,
+    bool wrap,
+    bool takeFees,
+    uint256 intentFees0,
+    uint256 intentFees1
+  ) public {
+    pancakeCL.removeLiqParams.liquidityToRemove =
+      bound(liquidityToRemove, 0, pancakeCL.removeLiqParams.positionInfo.liquidity);
+    wrapOrUnwrap = wrap;
+    takeUnclaimedFees = takeFees;
+    intentFeesPercent0 = bound(intentFees0, 0, 1_000_000);
+    intentFeesPercent1 = bound(intentFees1, 0, 1_000_000);
 
     _computePositionValues();
 
     amounts = pancakeCL.removeLiqParams.positionInfo.amounts;
     fees = pancakeCL.removeLiqParams.positionInfo.unclaimedFees;
 
-    IntentData memory intentData = _getIntentData(fuzz.usePermit, new Node[](0));
+    IntentData memory intentData = _getIntentData(wrap, new Node[](0));
 
-    _setUpMainAddress(intentData, false, tokenId, !fuzz.usePermit);
+    _setUpMainAddress(intentData, false, tokenId, !wrap);
 
     ActionData memory actionData =
       _getActionData(intentData.tokenData, pancakeCL.removeLiqParams.liquidityToRemove);
@@ -316,50 +327,44 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       return;
     }
 
-    uint256 minReceived0 = (
-      pancakeCL.removeLiqParams.positionInfo.amounts[0]
-        * (1_000_000 - pancakeCL.outputParams.maxFees[0])
-    ) / 1_000_000 + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0];
-    uint256 minReceived1 = (
-      pancakeCL.removeLiqParams.positionInfo.amounts[1]
-        * (1_000_000 - pancakeCL.outputParams.maxFees[1])
-    ) / 1_000_000 + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1];
+    uint256 minReceived0 =
+      (amounts[0] * (1_000_000 - pancakeCL.outputParams.maxFees[0])) / 1_000_000 + fees[0];
+    uint256 minReceived1 =
+      (amounts[1] * (1_000_000 - pancakeCL.outputParams.maxFees[1])) / 1_000_000 + fees[1];
 
-    uint256 actualReceived0 = pancakeCL.removeLiqParams.positionInfo.amounts[0]
-      + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0];
-    uint256 actualReceived1 = pancakeCL.removeLiqParams.positionInfo.amounts[1]
-      + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1];
-
-    uint256 intentFee0 =
-      pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 =
-      pancakeCL.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1e6;
+    uint256 actualReceived0 = amounts[0] + fees[0];
+    uint256 actualReceived1 = amounts[1] + fees[1];
 
     if (takeUnclaimedFees) {
-      actualReceived0 -= pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0];
-      actualReceived1 -= pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1];
+      actualReceived0 -= fees[0];
+      actualReceived1 -= fees[1];
     }
+
+    if (actualReceived0 < fees[0] || actualReceived1 < fees[1]) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
+    uint256 amount0ReceivedForLiquidity = actualReceived0 - fees[0];
+    uint256 amount1ReceivedForLiquidity = actualReceived1 - fees[1];
+
+    uint256 intentFee0 = amount0ReceivedForLiquidity * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 = amount1ReceivedForLiquidity * intentFeesPercent1 / 1e6;
 
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
+
+    if (wrapOrUnwrap) {
+      token0 = wbnb;
+    }
 
     uint256 balance0Before = token0.balanceOf(mainAddress);
     uint256 balance1Before = token1.balanceOf(mainAddress);
 
     vm.startPrank(caller);
-    if (
-      takeUnclaimedFees
-        && (
-          pancakeCL.removeLiqParams.positionInfo.amounts[0]
-            < pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0]
-            || pancakeCL.removeLiqParams.positionInfo.amounts[1]
-              < pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1]
-        )
-    ) {
-      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-      return;
-    } else if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
+    if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
       return;
