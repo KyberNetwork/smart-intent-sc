@@ -44,6 +44,9 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when the forwarder is updated
   event UpdateForwarder(IKSGenericForwarder newForwarder);
 
+  // @notice Emitted when the fee recipient is updated
+  event UpdateFeeRecipient(address feeRecipient);
+
   /// @notice Emitted when an intent is delegated
   event DelegateIntent(
     address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
@@ -154,10 +157,22 @@ interface IKSSmartIntentRouter {
   function forwarder() external view returns (IKSGenericForwarder);
 
   /**
+   * @notice Return the intent fee recipient
+   * @return feeRecipient The address of the intent fee recipient
+   */
+  function feeRecipient() external view returns (address);
+
+  /**
    * @notice Update the forwarder address
    * @param newForwarder The new forwarder address
    */
   function updateForwarder(IKSGenericForwarder newForwarder) external;
+
+  /**
+   * @notice Update the intent fee recipient
+   * @param newFeeRecipient The new intent fee recipient
+   */
+  function updateFeeRecipient(address newFeeRecipient) external;
 
   /**
    * @notice Return if an action contract is whitelisted

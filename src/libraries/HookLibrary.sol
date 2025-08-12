@@ -35,6 +35,7 @@ library HookLibrary {
   function afterExecution(
     bytes32 intentHash,
     IntentCoreData calldata intent,
+    address feeRecipient,
     bytes memory beforeExecutionData,
     bytes memory actionResult
   ) internal {
@@ -52,6 +53,7 @@ library HookLibrary {
 
     for (uint256 i = 0; i < tokens.length; i++) {
       tokens[i].safeTransfer(recipient, amounts[i]);
+      tokens[i].safeTransfer(feeRecipient, fees[i]);
 
       emit CollectFee(tokens[i], fees[i]);
     }

@@ -59,6 +59,7 @@ library ERC20DataLibrary {
     address mainAddress,
     address actionContract,
     IKSGenericForwarder forwarder,
+    address feeRecipient,
     uint256 fee,
     bool approvalFlag
   ) internal {
@@ -75,13 +76,14 @@ library ERC20DataLibrary {
     }
 
     if (address(forwarder) == address(0)) {
-      token.safeTransferFrom(mainAddress, address(this), amount);
+      token.safeTransferFrom(mainAddress, address(this), amount - fee);
+      token.safeTransferFrom(mainAddress, feeRecipient, fee);
       if (approvalFlag) {
         token.forceApprove(actionContract, type(uint256).max);
       }
     } else {
       token.safeTransferFrom(mainAddress, address(forwarder), amount - fee);
-      token.safeTransferFrom(mainAddress, address(this), fee);
+      token.safeTransferFrom(mainAddress, feeRecipient, fee);
       if (approvalFlag) {
         forwardApproveInf(forwarder, token, actionContract);
       }
