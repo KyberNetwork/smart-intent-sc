@@ -38,6 +38,7 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
     address actionContract,
     TokenData calldata tokenData,
     IKSGenericForwarder forwarder,
+    address feeRecipient,
     uint256[] memory fees,
     uint256 approvalFlags
   ) internal {
@@ -48,6 +49,7 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
         mainAddress,
         actionContract,
         forwarder,
+        feeRecipient,
         fees[i],
         _checkFlag(approvalFlags, i)
       );

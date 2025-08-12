@@ -36,6 +36,25 @@ contract MockActionTest is BaseTest {
     assertEq(address(router.forwarder()), address(forwarder), 'Forwarder not updated');
   }
 
+  function testUpdateFeeRecipient() public {
+    address newFeeRecipient = makeAddr('newFeeRecipient');
+
+    vm.prank(makeAddr('random'));
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, makeAddr('random'), 0
+      )
+    );
+    router.updateFeeRecipient(newFeeRecipient);
+
+    vm.prank(admin);
+    vm.expectEmit(true, true, true, true);
+    emit IKSSmartIntentRouter.UpdateFeeRecipient(newFeeRecipient);
+    router.updateFeeRecipient(newFeeRecipient);
+
+    assertEq(router.feeRecipient(), newFeeRecipient, 'Fee recipient not updated');
+  }
+
   function testMockActionExecuteSuccess(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
@@ -436,6 +455,8 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
 
+    uint256 feeRecipientBalanceBefore = erc20Mock.balanceOf(feeRecipient);
+
     vm.expectEmit(true, true, true, true);
     emit HookLibrary.CollectFee(address(erc20Mock), feesBefore[0]);
 
@@ -446,6 +467,11 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     assertEq(erc20Mock.balanceOf(address(this)), amounts[0]);
+    assertEq(
+      erc20Mock.balanceOf(feeRecipient),
+      feeRecipientBalanceBefore + feesBefore[0] + feesAfter[0],
+      'Fee recipient did not receive expected fees'
+    );
   }
 
   function _getNewTokenData(TokenData memory tokenData, uint256 seed)
