@@ -303,8 +303,6 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       uniswapV3.outputParams.tokens[1] = TokenHelper.NATIVE_ADDRESS;
     }
 
-    address feeRecipient = router.feeRecipient();
-
     uint256[2] memory feeBefore = [
       uniswapV3.outputParams.tokens[0].balanceOf(feeRecipient),
       uniswapV3.outputParams.tokens[1].balanceOf(feeRecipient)
