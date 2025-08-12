@@ -808,5 +808,3 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     assertTrue(currentTick < tickLower || currentTick > tickUpper, 'wrong position');
   }
 }
-
-// │   │   └─ ← [Return] [0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c, 0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82], [166815920095184 [1.668e14], 66116749457244408 [6.611e16]], [675809484727625387 [6.758e17], 267510419146929393910 [2.675e20]], mainAddress: [0x3674eD9c52D903C6c3A468592Ac27Fe71B3CD849]

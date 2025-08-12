@@ -198,10 +198,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       return;
     }
 
-    uint256 minReceived0 =
-      (liqAmount0 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee0;
-    uint256 minReceived1 =
-      (liqAmount1 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee1;
+    uint256 minReceived0 = (liqAmount0 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee0;
+    uint256 minReceived1 = (liqAmount1 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee1;
 
     uint256 actualReceived0 = liqAmount0 + unclaimedFee0;
     uint256 actualReceived1 = liqAmount1 + unclaimedFee1;
