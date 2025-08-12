@@ -319,8 +319,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       token0 = weth;
     }
 
-    uint256[2] memory routerBefore =
-      [token0.balanceOf(address(router)), token1.balanceOf(address(router))];
+    address feeRecipient = router.feeRecipient();
+
+    uint256[2] memory feeBefore = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
@@ -335,11 +336,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256 received0 = liqAmount0 + unclaimedFee0 - intentFee0;
     uint256 received1 = liqAmount1 + unclaimedFee1 - intentFee1;
 
-    uint256[2] memory routerAfter =
-      [token0.balanceOf(address(router)), token1.balanceOf(address(router))];
+    uint256[2] memory feeAfter = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
 
-    assertEq(routerAfter[0] - routerBefore[0], intentFee0, 'invalid intent fee 0');
-    assertEq(routerAfter[1] - routerBefore[1], intentFee1, 'invalid token1 fee 1');
+    assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
+    assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
 
     uint256[2] memory mainAddrAfter = [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
