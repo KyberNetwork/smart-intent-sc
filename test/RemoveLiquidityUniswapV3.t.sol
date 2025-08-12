@@ -122,14 +122,19 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     }
   }
 
-  function testFuzz_ValidateAmountOutUniswapV3(uint256 seed) public {
-    seed = bound(seed, 0, type(uint128).max);
+  function testFuzz_ValidateAmountOutUniswapV3(
+    uint256 liquidityToRemove,
+    bool wrap,
+    bool takeFees,
+    uint256 intentFees0,
+    uint256 intentFees1
+  ) public {
     uniswapV3.removeLiqParams.liquidityToRemove =
-      bound(seed, 0, uniswapV3.removeLiqParams.positionInfo.liquidity);
-    wrapOrUnwrap = bound(seed + 1, 0, 1) == 1;
-    takeUnclaimedFees = bound(seed + 2, 0, 1) == 1;
-    intentFeesPercent0 = bound(seed + 3, 0, 1_000_000);
-    intentFeesPercent1 = bound(seed + 4, 0, 1_000_000);
+      bound(liquidityToRemove, 0, uniswapV3.removeLiqParams.positionInfo.liquidity);
+    wrapOrUnwrap = wrap;
+    takeUnclaimedFees = takeFees;
+    intentFeesPercent0 = bound(intentFees0, 0, 1_000_000);
+    intentFeesPercent1 = bound(intentFees1, 0, 1_000_000);
 
     _computePositionValues();
 
@@ -149,50 +154,61 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       return;
     }
 
-    uint256 minReceived0 = uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0]
-      + (
-        uniswapV3.removeLiqParams.positionInfo.amounts[0]
-          * (1_000_000 - uniswapV3.outputParams.maxFees[0])
-      ) / 1_000_000;
-    uint256 minReceived1 = uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
-      + (
-        uniswapV3.removeLiqParams.positionInfo.amounts[1]
-          * (1_000_000 - uniswapV3.outputParams.maxFees[1])
-      ) / 1_000_000;
+    uint256[2] memory amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
+    uint256[2] memory fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
 
-    uint256 actualReceived0 = uniswapV3.removeLiqParams.positionInfo.amounts[0]
-      + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0];
-    uint256 actualReceived1 = uniswapV3.removeLiqParams.positionInfo.amounts[1]
-      + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1];
+    uint256 minReceived0 =
+      (amounts[0] * (1_000_000 - uniswapV3.outputParams.maxFees[0])) / 1_000_000 + fees[0];
+    uint256 minReceived1 =
+      (amounts[1] * (1_000_000 - uniswapV3.outputParams.maxFees[1])) / 1_000_000 + fees[1];
 
-    uint256 intentFee0 =
-      uniswapV3.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 =
-      uniswapV3.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1e6;
+    uint256 actualReceived0 = amounts[0] + fees[0];
+    uint256 actualReceived1 = amounts[1] + fees[1];
 
     if (takeUnclaimedFees) {
-      actualReceived0 -= uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0];
-      actualReceived1 -= uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1];
+      actualReceived0 -= fees[0];
+      actualReceived1 -= fees[1];
     }
+
+    if (actualReceived0 < fees[0] || actualReceived1 < fees[1]) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
+    uint256 amount0ReceivedForLiquidity = actualReceived0 - fees[0];
+    uint256 amount1ReceivedForLiquidity = actualReceived1 - fees[1];
+
+    uint256 intentFee0 = amount0ReceivedForLiquidity * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 = amount1ReceivedForLiquidity * intentFeesPercent1 / 1e6;
 
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
 
-    vm.startPrank(caller);
-    if (
-      takeUnclaimedFees
-        && (
-          uniswapV3.removeLiqParams.positionInfo.amounts[0]
-            < uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0]
-            || uniswapV3.removeLiqParams.positionInfo.amounts[1]
-              < uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1]
-        )
-    ) {
-      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-    } else if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
-      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
+    address token0 = uniswapV3.outputParams.tokens[0];
+    address token1 = uniswapV3.outputParams.tokens[1];
+    if (wrap) {
+      token1 = TokenHelper.NATIVE_ADDRESS;
     }
+
+    uint256 balance0Before = token0.balanceOf(mainAddress);
+    uint256 balance1Before = token1.balanceOf(mainAddress);
+
+    vm.startPrank(caller);
+    if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+
+    uint256 balance0After = token0.balanceOf(mainAddress);
+    uint256 balance1After = token1.balanceOf(mainAddress);
+
+    assertEq(balance0After - balance0Before, actualReceived0, 'invalid token0 received');
+    assertEq(balance1After - balance1Before, actualReceived1, 'invalid token1 received');
   }
 
   function test_multiCallToUniV3PositionManager(bool wrap) public {
@@ -301,6 +317,10 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
+    vm.expectEmit(false, false, false, true, address(rmLqValidator));
+    emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
+      address(pm), tokenId, uniswapV3.removeLiqParams.liquidityToRemove
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
     uint256 intentFee0 =

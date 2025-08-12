@@ -10,6 +10,8 @@ import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
 abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   using TokenHelper for address;
 
+  event LiquidityRemoved(address nftAddress, uint256 nftId, uint256 liquidity);
+
   error InvalidOwner();
   error InvalidLiquidity();
   error NotEnoughOutputAmount();
@@ -130,7 +132,6 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     bytes calldata
   )
     external
-    view
     override
     returns (
       address[] memory tokens,
@@ -152,7 +153,6 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     bytes calldata beforeExecutionData
   )
     internal
-    view
     virtual
     returns (
       address[] memory tokens,
@@ -176,6 +176,12 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     tokens[0] = outputParams.tokens[0];
     tokens[1] = outputParams.tokens[1];
     recipient = removeLiqParams.recipient;
+
+    emit LiquidityRemoved(
+      removeLiqParams.positionInfo.nftAddress,
+      removeLiqParams.positionInfo.nftId,
+      removeLiqParams.liquidityToRemove
+    );
   }
 
   /**

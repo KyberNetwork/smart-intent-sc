@@ -198,30 +198,56 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       return;
     }
 
-    uint256 minReceived0 = (liqAmount0 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee0;
-    uint256 minReceived1 = (liqAmount1 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee1;
+    uint256 minReceived0 =
+      (liqAmount0 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee0;
+    uint256 minReceived1 =
+      (liqAmount1 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee1;
 
     uint256 actualReceived0 = liqAmount0 + unclaimedFee0;
     uint256 actualReceived1 = liqAmount1 + unclaimedFee1;
-
-    uint256 intentFee0 = liqAmount0 * intentFeesPercent0 / 1_000_000;
-    uint256 intentFee1 = liqAmount1 * intentFeesPercent1 / 1_000_000;
 
     if (takeUnclaimedFees) {
       actualReceived0 -= unclaimedFee0;
       actualReceived1 -= unclaimedFee1;
     }
 
+    if (actualReceived0 < unclaimedFee0 || actualReceived1 < unclaimedFee1) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
+    uint256 amount0ReceivedForLiquidity = actualReceived0 - unclaimedFee0;
+    uint256 amount1ReceivedForLiquidity = actualReceived1 - unclaimedFee1;
+
+    uint256 intentFee0 = amount0ReceivedForLiquidity * intentFeesPercent0 / 1e6;
+    uint256 intentFee1 = amount1ReceivedForLiquidity * intentFeesPercent1 / 1e6;
+
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
 
-    vm.startPrank(caller);
-    if (takeUnclaimedFees && (liqAmount0 < unclaimedFee0 || liqAmount1 < unclaimedFee1)) {
-      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-    } else if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
-      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
+    if (wrapOrUnwrap) {
+      token0 = weth;
     }
+
+    uint256 balance0Before = token0.balanceOf(mainAddress);
+    uint256 balance1Before = token1.balanceOf(mainAddress);
+
+    vm.startPrank(caller);
+    if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
+      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+
+    uint256 balance0After = token0.balanceOf(mainAddress);
+    uint256 balance1After = token1.balanceOf(mainAddress);
+
+    assertEq(balance0After - balance0Before, actualReceived0, 'invalid token0 received');
+    assertEq(balance1After - balance1Before, actualReceived1, 'invalid token1 received');
   }
 
   function test_RemoveSuccess_DefaultConditions(bool withPermit) public {
@@ -328,6 +354,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
+    vm.expectEmit(false, false, false, true, address(rmLqHook));
+    emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
+      address(pm), uniV4TokenId, liquidityToRemove
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
     uint256 intentFee0 = liqAmount0 * intentFeesPercent0 / 1e6;
