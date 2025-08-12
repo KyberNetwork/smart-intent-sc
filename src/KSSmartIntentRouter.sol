@@ -31,7 +31,7 @@ contract KSSmartIntentRouter is
 
   IKSGenericForwarder public forwarder;
 
-  address public feeRecipient;
+  address private feeRecipient;
 
   constructor(
     address initialAdmin,

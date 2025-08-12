@@ -51,8 +51,6 @@ contract MockActionTest is BaseTest {
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.UpdateFeeRecipient(newFeeRecipient);
     router.updateFeeRecipient(newFeeRecipient);
-
-    assertEq(router.feeRecipient(), newFeeRecipient, 'Fee recipient not updated');
   }
 
   function testMockActionExecuteSuccess(uint256 seed) public {
@@ -457,15 +455,15 @@ contract MockActionTest is BaseTest {
 
     uint256 feeRecipientBalanceBefore = erc20Mock.balanceOf(feeRecipient);
 
-    if (feesBefore[0] > 0) {
-      vm.expectEmit(true, true, true, true);
-      emit HookLibrary.CollectFee(feeRecipient, address(erc20Mock), feesBefore[0]);
-    }
+    vm.expectEmit(true, true, true, true);
+    emit HookLibrary.VolumeExecuted(
+      address(erc20Mock), feeRecipient, feesBefore[0], actionData.tokenData.erc20Data[0].amount
+    );
 
-    if (feesAfter[0] > 0) {
-      vm.expectEmit(true, true, true, true);
-      emit HookLibrary.CollectFee(feeRecipient, address(erc20Mock), feesAfter[0]);
-    }
+    vm.expectEmit(true, true, true, true);
+    emit HookLibrary.VolumeExecuted(
+      address(erc20Mock), feeRecipient, feesAfter[0], amounts[0] + feesAfter[0]
+    );
 
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);

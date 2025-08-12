@@ -256,8 +256,6 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       token0 = wbnb;
     }
 
-    address feeRecipient = router.feeRecipient();
-
     uint256[2] memory feeBefore = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];

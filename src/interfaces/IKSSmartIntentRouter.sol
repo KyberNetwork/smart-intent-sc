@@ -157,12 +157,6 @@ interface IKSSmartIntentRouter {
   function forwarder() external view returns (IKSGenericForwarder);
 
   /**
-   * @notice Return the intent fee recipient
-   * @return feeRecipient The address of the intent fee recipient
-   */
-  function feeRecipient() external view returns (address);
-
-  /**
    * @notice Update the forwarder address
    * @param newForwarder The new forwarder address
    */

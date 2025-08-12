@@ -12,8 +12,10 @@ import './types/IntentCoreData.sol';
 library HookLibrary {
   using TokenHelper for address;
 
-  /// @notice Emitted when a fee on a token is collected
-  event CollectFee(address indexed feeRecipient, address indexed token, uint256 fee);
+  // @notice Emit the ERC20/Native fee and volume
+  event VolumeExecuted(
+    address indexed token, address indexed feeRecipient, uint256 fee, uint256 volume
+  );
 
   function beforeExecution(
     bytes32 intentHash,
@@ -29,9 +31,12 @@ library HookLibrary {
     }
 
     for (uint256 i = 0; i < actionData.tokenData.erc20Data.length; i++) {
-      if (fees[i] > 0) {
-        emit CollectFee(feeRecipient, actionData.tokenData.erc20Data[i].token, fees[i]);
-      }
+      emit VolumeExecuted(
+        actionData.tokenData.erc20Data[i].token,
+        feeRecipient,
+        fees[i],
+        actionData.tokenData.erc20Data[i].amount
+      );
     }
   }
 
@@ -58,9 +63,7 @@ library HookLibrary {
       tokens[i].safeTransfer(recipient, amounts[i]);
       tokens[i].safeTransfer(feeRecipient, fees[i]);
 
-      if (fees[i] > 0) {
-        emit CollectFee(feeRecipient, tokens[i], fees[i]);
-      }
+      emit VolumeExecuted(tokens[i], feeRecipient, fees[i], amounts[i] + fees[i]);
     }
   }
 }
