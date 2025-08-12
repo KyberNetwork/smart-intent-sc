@@ -456,12 +456,12 @@ contract MockActionTest is BaseTest {
     uint256 feeRecipientBalanceBefore = erc20Mock.balanceOf(feeRecipient);
 
     vm.expectEmit(true, true, true, true);
-    emit HookLibrary.VolumeExecuted(
+    emit HookLibrary.FeeAndVolumeRecorded(
       address(erc20Mock), feeRecipient, feesBefore[0], actionData.tokenData.erc20Data[0].amount
     );
 
     vm.expectEmit(true, true, true, true);
-    emit HookLibrary.VolumeExecuted(
+    emit HookLibrary.FeeAndVolumeRecorded(
       address(erc20Mock), feeRecipient, feesAfter[0], amounts[0] + feesAfter[0]
     );
 

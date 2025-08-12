@@ -13,7 +13,7 @@ library HookLibrary {
   using TokenHelper for address;
 
   // @notice Emit the ERC20/Native fee and volume
-  event VolumeExecuted(
+  event FeeAndVolumeRecorded(
     address indexed token, address indexed feeRecipient, uint256 fee, uint256 volume
   );
 
@@ -31,7 +31,7 @@ library HookLibrary {
     }
 
     for (uint256 i = 0; i < actionData.tokenData.erc20Data.length; i++) {
-      emit VolumeExecuted(
+      emit FeeAndVolumeRecorded(
         actionData.tokenData.erc20Data[i].token,
         feeRecipient,
         fees[i],
@@ -63,7 +63,7 @@ library HookLibrary {
       tokens[i].safeTransfer(recipient, amounts[i]);
       tokens[i].safeTransfer(feeRecipient, fees[i]);
 
-      emit VolumeExecuted(tokens[i], feeRecipient, fees[i], amounts[i] + fees[i]);
+      emit FeeAndVolumeRecorded(tokens[i], feeRecipient, fees[i], amounts[i] + fees[i]);
     }
   }
 }
