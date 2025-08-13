@@ -31,9 +31,9 @@ contract MockActionTest is BaseTest {
     router.updateForwarder(forwarder);
 
     vm.prank(admin);
+    vm.expectEmit(true, true, true, true);
+    emit IKSSmartIntentRouter.UpdateForwarder(forwarder);
     router.updateForwarder(forwarder);
-
-    assertEq(address(router.forwarder()), address(forwarder), 'Forwarder not updated');
   }
 
   function testUpdateFeeRecipient() public {
