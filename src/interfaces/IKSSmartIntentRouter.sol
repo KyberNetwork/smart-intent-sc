@@ -151,12 +151,6 @@ interface IKSSmartIntentRouter {
     returns (bool approved);
 
   /**
-   * @notice Return the forwarder address
-   * @return forwarder The address of the forwarder
-   */
-  function forwarder() external view returns (IKSGenericForwarder);
-
-  /**
    * @notice Update the forwarder address
    * @param newForwarder The new forwarder address
    */

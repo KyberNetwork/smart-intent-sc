@@ -29,7 +29,7 @@ contract KSSmartIntentRouter is
 
   mapping(address => bool) public whitelistedActionContracts;
 
-  IKSGenericForwarder public forwarder;
+  IKSGenericForwarder private forwarder;
 
   address private feeRecipient;
 
@@ -62,6 +62,8 @@ contract KSSmartIntentRouter is
   function whitelistActionContracts(address[] calldata actionContracts, bool grantOrRevoke) public {
     for (uint256 i = 0; i < actionContracts.length; i++) {
       whitelistedActionContracts[actionContracts[i]] = grantOrRevoke;
+
+      emit WhitelistActionContract(actionContracts[i], grantOrRevoke);
     }
   }
 
