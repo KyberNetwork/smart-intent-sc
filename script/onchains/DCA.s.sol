@@ -53,7 +53,6 @@ contract DCAScript is BaseOnchainScript {
     endTime = type(uint32).max;
 
     KSTimeBasedDCAHook.DCAHookData memory hookData;
-    hookData.srcToken = tokenIn;
     hookData.dstToken = tokenOut;
     hookData.amountIn = amountIn;
     hookData.amountOutLimits = (1 << 128) | (2 ** 128 - 1);

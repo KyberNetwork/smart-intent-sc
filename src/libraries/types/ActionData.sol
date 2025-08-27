@@ -8,7 +8,9 @@ import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol
 
 /**
  * @notice Data structure for action
- * @param tokenData The token data for the action
+ * @param erc20Ids The IDs of the ERC20 tokens in the intent data
+ * @param erc20Amounts The amounts of the ERC20 tokens
+ * @param erc721Ids The IDs of the ERC721 tokens in the intent data
  * @param approvalFlags The approval flags for the tokens
  * @param actionSelectorId The ID of the action selector
  * @param actionCalldata The calldata for the action
@@ -18,7 +20,9 @@ import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol
  * @param nonce The nonce for the action
  */
 struct ActionData {
-  TokenData tokenData;
+  uint256[] erc20Ids;
+  uint256[] erc20Amounts;
+  uint256[] erc721Ids;
   uint256 approvalFlags;
   uint256 actionSelectorId;
   bytes actionCalldata;
@@ -33,7 +37,7 @@ using ActionDataLibrary for ActionData global;
 library ActionDataLibrary {
   bytes32 constant ACTION_DATA_TYPE_HASH = keccak256(
     abi.encodePacked(
-      'ActionData(TokenData tokenData,uint256 approvalFlags,uint256 actionSelectorId,bytes actionCalldata,bytes hookActionData,bytes extraData,uint256 deadline,uint256 nonce)ERC20Data(address token,uint256 amount,bytes permitData)ERC721Data(address token,uint256 tokenId,bytes permitData)TokenData(ERC20Data[] erc20Data,ERC721Data[] erc721Data)'
+      'ActionData(uint256[] erc20Ids,uint256[] erc20Amounts,uint256[] erc721Ids,uint256 approvalFlags,uint256 actionSelectorId,bytes actionCalldata,bytes hookActionData,bytes extraData,uint256 deadline,uint256 nonce)'
     )
   );
 
@@ -41,7 +45,9 @@ library ActionDataLibrary {
     return keccak256(
       abi.encode(
         ACTION_DATA_TYPE_HASH,
-        self.tokenData.hash(),
+        keccak256(abi.encodePacked(self.erc20Ids)),
+        keccak256(abi.encodePacked(self.erc20Amounts)),
+        keccak256(abi.encodePacked(self.erc721Ids)),
         self.approvalFlags,
         self.actionSelectorId,
         keccak256(self.actionCalldata),

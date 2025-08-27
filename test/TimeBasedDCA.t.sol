@@ -6,6 +6,7 @@ import 'src/hooks/swap/KSTimeBasedDCAHook.sol';
 
 contract TimeBasedDCATest is BaseTest {
   using SafeERC20 for IERC20;
+  using ArraysHelper for *;
 
   struct Swap {
     bytes data;
@@ -231,40 +232,6 @@ contract TimeBasedDCATest is BaseTest {
     }
   }
 
-  function test_invalidTokenIn(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
-
-    IntentData memory intentData = _getIntentData();
-    KSTimeBasedDCAHook.DCAHookData memory hookData =
-      abi.decode(intentData.coreData.hookIntentData, (KSTimeBasedDCAHook.DCAHookData));
-    hookData.srcToken = makeAddr('dummy'); //invalid tokenIn
-    intentData.coreData.hookIntentData = abi.encode(hookData);
-
-    _setUpMainAddress(intentData, false);
-
-    for (uint256 i; i < timestamps.length; i++) {
-      uint32 executionTime = timestamps[i];
-      deadline = executionTime + 10;
-      swap = i;
-
-      ActionData memory actionData =
-        _getActionData(intentData.tokenData, _adjustDeadline(swapCalldata));
-
-      vm.warp(executionTime);
-      (address caller, bytes memory daSignature, bytes memory gdSignature) =
-        _getCallerAndSignatures(mode, actionData);
-
-      vm.startPrank(caller);
-      vm.expectRevert(
-        abi.encodeWithSelector(
-          KSTimeBasedDCAHook.InvalidTokenIn.selector, hookData.srcToken, tokenIn
-        )
-      );
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-      vm.stopPrank();
-    }
-  }
-
   function test_invalidAmountIn(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData();
@@ -396,7 +363,6 @@ contract TimeBasedDCATest is BaseTest {
 
   function _getIntentData() internal view returns (IntentData memory intentData) {
     KSTimeBasedDCAHook.DCAHookData memory hookData;
-    hookData.srcToken = tokenIn;
     hookData.dstToken = tokenOut;
     hookData.amountIn = amountIn;
     hookData.amountOutLimits = (minAmountOut << 128) | maxAmountOut;
@@ -406,8 +372,8 @@ contract TimeBasedDCATest is BaseTest {
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(swapRouter),
-      actionSelectors: _toArray(IKSSwapRouterV2.swap.selector),
+      actionContracts: [swapRouter].toMemoryArray(),
+      actionSelectors: [IKSSwapRouterV2.swap.selector].toMemoryArray(),
       hook: address(dcaHook),
       hookIntentData: abi.encode(hookData)
     });
@@ -436,7 +402,9 @@ contract TimeBasedDCATest is BaseTest {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: [uint256(0)].toMemoryArray(),
+      erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
+      erc721Ids: new uint256[](0),
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

@@ -13,6 +13,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
   using StateLibrary for IPoolManager;
+  using ArraysHelper for *;
 
   address pm = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
   address uniV4TokenOwner = 0x1f2F10D1C40777AE1Da742455c65828FF36Df387;
@@ -64,14 +65,6 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     FORK_BLOCK = 22_937_800;
     super.setUp();
 
-    {
-      vm.startPrank(admin);
-      address[] memory actionContracts = new address[](2);
-      actionContracts[0] = address(pm);
-      router.whitelistActionContracts(actionContracts, true);
-      vm.stopPrank();
-    }
-
     rmLqHook = new KSRemoveLiquidityUniswapV4Hook(weth);
     nftOwner = mainAddress;
 
@@ -87,6 +80,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     (tickLower, tickUpper) = _getTickRange(positionIn);
     liquidity = IPositionManager(pm).getPositionLiquidity(uniV4TokenId);
     assertTrue(currentTick > tickUpper, 'currentTick > tickLower');
+
+    vm.prank(admin);
+    router.grantRole(ACTION_CONTRACT_ROLE, address(pm));
   }
 
   function testFuzz_RemoveLiquidityUniV4(FuzzStruct memory fuzzStruct) public {
@@ -122,8 +118,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, fuzzStruct.withSignedIntent, uniV4TokenId, !fuzzStruct.usePermit);
 
-    ActionData memory actionData =
-      _getActionData(intentData.tokenData, fuzzStruct.liquidityToRemove);
+    ActionData memory actionData = _getActionData(fuzzStruct.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -187,7 +182,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !fuzz.usePermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, fuzz.liquidityToRemove);
+    ActionData memory actionData = _getActionData(fuzz.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -253,7 +248,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -322,7 +317,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     _setUpMainAddress(intentData, false, uniV4TokenId, true);
 
     ActionData memory actionData = ActionData({
-      tokenData: intentData.tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -347,8 +344,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqHook));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
@@ -391,7 +387,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -419,7 +415,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -446,7 +442,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -473,7 +469,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -495,7 +491,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     _setUpMainAddress(intentData, false, uniV4TokenId, !withPermit);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -507,7 +503,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   function test_executeSignedIntent_RemoveSuccess() public {
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, true, uniV4TokenId, false);
-    ActionData memory actionData = _getActionData(intentData.tokenData, liquidity);
+    ActionData memory actionData = _getActionData(liquidity);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -526,7 +522,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     magicNumber = NOT_TRANSFER;
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    ActionData memory actionData = _getActionData(liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -542,7 +538,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     nftOwner = makeAddr('tmp');
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    ActionData memory actionData = _getActionData(liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -558,7 +554,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     magicNumber = 990_000;
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    ActionData memory actionData = _getActionData(liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -573,7 +569,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     magicNumber = 970_000;
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    ActionData memory actionData = _getActionData(liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -582,7 +578,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testFuzz_OutputAmounts(uint256 liq, uint256 transferPercent) public {
+  function testFuzz_OutputAmounts(uint256 liq) public {
     wrapOrUnwrap = bound(liq, 0, 1) == 1;
     liq = bound(liq, liquidity * 10 / 100, liquidity);
     takeUnclaimedFees = bound(liq, 0, 1) == 1;
@@ -590,7 +586,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, liq);
+    ActionData memory actionData = _getActionData(liq);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -606,7 +602,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
-    ActionData memory actionData = _getActionData(intentData.tokenData, 0);
+    ActionData memory actionData = _getActionData(0);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
@@ -716,11 +712,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     return rmLqHook.evaluateCondition(condition, additionalData);
   }
 
-  function _getActionData(TokenData memory tokenData, uint256 _liquidity)
-    internal
-    view
-    returns (ActionData memory actionData)
-  {
+  function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
     MockActionContract.RemoveUniswapV4Params memory params = MockActionContract
       .RemoveUniswapV4Params({
       posManager: IPositionManager(pm),
@@ -737,7 +729,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     });
 
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       approvalFlags: type(uint256).max,
       actionSelectorId: 0,
       actionCalldata: abi.encode(params),

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import './libraries/ArraysHelper.sol';
 import './mocks/ERC721Mock.sol';
 import './mocks/MockActionContract.sol';
 import './mocks/MockDex.sol';
@@ -14,11 +15,16 @@ import 'src/KSSmartIntentRouter.sol';
 import 'src/interfaces/actions/IKSSwapRouterV2.sol';
 
 contract BaseTest is Test {
+  using ArraysHelper for *;
+
+  bytes32 constant ACTION_CONTRACT_ROLE = keccak256('ACTION_CONTRACT_ROLE');
+
   uint256 FORK_BLOCK = 22_085_494;
 
   address admin = makeAddr('admin');
   address guardian;
   uint256 guardianKey;
+  address rescuer = makeAddr('rescuer');
   address mainAddress;
   uint256 mainAddressKey;
   address delegatedAddress;
@@ -52,25 +58,22 @@ contract BaseTest is Test {
     (mainAddress, mainAddressKey) = makeAddrAndKey('mainAddress');
     (delegatedAddress, delegatedAddressKey) = makeAddrAndKey('delegatedAddress');
 
-    address[] memory initialGuardians = new address[](1);
-    initialGuardians[0] = guardian;
-
-    forwarder = new KSGenericForwarder();
-    router =
-      new KSSmartIntentRouter(admin, initialGuardians, initialGuardians, feeRecipient, forwarder);
-
     mockActionContract = new MockActionContract();
     mockDex = new MockDex();
-    {
-      vm.startPrank(admin);
-      address[] memory actionContracts = new address[](4);
-      actionContracts[0] = address(mockActionContract);
-      actionContracts[1] = address(swapRouter);
-      actionContracts[2] = address(mockDex);
-      actionContracts[3] = address(mockActionContract);
-      router.whitelistActionContracts(actionContracts, true);
-      vm.stopPrank();
-    }
+
+    vm.startPrank(admin);
+
+    forwarder = new KSGenericForwarder();
+    router = new KSSmartIntentRouter(
+      admin,
+      [guardian].toMemoryArray(),
+      [rescuer].toMemoryArray(),
+      [address(mockActionContract), address(swapRouter), address(mockDex)].toMemoryArray(),
+      feeRecipient,
+      address(forwarder)
+    );
+
+    vm.stopPrank();
 
     erc20Mock = new ERC20Mock();
     erc721Mock = new ERC721Mock();
@@ -110,17 +113,5 @@ contract BaseTest is Test {
     if (mode == 0 || mode == 2) {
       gdSignature = _getGDSignature(actionData);
     }
-  }
-
-  function _toArray(address a) internal pure returns (address[] memory) {
-    address[] memory array = new address[](1);
-    array[0] = a;
-    return array;
-  }
-
-  function _toArray(bytes4 a) internal pure returns (bytes4[] memory) {
-    bytes4[] memory array = new bytes4[](1);
-    array[0] = a;
-    return array;
   }
 }

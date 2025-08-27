@@ -38,32 +38,32 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     address recipient;
   }
 
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
-    require(tokenData.erc20Data.length == 0, InvalidTokenData());
-    require(tokenData.erc721Data.length == 1, InvalidTokenData());
+  modifier checkTokenLengths(ActionData calldata actionData) override {
+    require(actionData.erc20Ids.length == 0, InvalidTokenData());
+    require(actionData.erc721Ids.length == 1, InvalidTokenData());
     _;
   }
 
   /// @inheritdoc IKSSmartIntentHook
   function beforeExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     ActionData calldata actionData
   )
     external
     view
     override
-    checkTokenLengths(actionData.tokenData)
+    checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.hookActionData, (uint256));
 
     ZapOutUniswapV3HookData memory zapOutHookData =
-      abi.decode(coreData.hookIntentData, (ZapOutUniswapV3HookData));
+      abi.decode(intentData.coreData.hookIntentData, (ZapOutUniswapV3HookData));
 
-    ERC721Data[] calldata erc721Data = actionData.tokenData.erc721Data;
-    require(erc721Data[0].token == zapOutHookData.nftAddresses[index], InvalidTokenData());
-    require(erc721Data[0].tokenId == zapOutHookData.nftIds[index], InvalidTokenData());
+    ERC721Data calldata erc721Data = intentData.tokenData.erc721Data[actionData.erc721Ids[0]];
+    require(erc721Data.token == zapOutHookData.nftAddresses[index], InvalidTokenData());
+    require(erc721Data.tokenId == zapOutHookData.nftIds[index], InvalidTokenData());
 
     uint160 sqrtPriceX96 =
       _getSqrtPriceX96(zapOutHookData.pools[index], zapOutHookData.offsets[index] >> 128);
@@ -83,7 +83,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint256 tokenBalanceBefore =
       zapOutHookData.outputTokens[index].balanceOf(zapOutHookData.recipient);
 
-    fees = new uint256[](actionData.tokenData.erc20Data.length);
+    fees = new uint256[](actionData.erc20Ids.length);
     beforeExecutionData = abi.encode(
       zapOutHookData.nftAddresses[index],
       zapOutHookData.nftIds[index],
@@ -99,7 +99,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
   /// @inheritdoc IKSSmartIntentHook
   function afterExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata
   ) external view override returns (address[] memory, uint256[] memory, uint256[] memory, address) {
@@ -132,7 +132,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
 
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
       require(
-        liquidityAfter == 0 || IERC721(nftAddress).ownerOf(nftId) == coreData.mainAddress,
+        liquidityAfter == 0 || IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress,
         InvalidOwner()
       );
       liquidity = liquidityBefore - liquidityAfter;
