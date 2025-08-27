@@ -45,11 +45,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
   }
 
   /// @inheritdoc IKSSmartIntentHook
-  function beforeExecution(
-    bytes32,
-    IntentData calldata intentData,
-    ActionData calldata actionData
-  )
+  function beforeExecution(bytes32, IntentData calldata intentData, ActionData calldata actionData)
     external
     view
     override

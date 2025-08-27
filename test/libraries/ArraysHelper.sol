@@ -149,5 +149,4 @@ library ArraysHelper {
     ret[2] = array[2];
     return ret;
   }
-
 }

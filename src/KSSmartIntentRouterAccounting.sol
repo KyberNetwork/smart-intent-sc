@@ -46,7 +46,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
     address actionContract,
     TokenData calldata tokenData,
     ActionData calldata actionData,
-    IKSGenericForwarder forwarder,
+    IKSGenericForwarder _forwarder,
     uint256[] memory fees
   ) internal checkLengths(actionData.erc20Ids.length, actionData.erc20Amounts.length) {
     /// @dev gas optimization
@@ -66,7 +66,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
         actionContract,
         fees[i],
         _checkFlag(approvalFlags, i),
-        forwarder,
+        _forwarder,
         _feeRecipient
       );
     }
@@ -77,7 +77,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
       uint256 tokenId = tokenData.erc721Data[actionData.erc721Ids[i]].tokenId;
 
       ERC721DataLibrary.collect(
-        token, tokenId, mainAddress, actionContract, forwarder, _checkFlag(approvalFlags, i)
+        token, tokenId, mainAddress, actionContract, _forwarder, _checkFlag(approvalFlags, i)
       );
     }
   }
