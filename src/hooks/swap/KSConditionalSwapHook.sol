@@ -31,16 +31,14 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
   /**
    * @notice The limit of swap executions that can be performed for a swap info
    * @param swapLimit The maximum number of times the swap can be executed
-   * @param startTime The start time of the swap
-   * @param endTime The end time of the swap
+   * @param timeLimits The limits of the swap time (minTime 128bits, maxTime 128bits)
    * @param amountInLimits The limits of the swap amount (minAmountIn 128bits, maxAmountIn 128bits)
    * @param maxFees The max fees (srcFee 128bits, dstFee 128bits)
    * @param priceLimits The limits of price (tokenOut/tokenIn denominated by 1e18) (minPrice 128bits, maxPrice 128bits)
    */
   struct SwapCondition {
     uint8 swapLimit;
-    uint256 startTime;
-    uint256 endTime;
+    uint256 timeLimits;
     uint256 amountInLimits;
     uint256 maxFees;
     uint256 priceLimits;
@@ -53,7 +51,7 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
     address tokenIn;
     address tokenOut;
     uint256 amountIn;
-    uint256 routerBalanceBefore;
+    uint256 recipientBalanceBefore;
     uint256 swapperBalanceBefore;
     uint256 srcFeePercent;
     uint256 dstFeePercent;
@@ -116,11 +114,13 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
         amountIn: amountIn,
         srcFeePercent: intentSrcFee,
         dstFeePercent: intentDstFee,
-        routerBalanceBefore: tokenOut.balanceOf(msg.sender),
+        recipientBalanceBefore: _getRecipientBalance(tokenOut, swapHookData.recipient, intentDstFee), // if dstFee is 0, transfer directly to the recipient
         swapperBalanceBefore: tokenIn.balanceOf(coreData.mainAddress),
         recipient: swapHookData.recipient
       })
     );
+
+    return (fees, beforeExecutionData);
   }
 
   /// @inheritdoc IKSSmartIntentHook
@@ -147,9 +147,11 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
 
     uint256 swappedAmount =
       validationData.swapperBalanceBefore - tokenIn.balanceOf(coreData.mainAddress);
-    require(swappedAmount == amountIn, AmountInMismatch(amountIn, swappedAmount));
+    require(swappedAmount <= amountIn, AmountInMismatch(amountIn, swappedAmount));
 
-    uint256 amountOut = tokenOut.balanceOf(msg.sender) - validationData.routerBalanceBefore;
+    uint256 amountOut = _getRecipientBalance(
+      tokenOut, validationData.recipient, validationData.dstFeePercent
+    ) - validationData.recipientBalanceBefore;
 
     uint256 price = (amountOut * DENOMINATOR) / amountIn;
 
@@ -162,6 +164,10 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
       validationData.dstFeePercent
     );
 
+    if (validationData.dstFeePercent == 0) {
+      return (tokens, fees, amounts, recipient);
+    }
+
     tokens = new address[](1);
     tokens[0] = tokenOut;
 
@@ -172,6 +178,8 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
     amounts[0] = amountOut - fees[0];
 
     recipient = validationData.recipient;
+
+    return (tokens, fees, amounts, recipient);
   }
 
   /**
@@ -179,12 +187,12 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
    * @param intentHash The hash of the intent
    * @param intentIndex The index of the specific intent
    * @param conditionIndex The index of the swap condition to check
-   * @return executionCount The number of times this condition has been executed
+   * @return The number of times this condition has been executed
    */
   function getSwapExecutionCount(bytes32 intentHash, uint256 intentIndex, uint256 conditionIndex)
     public
     view
-    returns (uint256 executionCount)
+    returns (uint256)
   {
     uint256 packedValue = swapRecord[intentHash][intentIndex][conditionIndex / 32];
     uint256 bytePosition = conditionIndex % 32;
@@ -203,7 +211,10 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
     for (uint256 i; i < swapCondition.length; ++i) {
       SwapCondition calldata condition = swapCondition[i];
 
-      if (block.timestamp < condition.startTime || block.timestamp > condition.endTime) {
+      if (
+        block.timestamp < condition.timeLimits >> 128
+          || block.timestamp > uint128(condition.timeLimits)
+      ) {
         continue;
       }
 
@@ -252,13 +263,22 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
       return false;
     }
 
-    uint256 mask = 0xFF << (bytePosition * 8);
-    packedValue &= ~mask;
-    packedValue |= (uint256(swapCount) << (bytePosition * 8));
+    packedValue += 1 << (bytePosition * 8);
 
     record[index / 32] = packedValue;
 
     return true;
+  }
+
+  function _getRecipientBalance(address tokenOut, address recipient, uint256 feePercent)
+    internal
+    view
+    returns (uint256)
+  {
+    if (feePercent != 0) {
+      return tokenOut.balanceOf(msg.sender);
+    }
+    return tokenOut.balanceOf(recipient);
   }
 
   // @dev: equivalent to abi.decode(data, (SwapCondition))

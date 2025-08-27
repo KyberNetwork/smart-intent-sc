@@ -129,24 +129,21 @@ contract ConditionalSwapTest is BaseTest {
     {
       condition[0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        startTime: block.timestamp - 100,
-        endTime: block.timestamp + 100,
+        timeLimits: ((block.timestamp - 100) << 128) | (block.timestamp + 100),
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (0 << 128) | type(uint128).max
       });
       condition[1] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        startTime: block.timestamp + 500,
-        endTime: block.timestamp + 700,
+        timeLimits: ((block.timestamp + 500) << 128) | (block.timestamp + 700),
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (0 << 128) | type(uint128).max
       });
       condition[2] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        startTime: block.timestamp + 1000,
-        endTime: block.timestamp + 1200,
+        timeLimits: ((block.timestamp + 1000) << 128) | (block.timestamp + 1200),
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (0 << 128) | type(uint128).max
@@ -168,7 +165,14 @@ contract ConditionalSwapTest is BaseTest {
       tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
       actionData = _getActionData(
         tokenData,
-        abi.encode(tokenIn, tokenOut, swapAmount, 1000, address(router), mainAddress),
+        abi.encode(
+          tokenIn,
+          tokenOut,
+          swapAmount,
+          1000,
+          feeAfter == 0 ? mainAddress : address(router),
+          mainAddress
+        ),
         true
       );
     }
@@ -187,7 +191,7 @@ contract ConditionalSwapTest is BaseTest {
 
     // swap 3
     {
-      vm.warp(block.timestamp + 500);
+      vm.warp(block.timestamp + 1000);
       actionData.nonce += 1;
       _swap(mode, intentData, actionData, 0, 2);
     }
@@ -201,8 +205,7 @@ contract ConditionalSwapTest is BaseTest {
     {
       condition[0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 4,
-        startTime: 0,
-        endTime: type(uint256).max,
+        timeLimits: (0 << 128) | type(uint128).max,
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (1_000_000_000_000 - 100 << 128) | (1_000_000_000_000 + 100)
@@ -224,7 +227,14 @@ contract ConditionalSwapTest is BaseTest {
       tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
       actionData = _getActionData(
         tokenData,
-        abi.encode(tokenIn, tokenOut, swapAmount, 1000, address(router), mainAddress),
+        abi.encode(
+          tokenIn,
+          tokenOut,
+          swapAmount,
+          1000,
+          feeAfter == 0 ? mainAddress : address(router),
+          mainAddress
+        ),
         true
       );
     }
@@ -276,8 +286,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      startTime: block.timestamp + 100,
-      endTime: block.timestamp + 1000,
+      timeLimits: (block.timestamp + 100 << 128) | (block.timestamp + 1000),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (0 << 128) | type(uint128).max
@@ -304,8 +313,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      startTime: block.timestamp - 100,
-      endTime: block.timestamp + 100,
+      timeLimits: (block.timestamp - 100 << 128) | (block.timestamp + 100),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (uint256(type(uint128).max) << 128) | type(uint128).max
@@ -360,31 +368,6 @@ contract ConditionalSwapTest is BaseTest {
     {
       assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, 0), 1);
     }
-  }
-
-  function testRevert_InvalidAmountIn(uint256 mode) public {
-    mode = bound(mode, 0, 2);
-
-    IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
-    _setUpMainAddress(intentData, false);
-
-    ActionData memory actionData = _getActionData(
-      intentData.tokenData,
-      abi.encode(tokenIn, tokenOut, swapAmount - 1, 1000, address(router), mainAddress),
-      true
-    );
-
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        KSConditionalSwapHook.AmountInMismatch.selector, swapAmount, swapAmount - 1
-      )
-    );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_InvalidTokenIn(uint256 mode) public {
@@ -462,6 +445,9 @@ contract ConditionalSwapTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    console.log('feeBefore', feeBefore);
+    console.log('feeAfter', feeAfter);
+
     actionData = ActionData({
       tokenData: tokenData,
       approvalFlags: approvalFlags,
@@ -469,7 +455,14 @@ contract ConditionalSwapTest is BaseTest {
       actionCalldata: swapViaMock
         ? (
           actionCalldata.length == 0
-            ? abi.encode(tokenIn, tokenOut, swapAmount, 1000, address(router), mainAddress)
+            ? abi.encode(
+              tokenIn,
+              tokenOut,
+              swapAmount,
+              1000,
+              feeAfter == 0 ? mainAddress : address(router),
+              mainAddress
+            )
             : actionCalldata
         )
         : actionCalldata,
@@ -500,8 +493,7 @@ contract ConditionalSwapTest is BaseTest {
       hookData.swapConditions[0] = new KSConditionalSwapHook.SwapCondition[](1);
       hookData.swapConditions[0][0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        startTime: block.timestamp,
-        endTime: block.timestamp + 1 days,
+        timeLimits: (block.timestamp << 128) | (block.timestamp + 1 days),
         amountInLimits: (min << 128) | max,
         maxFees: (maxSrcFee << 128) | maxDstFee,
         priceLimits: (0 << 128) | type(uint128).max
