@@ -13,6 +13,9 @@ compilation_restrictions = [
   { paths = "src/KSSmartIntentRouter.sol", optimizer_runs = 1000 },
 ]
 
+[lint]
+lint_on_build = false
+
 [fmt]
 line_length = 100
 tab_width = 2

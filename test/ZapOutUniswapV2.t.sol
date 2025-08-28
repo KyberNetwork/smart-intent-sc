@@ -8,6 +8,7 @@ import 'src/interfaces/actions/IKSZapRouter.sol';
 
 contract ZapOutUniswapV2Test is BaseTest {
   using SafeERC20 for IERC20;
+  using ArraysHelper for *;
 
   KSZapOutUniswapV2Hook zapOutHook;
 
@@ -28,7 +29,7 @@ contract ZapOutUniswapV2Test is BaseTest {
     address[] memory actionContracts = new address[](1);
     actionContracts[0] = address(zapRouter);
     vm.prank(admin);
-    router.whitelistActionContracts(actionContracts, true);
+    router.grantRole(ACTION_CONTRACT_ROLE, address(zapRouter));
 
     minRate = 256_914_906_835_989_424_150_694_571;
 
@@ -107,8 +108,8 @@ contract ZapOutUniswapV2Test is BaseTest {
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(zapRouter),
-      actionSelectors: _toArray(IKSZapRouter.zap.selector),
+      actionContracts: [zapRouter].toMemoryArray(),
+      actionSelectors: [IKSZapRouter.zap.selector].toMemoryArray(),
       hook: address(zapOutHook),
       hookIntentData: abi.encode(hookData)
     });
@@ -138,7 +139,9 @@ contract ZapOutUniswapV2Test is BaseTest {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: [uint256(0)].toMemoryArray(),
+      erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
+      erc721Ids: new uint256[](0),
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,

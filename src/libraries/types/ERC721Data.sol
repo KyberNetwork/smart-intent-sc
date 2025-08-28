@@ -24,9 +24,6 @@ using ERC721DataLibrary for ERC721Data global;
 library ERC721DataLibrary {
   using PermitHelper for address;
 
-  /// @notice Thrown when collecting unapproved ERC721
-  error ERC721InsufficientIntentApproval(bytes32 intentHash, address token, uint256 tokenId);
-
   bytes32 constant ERC721_DATA_TYPE_HASH =
     keccak256(abi.encodePacked('ERC721Data(address token,uint256 tokenId,bytes permitData)'));
 
@@ -36,33 +33,14 @@ library ERC721DataLibrary {
     );
   }
 
-  function approve(
-    ERC721Data calldata self,
-    mapping(bytes32 => mapping(address => mapping(uint256 => bool))) storage approvals,
-    bytes32 intentHash
-  ) internal {
-    approvals[intentHash][self.token][self.tokenId] = true;
-    if (self.permitData.length > 0) {
-      self.token.erc721Permit(self.tokenId, self.permitData);
-    }
-  }
-
   function collect(
-    ERC721Data calldata self,
-    mapping(bytes32 => mapping(address => mapping(uint256 => bool))) storage approvals,
-    bytes32 intentHash,
+    address token,
+    uint256 tokenId,
     address mainAddress,
     address actionContract,
     IKSGenericForwarder forwarder,
     bool approvalFlag
   ) internal {
-    address token = self.token;
-    uint256 tokenId = self.tokenId;
-
-    if (!approvals[intentHash][token][tokenId]) {
-      revert ERC721InsufficientIntentApproval(intentHash, token, tokenId);
-    }
-
     if (address(forwarder) == address(0)) {
       IERC721(token).safeTransferFrom(mainAddress, address(this), tokenId);
       if (approvalFlag) {

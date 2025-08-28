@@ -8,6 +8,7 @@ import './mocks/MockHook.sol';
 import 'openzeppelin-contracts/contracts/access/IAccessControl.sol';
 
 contract MockActionTest is BaseTest {
+  using ArraysHelper for *;
   using SafeERC20 for IERC20;
 
   uint256 nonce = 0;
@@ -28,12 +29,12 @@ contract MockActionTest is BaseTest {
         IAccessControl.AccessControlUnauthorizedAccount.selector, makeAddr('random'), 0
       )
     );
-    router.updateForwarder(forwarder);
+    router.updateForwarder(address(forwarder));
 
     vm.prank(admin);
     vm.expectEmit(true, true, true, true);
-    emit IKSSmartIntentRouter.UpdateForwarder(forwarder);
-    router.updateForwarder(forwarder);
+    emit IKSSmartIntentRouter.UpdateForwarder(address(forwarder));
+    router.updateForwarder(address(forwarder));
   }
 
   function testUpdateFeeRecipient() public {
@@ -114,40 +115,11 @@ contract MockActionTest is BaseTest {
     vm.startPrank(caller);
     vm.expectRevert(
       abi.encodeWithSelector(
-        ERC20DataLibrary.ERC20InsufficientIntentAllowance.selector,
+        IKSSmartIntentRouter.ERC20InsufficientIntentAllowance.selector,
         intentHash,
         newTokenData.erc20Data[0].token,
         intentData.tokenData.erc20Data[0].amount,
         newTokenData.erc20Data[0].amount
-      )
-    );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-  }
-
-  function testMockActionCollectERC721WithoutApprovalShouldRevert(uint256 seed) public {
-    uint256 mode = bound(seed, 0, 2);
-    IntentData memory intentData = _getIntentData(seed);
-    bytes32 intentHash = router.hashTypedIntentData(intentData);
-
-    vm.prank(mainAddress);
-    router.delegate(intentData);
-
-    TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-
-    newTokenData.erc721Data[0].tokenId = seed == UINT256_MAX ? seed - 1 : seed + 1; // overflow when seed = 2**256 - 1
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
-
-    vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        ERC721DataLibrary.ERC721InsufficientIntentApproval.selector,
-        intentHash,
-        newTokenData.erc721Data[0].token,
-        newTokenData.erc721Data[0].tokenId
       )
     );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -162,13 +134,8 @@ contract MockActionTest is BaseTest {
   }
 
   function testMockActionExecuteWithNonWhitelistedActionShouldRevert(uint256 seed) public {
-    {
-      vm.startPrank(admin);
-      address[] memory actionContracts = new address[](1);
-      actionContracts[0] = address(mockActionContract);
-      router.whitelistActionContracts(actionContracts, false);
-      vm.stopPrank();
-    }
+    vm.prank(admin);
+    router.revokeRole(ACTION_CONTRACT_ROLE, address(mockActionContract));
 
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
@@ -184,7 +151,9 @@ contract MockActionTest is BaseTest {
     vm.startPrank(caller);
     vm.expectRevert(
       abi.encodeWithSelector(
-        IKSSmartIntentRouter.NotWhitelistedActionContract.selector, address(mockActionContract)
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        address(mockActionContract),
+        ACTION_CONTRACT_ROLE
       )
     );
     router.executeWithSignedIntent(
@@ -201,13 +170,8 @@ contract MockActionTest is BaseTest {
     vm.prank(mainAddress);
     router.delegate(intentData);
 
-    {
-      vm.startPrank(admin);
-      address[] memory actionContracts = new address[](1);
-      actionContracts[0] = address(mockActionContract);
-      router.whitelistActionContracts(actionContracts, false);
-      vm.stopPrank();
-    }
+    vm.prank(admin);
+    router.revokeRole(ACTION_CONTRACT_ROLE, address(mockActionContract));
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
@@ -219,7 +183,9 @@ contract MockActionTest is BaseTest {
     vm.startPrank(caller);
     vm.expectRevert(
       abi.encodeWithSelector(
-        IKSSmartIntentRouter.NotWhitelistedActionContract.selector, address(mockActionContract)
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        address(mockActionContract),
+        ACTION_CONTRACT_ROLE
       )
     );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -438,12 +404,11 @@ contract MockActionTest is BaseTest {
     unchecked {
       tokens[0] = address(erc20Mock);
 
-      feesBefore[0] = bound(seed * 2, 0, actionData.tokenData.erc20Data[0].amount);
+      feesBefore[0] = bound(seed * 2, 0, actionData.erc20Amounts[0]);
       actionData.hookActionData = abi.encode(feesBefore);
 
-      amounts[0] = bound(seed * 3, 0, actionData.tokenData.erc20Data[0].amount - feesBefore[0]);
-      feesAfter[0] =
-        bound(seed * 3, 0, actionData.tokenData.erc20Data[0].amount - feesBefore[0] - amounts[0]);
+      amounts[0] = bound(seed * 3, 0, actionData.erc20Amounts[0] - feesBefore[0]);
+      feesAfter[0] = bound(seed * 3, 0, actionData.erc20Amounts[0] - feesBefore[0] - amounts[0]);
       actionData.extraData = abi.encode(tokens, feesAfter, amounts, address(this));
     }
 
@@ -456,12 +421,12 @@ contract MockActionTest is BaseTest {
     uint256 feeRecipientBalanceBefore = erc20Mock.balanceOf(feeRecipient);
 
     vm.expectEmit(true, true, true, true);
-    emit HookLibrary.FeeAndVolumeRecorded(
-      address(erc20Mock), feeRecipient, feesBefore[0], actionData.tokenData.erc20Data[0].amount
+    emit HookLibrary.RecordFeeAndVolume(
+      address(erc20Mock), feeRecipient, feesBefore[0], actionData.erc20Amounts[0]
     );
 
     vm.expectEmit(true, true, true, true);
-    emit HookLibrary.FeeAndVolumeRecorded(
+    emit HookLibrary.RecordFeeAndVolume(
       address(erc20Mock), feeRecipient, feesAfter[0], amounts[0] + feesAfter[0]
     );
 
@@ -498,8 +463,8 @@ contract MockActionTest is BaseTest {
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(address(mockActionContract)),
-      actionSelectors: _toArray(MockActionContract.execute.selector),
+      actionContracts: [address(mockActionContract)].toMemoryArray(),
+      actionSelectors: [MockActionContract.execute.selector].toMemoryArray(),
       hook: address(mockHook),
       hookIntentData: ''
     });
@@ -528,8 +493,15 @@ contract MockActionTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    uint256[] memory erc20Amounts = new uint256[](tokenData.erc20Data.length);
+    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
+      erc20Amounts[i] = tokenData.erc20Data[i].amount;
+    }
+
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: _consecutiveArray(0, tokenData.erc20Data.length),
+      erc20Amounts: erc20Amounts,
+      erc721Ids: _consecutiveArray(0, tokenData.erc721Data.length),
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
@@ -552,13 +524,6 @@ contract MockActionTest is BaseTest {
         'ERC20 allowance not set correctly after delegation'
       );
     }
-    for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
-      ERC721Data memory erc721Data = tokenData.erc721Data[i];
-      assertTrue(
-        router.erc721Approvals(intentHash, erc721Data.token, erc721Data.tokenId),
-        'ERC721 approval not set correctly after delegation'
-      );
-    }
   }
 
   function _checkAllowancesAfterExecution(
@@ -574,5 +539,13 @@ contract MockActionTest is BaseTest {
         'ERC20 allowance not updated correctly after execution'
       );
     }
+  }
+
+  function _consecutiveArray(uint256 start, uint256 end) internal pure returns (uint256[] memory) {
+    uint256[] memory array = new uint256[](end - start);
+    for (uint256 i = start; i < end; i++) {
+      array[i - start] = i;
+    }
+    return array;
   }
 }

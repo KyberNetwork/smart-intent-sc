@@ -6,20 +6,20 @@ import '../IKSSmartIntentRouter.sol';
 interface IKSSmartIntentHook {
   /**
    * @notice Before execution hook
-   * @param coreData the core data of the intent
+   * @param intentData the intent data
    * @param actionData the data of the action
    * @return fees the amount of fees to be taken
    * @return beforeExecutionData the data representing the state before execution
    */
   function beforeExecution(
     bytes32 intentHash,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     ActionData calldata actionData
   ) external returns (uint256[] memory fees, bytes memory beforeExecutionData);
 
   /**
    * @notice After execution hook
-   * @param coreData the core data of the intent
+   * @param intentData the intent data
    * @param beforeExecutionData the data returned from `beforeExecution`
    * @param actionResult the result of the action
    * @return tokens the tokens to be taken fees from and to be returned to the recipient
@@ -29,7 +29,7 @@ interface IKSSmartIntentHook {
    */
   function afterExecution(
     bytes32 intentHash,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata actionResult
   )

@@ -29,20 +29,19 @@ interface IKSSmartIntentRouter {
   /// @notice Thrown when the signature is not from the guardian
   error InvalidGuardianSignature();
 
-  /// @notice Thrown when the action contract is not whitelisted
-  error NotWhitelistedActionContract(address actionContract);
-
   /// @notice Thrown when the action contract and selector not found in intent
   error InvalidActionSelectorId(uint256 actionSelectorId);
 
   /// @notice Thrown when a nonce has already been used
   error NonceAlreadyUsed(bytes32 intentHash, uint256 nonce);
 
-  /// @notice Emitted when an action contract is whitelisted or revoked
-  event WhitelistActionContract(address actionContract, bool grantOrRevoke);
+  /// @notice Thrown when collecting more than the intent allowance for ERC20
+  error ERC20InsufficientIntentAllowance(
+    bytes32 intentHash, address token, uint256 allowance, uint256 needed
+  );
 
   /// @notice Emitted when the forwarder is updated
-  event UpdateForwarder(IKSGenericForwarder newForwarder);
+  event UpdateForwarder(address newForwarder);
 
   // @notice Emitted when the fee recipient is updated
   event UpdateFeeRecipient(address feeRecipient);
@@ -58,9 +57,6 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when an intent is executed
   event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
 
-  /// @notice Emitted when tokens are collected
-  event CollectTokens(bytes32 indexed intentHash, TokenData tokenData);
-
   /// @notice Emitted when a nonce is consumed
   event UseNonce(bytes32 indexed intentHash, uint256 nonce);
 
@@ -72,14 +68,6 @@ interface IKSSmartIntentRouter {
     DELEGATED,
     REVOKED
   }
-
-  /**
-   * @notice Whitelist or revoke action contracts
-   * @param actionContracts The addresses of the action contracts
-   * @param grantOrRevoke True to grant, false to revoke
-   */
-  function whitelistActionContracts(address[] calldata actionContracts, bool grantOrRevoke)
-    external;
 
   /**
    * @notice Delegate the intent to the delegated address
@@ -139,35 +127,16 @@ interface IKSSmartIntentRouter {
     returns (uint256 allowance);
 
   /**
-   * @notice Return if an ERC721 token is approved for a specific intent
-   * @param intentHash The hash of the intent
-   * @param token The address of the ERC721 token
-   * @param tokenId The ID of the ERC721 token
-   * @return approved True if the token is approved, false otherwise
-   */
-  function erc721Approvals(bytes32 intentHash, address token, uint256 tokenId)
-    external
-    view
-    returns (bool approved);
-
-  /**
    * @notice Update the forwarder address
    * @param newForwarder The new forwarder address
    */
-  function updateForwarder(IKSGenericForwarder newForwarder) external;
+  function updateForwarder(address newForwarder) external;
 
   /**
    * @notice Update the intent fee recipient
    * @param newFeeRecipient The new intent fee recipient
    */
   function updateFeeRecipient(address newFeeRecipient) external;
-
-  /**
-   * @notice Return if an action contract is whitelisted
-   * @param actionContract The address of the action contract
-   * @return whitelisted True if the action contract is whitelisted, false otherwise
-   */
-  function whitelistedActionContracts(address actionContract) external view returns (bool);
 
   /**
    * @notice Hash the intent data with EIP712

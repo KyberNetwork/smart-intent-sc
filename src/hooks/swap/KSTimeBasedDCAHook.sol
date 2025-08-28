@@ -18,7 +18,6 @@ contract KSTimeBasedDCAHook is BaseStatefulHook {
 
   /**
    * @notice Data structure for dca validation
-   * @param srcToken The source token
    * @param dstToken The destination token
    * @param amountIn The amount of source token to be swapped, should be the same for all swaps
    * @param amountOutLimits The minimum and maximum amount of destination token to be received, should be the same for all swaps (minAmountOut 128bits, maxAmountOut 128bits)
@@ -26,7 +25,6 @@ contract KSTimeBasedDCAHook is BaseStatefulHook {
    * @param recipient The recipient of the destination token
    */
   struct DCAHookData {
-    address srcToken;
     address dstToken;
     uint256 amountIn;
     uint256 amountOutLimits;
@@ -38,25 +36,25 @@ contract KSTimeBasedDCAHook is BaseStatefulHook {
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
 
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
-    require(tokenData.erc20Data.length == 1, InvalidTokenData());
-    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+  modifier checkTokenLengths(ActionData calldata actionData) override {
+    require(actionData.erc20Ids.length == 1, InvalidTokenData());
+    require(actionData.erc721Ids.length == 0, InvalidTokenData());
     _;
   }
 
   /// @inheritdoc IKSSmartIntentHook
   function beforeExecution(
     bytes32 intentHash,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     ActionData calldata actionData
   )
     external
     override
     onlyWhitelistedRouter
-    checkTokenLengths(actionData.tokenData)
+    checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
-    DCAHookData memory dcaHookData = abi.decode(coreData.hookIntentData, (DCAHookData));
+    DCAHookData memory dcaHookData = abi.decode(intentData.coreData.hookIntentData, (DCAHookData));
 
     uint256 swapNo = abi.decode(actionData.hookActionData, (uint256));
     uint32 numSwaps = uint32(dcaHookData.executionParams >> 96);
@@ -79,13 +77,8 @@ contract KSTimeBasedDCAHook is BaseStatefulHook {
       }
     }
 
-    //validate amountIn, currently only support 1 tokenIn
-    if (actionData.tokenData.erc20Data[0].token != dcaHookData.srcToken) {
-      revert InvalidTokenIn(dcaHookData.srcToken, actionData.tokenData.erc20Data[0].token);
-    }
-
-    if (actionData.tokenData.erc20Data[0].amount != dcaHookData.amountIn) {
-      revert InvalidAmountIn(dcaHookData.amountIn, actionData.tokenData.erc20Data[0].amount);
+    if (actionData.erc20Amounts[0] != dcaHookData.amountIn) {
+      revert InvalidAmountIn(dcaHookData.amountIn, actionData.erc20Amounts[0]);
     }
 
     //validate this swap is not executed before
@@ -97,14 +90,14 @@ contract KSTimeBasedDCAHook is BaseStatefulHook {
 
     uint256 balanceBefore = dcaHookData.dstToken.balanceOf(dcaHookData.recipient);
 
-    fees = new uint256[](actionData.tokenData.erc20Data.length);
+    fees = new uint256[](actionData.erc20Ids.length);
     beforeExecutionData = abi.encode(balanceBefore);
   }
 
   /// @inheritdoc IKSSmartIntentHook
   function afterExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata
   )
@@ -114,7 +107,7 @@ contract KSTimeBasedDCAHook is BaseStatefulHook {
     onlyWhitelistedRouter
     returns (address[] memory, uint256[] memory, uint256[] memory, address)
   {
-    DCAHookData memory dcaHookData = abi.decode(coreData.hookIntentData, (DCAHookData));
+    DCAHookData memory dcaHookData = abi.decode(intentData.coreData.hookIntentData, (DCAHookData));
 
     uint128 minAmountOut = uint128(dcaHookData.amountOutLimits >> 128);
     uint128 maxAmountOut = uint128(dcaHookData.amountOutLimits);

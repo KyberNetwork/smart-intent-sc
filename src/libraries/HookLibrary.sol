@@ -13,43 +13,44 @@ library HookLibrary {
   using TokenHelper for address;
 
   // @notice Emit the ERC20/Native fee and volume
-  event FeeAndVolumeRecorded(
+  event RecordFeeAndVolume(
     address indexed token, address indexed feeRecipient, uint256 fee, uint256 volume
   );
 
   function beforeExecution(
     bytes32 intentHash,
-    IntentCoreData calldata intent,
+    IntentData calldata intentData,
     address feeRecipient,
     ActionData calldata actionData
   ) internal returns (uint256[] memory fees, bytes memory beforeExecutionData) {
-    (fees, beforeExecutionData) =
-      IKSSmartIntentHook(intent.hook).beforeExecution(intentHash, intent, actionData);
+    (fees, beforeExecutionData) = IKSSmartIntentHook(intentData.coreData.hook).beforeExecution(
+      intentHash, intentData, actionData
+    );
 
-    if (actionData.tokenData.erc20Data.length != fees.length) {
+    if (actionData.erc20Ids.length != fees.length) {
       revert ICommon.MismatchedArrayLengths();
     }
 
-    for (uint256 i = 0; i < actionData.tokenData.erc20Data.length; i++) {
-      emit FeeAndVolumeRecorded(
-        actionData.tokenData.erc20Data[i].token,
+    for (uint256 i = 0; i < actionData.erc20Ids.length; i++) {
+      emit RecordFeeAndVolume(
+        intentData.tokenData.erc20Data[actionData.erc20Ids[i]].token,
         feeRecipient,
         fees[i],
-        actionData.tokenData.erc20Data[i].amount
+        actionData.erc20Amounts[i]
       );
     }
   }
 
   function afterExecution(
     bytes32 intentHash,
-    IntentCoreData calldata intent,
+    IntentData calldata intentData,
     address feeRecipient,
     bytes memory beforeExecutionData,
     bytes memory actionResult
   ) internal {
     (address[] memory tokens, uint256[] memory fees, uint256[] memory amounts, address recipient) =
-    IKSSmartIntentHook(intent.hook).afterExecution(
-      intentHash, intent, beforeExecutionData, actionResult
+    IKSSmartIntentHook(intentData.coreData.hook).afterExecution(
+      intentHash, intentData, beforeExecutionData, actionResult
     );
 
     if (tokens.length != fees.length) {
@@ -63,7 +64,7 @@ library HookLibrary {
       tokens[i].safeTransfer(recipient, amounts[i]);
       tokens[i].safeTransfer(feeRecipient, fees[i]);
 
-      emit FeeAndVolumeRecorded(tokens[i], feeRecipient, fees[i], amounts[i] + fees[i]);
+      emit RecordFeeAndVolume(tokens[i], feeRecipient, fees[i], amounts[i] + fees[i]);
     }
   }
 }

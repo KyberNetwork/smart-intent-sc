@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 import 'src/hooks/base/BaseHook.sol';
 
 contract MockHook is BaseHook {
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
+  modifier checkTokenLengths(ActionData calldata actionData) override {
     _;
   }
 
-  function beforeExecution(bytes32, IntentCoreData calldata, ActionData calldata actionData)
+  function beforeExecution(bytes32, IntentData calldata, ActionData calldata actionData)
     external
     pure
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
@@ -17,13 +17,13 @@ contract MockHook is BaseHook {
       fees = abi.decode(actionData.hookActionData, (uint256[]));
       beforeExecutionData = actionData.extraData;
     } else {
-      fees = new uint256[](actionData.tokenData.erc20Data.length);
+      fees = new uint256[](actionData.erc20Ids.length);
     }
   }
 
   function afterExecution(
     bytes32,
-    IntentCoreData calldata,
+    IntentData calldata,
     bytes calldata beforeExecutionData,
     bytes calldata
   )

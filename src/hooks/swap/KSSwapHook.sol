@@ -30,38 +30,35 @@ contract KSSwapHook is BaseHook {
     address recipient;
   }
 
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
-    require(tokenData.erc20Data.length == 1, InvalidTokenData());
-    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+  modifier checkTokenLengths(ActionData calldata actionData) override {
+    require(actionData.erc20Ids.length == 1, InvalidTokenData());
+    require(actionData.erc721Ids.length == 0, InvalidTokenData());
     _;
   }
 
   /// @inheritdoc IKSSmartIntentHook
-  function beforeExecution(
-    bytes32,
-    IntentCoreData calldata coreData,
-    ActionData calldata actionData
-  )
+  function beforeExecution(bytes32, IntentData calldata intentData, ActionData calldata actionData)
     external
     view
     override
-    checkTokenLengths(actionData.tokenData)
+    checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.hookActionData, (uint256));
 
-    SwapHookData memory swapHookData = abi.decode(coreData.hookIntentData, (SwapHookData));
+    SwapHookData memory swapHookData =
+      abi.decode(intentData.coreData.hookIntentData, (SwapHookData));
 
-    ERC20Data[] calldata erc20Data = actionData.tokenData.erc20Data;
-    require(erc20Data[0].token == swapHookData.srcTokens[index], InvalidTokenData());
+    ERC20Data calldata erc20Data = intentData.tokenData.erc20Data[actionData.erc20Ids[0]];
+    require(erc20Data.token == swapHookData.srcTokens[index], InvalidTokenData());
 
     uint256 dstBalanceBefore = swapHookData.dstTokens[index].balanceOf(swapHookData.recipient);
 
-    fees = new uint256[](actionData.tokenData.erc20Data.length);
+    fees = new uint256[](actionData.erc20Ids.length);
     beforeExecutionData = abi.encode(
       swapHookData.srcTokens[index],
       swapHookData.dstTokens[index],
-      erc20Data[0].amount,
+      actionData.erc20Amounts[0],
       dstBalanceBefore,
       swapHookData.minRates[index]
     );
@@ -70,14 +67,15 @@ contract KSSwapHook is BaseHook {
   /// @inheritdoc IKSSmartIntentHook
   function afterExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata
   ) external view override returns (address[] memory, uint256[] memory, uint256[] memory, address) {
     uint256 minRate;
     uint256 inputAmount;
     uint256 outputAmount;
-    SwapHookData memory swapHookData = abi.decode(coreData.hookIntentData, (SwapHookData));
+    SwapHookData memory swapHookData =
+      abi.decode(intentData.coreData.hookIntentData, (SwapHookData));
     {
       address srcToken;
       address dstToken;

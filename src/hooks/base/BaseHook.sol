@@ -6,5 +6,5 @@ import '../../interfaces/hooks/IKSSmartIntentHook.sol';
 abstract contract BaseHook is IKSSmartIntentHook {
   error InvalidTokenData();
 
-  modifier checkTokenLengths(TokenData calldata tokenData) virtual;
+  modifier checkTokenLengths(ActionData calldata actionData) virtual;
 }

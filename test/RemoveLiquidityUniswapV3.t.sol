@@ -8,6 +8,8 @@ import {IERC721} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniswapV3Test is BaseTest {
+  using ArraysHelper for *;
+
   using SafeERC20 for IERC20;
   using TokenHelper for address;
 
@@ -37,14 +39,6 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   function setUp() public override {
     super.setUp();
 
-    {
-      vm.startPrank(admin);
-      address[] memory actionContracts = new address[](2);
-      actionContracts[0] = address(pm);
-      router.whitelistActionContracts(actionContracts, true);
-      vm.stopPrank();
-    }
-
     rmLqValidator = new KSRemoveLiquidityUniswapV3Hook(weth);
     tokenOwner = pm.ownerOf(tokenId);
 
@@ -53,6 +47,9 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     tokenOwner = mainAddress;
 
     _cacheInfo();
+
+    vm.prank(admin);
+    router.grantRole(ACTION_CONTRACT_ROLE, address(pm));
   }
 
   struct FuzzStruct {
@@ -91,8 +88,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId);
 
-    ActionData memory actionData =
-      _getActionData(intentData.tokenData, uniswapV3.removeLiqParams.liquidityToRemove);
+    ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -142,8 +138,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId);
 
-    ActionData memory actionData =
-      _getActionData(intentData.tokenData, uniswapV3.removeLiqParams.liquidityToRemove);
+    ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -282,7 +277,9 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     _setUpMainAddress(intentData, false, tokenId);
 
     ActionData memory actionData = ActionData({
-      tokenData: intentData.tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -312,8 +309,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       uniswapV3.outputParams.tokens[1].balanceOf(mainAddress)
     ];
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
@@ -438,14 +434,14 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     return rmLqValidator.evaluateCondition(condition, additionalData);
   }
 
-  function _setUpMainAddress(IntentData memory intentData, bool withSignedIntent, uint256 tokenId)
+  function _setUpMainAddress(IntentData memory intentData, bool withSignedIntent, uint256 _tokenId)
     internal
   {
     vm.startPrank(mainAddress);
     if (!withSignedIntent) {
       router.delegate(intentData);
     }
-    pm.approve(address(router), tokenId);
+    pm.approve(address(router), _tokenId);
     vm.stopPrank();
   }
 
@@ -599,13 +595,11 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     return Condition({conditionType: PRICE_BASED, data: abi.encode(priceCondition)});
   }
 
-  function _getActionData(TokenData memory tokenData, uint256 _liquidity)
-    internal
-    view
-    returns (ActionData memory actionData)
-  {
+  function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(
@@ -637,12 +631,10 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     });
   }
 
-  function _computePositionValues() internal returns (uint256 amount0, uint256 amount1) {
+  function _computePositionValues() internal {
     _cacheInfo();
     KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityParams storage removeLiqParams =
       uniswapV3.removeLiqParams;
-    KSRemoveLiquidityUniswapV3Hook.OutputValidationParams storage outputParams =
-      uniswapV3.outputParams;
     KSRemoveLiquidityUniswapV3Hook.PositionInfo storage positionInfo = removeLiqParams.positionInfo;
 
     int24 lower = positionInfo.ticks[0];

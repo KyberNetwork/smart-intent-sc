@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './interfaces/IKSSmartIntentRouter.sol';
+import './KSSmartIntentStorage.sol';
 
 import 'ks-common-sc/src/base/ManagementRescuable.sol';
 
@@ -11,23 +11,31 @@ import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 import 'openzeppelin-contracts/contracts/interfaces/IERC721Receiver.sol';
 
-abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, ManagementRescuable {
+abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, ManagementRescuable {
   using TokenHelper for address;
   using PermitHelper for address;
 
   mapping(bytes32 => mapping(address => uint256)) public erc20Allowances;
-
-  mapping(bytes32 => mapping(address => mapping(uint256 => bool))) public erc721Approvals;
 
   /// @notice Set the tokens' allowances for the intent
   function _approveTokens(bytes32 intentHash, TokenData calldata tokenData, address mainAddress)
     internal
   {
     for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
-      tokenData.erc20Data[i].approve(erc20Allowances, intentHash, mainAddress);
+      ERC20Data calldata erc20Data = tokenData.erc20Data[i];
+
+      erc20Allowances[intentHash][erc20Data.token] = erc20Data.amount;
+
+      if (erc20Data.permitData.length > 0) {
+        erc20Data.token.erc20Permit(mainAddress, erc20Data.permitData);
+      }
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
-      tokenData.erc721Data[i].approve(erc721Approvals, intentHash);
+      ERC721Data calldata erc721Data = tokenData.erc721Data[i];
+
+      if (erc721Data.permitData.length > 0) {
+        erc721Data.token.erc721Permit(erc721Data.tokenId, erc721Data.permitData);
+      }
     }
   }
 
@@ -37,37 +45,52 @@ abstract contract KSSmartIntentRouterAccounting is IKSSmartIntentRouter, Managem
     address mainAddress,
     address actionContract,
     TokenData calldata tokenData,
-    IKSGenericForwarder forwarder,
-    address feeRecipient,
-    uint256[] memory fees,
-    uint256 approvalFlags
-  ) internal {
-    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
-      tokenData.erc20Data[i].collect(
-        erc20Allowances,
-        intentHash,
+    ActionData calldata actionData,
+    IKSGenericForwarder _forwarder,
+    uint256[] memory fees
+  ) internal checkLengths(actionData.erc20Ids.length, actionData.erc20Amounts.length) {
+    /// @dev gas optimization
+    address _feeRecipient = feeRecipient;
+
+    uint256 approvalFlags = actionData.approvalFlags;
+
+    for (uint256 i = 0; i < actionData.erc20Ids.length; i++) {
+      address token = tokenData.erc20Data[actionData.erc20Ids[i]].token;
+
+      _spentAllowance(intentHash, token, actionData.erc20Amounts[i]);
+
+      ERC20DataLibrary.collect(
+        token,
+        actionData.erc20Amounts[i],
         mainAddress,
         actionContract,
-        forwarder,
-        feeRecipient,
         fees[i],
-        _checkFlag(approvalFlags, i)
+        _checkFlag(approvalFlags, i),
+        _forwarder,
+        _feeRecipient
       );
     }
     approvalFlags >>= tokenData.erc20Data.length;
 
-    for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
-      tokenData.erc721Data[i].collect(
-        erc721Approvals,
-        intentHash,
-        mainAddress,
-        actionContract,
-        forwarder,
-        _checkFlag(approvalFlags, i)
+    for (uint256 i = 0; i < actionData.erc721Ids.length; i++) {
+      address token = tokenData.erc721Data[actionData.erc721Ids[i]].token;
+      uint256 tokenId = tokenData.erc721Data[actionData.erc721Ids[i]].tokenId;
+
+      ERC721DataLibrary.collect(
+        token, tokenId, mainAddress, actionContract, _forwarder, _checkFlag(approvalFlags, i)
       );
     }
+  }
 
-    emit CollectTokens(intentHash, tokenData);
+  function _spentAllowance(bytes32 intentHash, address token, uint256 amount) internal {
+    uint256 allowance = erc20Allowances[intentHash][token];
+    if (allowance < amount) {
+      revert ERC20InsufficientIntentAllowance(intentHash, token, allowance, amount);
+    }
+
+    unchecked {
+      erc20Allowances[intentHash][token] = allowance - amount;
+    }
   }
 
   function onERC721Received(address, address, uint256, bytes calldata)

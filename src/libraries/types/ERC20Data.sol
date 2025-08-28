@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
-
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
@@ -26,11 +25,6 @@ library ERC20DataLibrary {
   using PermitHelper for address;
   using TokenHelper for address;
 
-  /// @notice Thrown when collecting more than the intent allowance for ERC20
-  error ERC20InsufficientIntentAllowance(
-    bytes32 intentHash, address token, uint256 allowance, uint256 needed
-  );
-
   bytes32 constant ERC20_DATA_TYPE_HASH =
     keccak256(abi.encodePacked('ERC20Data(address token,uint256 amount,bytes permitData)'));
 
@@ -40,57 +34,32 @@ library ERC20DataLibrary {
     );
   }
 
-  function approve(
-    ERC20Data calldata self,
-    mapping(bytes32 => mapping(address => uint256)) storage allowances,
-    bytes32 intentHash,
-    address mainAddress
-  ) internal {
-    allowances[intentHash][self.token] = self.amount;
-    if (self.permitData.length > 0) {
-      self.token.erc20Permit(mainAddress, self.permitData);
-    }
-  }
-
   function collect(
-    ERC20Data calldata self,
-    mapping(bytes32 => mapping(address => uint256)) storage allowances,
-    bytes32 intentHash,
+    address token,
+    uint256 amount,
     address mainAddress,
     address actionContract,
-    IKSGenericForwarder forwarder,
-    address feeRecipient,
     uint256 fee,
-    bool approvalFlag
+    bool approvalFlag,
+    IKSGenericForwarder forwarder,
+    address feeRecipient
   ) internal {
-    address token = self.token;
-    uint256 amount = self.amount;
-
-    uint256 allowance = allowances[intentHash][token];
-    if (allowance < amount) {
-      revert ERC20InsufficientIntentAllowance(intentHash, token, allowance, amount);
-    }
-
-    unchecked {
-      allowances[intentHash][token] = allowance - amount;
-    }
-
     if (address(forwarder) == address(0)) {
       token.safeTransferFrom(mainAddress, address(this), amount - fee);
-      token.safeTransferFrom(mainAddress, feeRecipient, fee);
       if (approvalFlag) {
         token.forceApprove(actionContract, type(uint256).max);
       }
     } else {
       token.safeTransferFrom(mainAddress, address(forwarder), amount - fee);
-      token.safeTransferFrom(mainAddress, feeRecipient, fee);
       if (approvalFlag) {
-        forwardApproveInf(forwarder, token, actionContract);
+        _forwardApproveInf(forwarder, token, actionContract);
       }
     }
+
+    token.safeTransferFrom(mainAddress, feeRecipient, fee);
   }
 
-  function forwardApproveInf(IKSGenericForwarder forwarder, address token, address spender)
+  function _forwardApproveInf(IKSGenericForwarder forwarder, address token, address spender)
     internal
   {
     bytes memory approveCalldata = abi.encodeCall(IERC20.approve, (spender, type(uint256).max));
