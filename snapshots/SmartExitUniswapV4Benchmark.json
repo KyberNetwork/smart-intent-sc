@@ -1,0 +1,18 @@
+{
+  "test_delegate_five_nodes": "102467",
+  "test_delegate_no_permit_no_condition": "78369",
+  "test_delegate_one_condition_price_based": "83252",
+  "test_delegate_one_condition_time_based": "82964",
+  "test_delegate_one_condition_yield_based": "83024",
+  "test_delegate_three_nodes": "92410",
+  "test_delegate_with_permit_no_condition": "138968",
+  "test_execute_five_nodes_no_fee": "452977",
+  "test_execute_one_node_fee_on_native_and_erc20": "473896",
+  "test_execute_one_node_fee_on_one_token": "446802",
+  "test_execute_one_node_no_fee": "421543",
+  "test_execute_signed_intent_no_permit_no_fee": "470445",
+  "test_execute_signed_intent_three_nodes_with_permit_no_fee": "527534",
+  "test_execute_signed_intent_with_permit_fee_on_both_tokens": "559027",
+  "test_execute_signed_intent_with_permit_no_fee": "506674",
+  "test_execute_three_nodes_no_fee": "437231"
+}
