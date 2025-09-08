@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import 'ks-common-sc/script/Base.s.sol';
 
+import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV3Hook.sol';
 import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV4Hook.sol';
 import 'src/hooks/swap/KSPriceBasedDCAHook.sol';
 import 'src/hooks/swap/KSTimeBasedDCAHook.sol';
@@ -37,6 +38,13 @@ contract DeployHooks is BaseScript {
     // address timeBasedDCAHook =
     //   _create3Deploy(keccak256(abi.encodePacked(timeBasedSalt)), timeBasedCreationCode);
 
+    // Deploy KSRemoveLiquidityUniswapV3Hook using CREATE3
+    string memory removeLiqV3Salt = string.concat('KSRemoveLiquidityUniswapV3Hook_', salt);
+    bytes memory removeLiqV3CreationCode =
+      abi.encodePacked(type(KSRemoveLiquidityUniswapV3Hook).creationCode, abi.encode(weth));
+    address removeLiquidityUniswapV3Hook =
+      _create3Deploy(keccak256(abi.encodePacked(removeLiqV3Salt)), removeLiqV3CreationCode);
+
     // Deploy KSRemoveLiquidityUniswapV4Hook using CREATE3
     string memory removeLiqV4Salt = string.concat('KSRemoveLiquidityUniswapV4Hook_', salt);
     bytes memory removeLiqV4CreationCode =
@@ -46,6 +54,7 @@ contract DeployHooks is BaseScript {
 
     // _writeAddress('hook-price-based-dca', priceBasedDCAHook);
     // _writeAddress('hook-time-based-dca', timeBasedDCAHook);
+    _writeAddress('hook-remove-liquidity-uniswap-v3', removeLiquidityUniswapV3Hook);
     _writeAddress('hook-remove-liquidity-uniswap-v4', removeLiquidityUniswapV4Hook);
 
     vm.stopBroadcast();
