@@ -1,0 +1,48 @@
+{
+  "KSPriceBasedDCAHook": {
+    "constructorParams": [
+      "routers"
+    ],
+    "exported": "price-based-dca-hook"
+  },
+  "KSRemoveLiquidityPancakeV4CLHook": {
+    "constructorParams": [
+      "weth"
+    ],
+    "exported": "remove-liquidity-pancake-v4cl-hook"
+  },
+  "KSRemoveLiquidityUniswapV3Hook": {
+    "constructorParams": [
+      "weth"
+    ],
+    "exported": "remove-liquidity-uniswap-v3-hook"
+  },
+  "KSRemoveLiquidityUniswapV4Hook": {
+    "constructorParams": [
+      "weth"
+    ],
+    "exported": "remove-liquidity-uniswap-v4-hook"
+  },
+  "KSSwapHook": {
+    "constructorParams": [],
+    "exported": "swap-hook"
+  },
+  "KSTimeBasedDCAHook": {
+    "constructorParams": [
+      "routers"
+    ],
+    "exported": "time-based-dca-hook"
+  },
+  "KSZapOutUniswapV2Hook": {
+    "constructorParams": [],
+    "exported": "zap-out-uniswap-v2-hook"
+  },
+  "KSZapOutUniswapV3Hook": {
+    "constructorParams": [],
+    "exported": "zap-out-uniswap-v3-hook"
+  },
+  "KSZapOutUniswapV4Hook": {
+    "constructorParams": [],
+    "exported": "zap-out-uniswap-v4-hook"
+  }
+}
