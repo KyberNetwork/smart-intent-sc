@@ -6,13 +6,14 @@
   "test_delegate_one_condition_yield_based": "83024",
   "test_delegate_three_nodes": "92410",
   "test_delegate_with_permit_no_condition": "138968",
-  "test_execute_five_nodes_no_fee": "452977",
-  "test_execute_one_node_fee_on_native_and_erc20": "473896",
-  "test_execute_one_node_fee_on_one_token": "446802",
-  "test_execute_one_node_no_fee": "421543",
-  "test_execute_signed_intent_no_permit_no_fee": "470445",
-  "test_execute_signed_intent_three_nodes_with_permit_no_fee": "527534",
-  "test_execute_signed_intent_with_permit_fee_on_both_tokens": "559027",
-  "test_execute_signed_intent_with_permit_no_fee": "506674",
-  "test_execute_three_nodes_no_fee": "437231"
+  "test_execute_five_nodes_no_fee": "439075",
+  "test_execute_one_node_fee_on_native_and_erc20": "474434",
+  "test_execute_one_node_fee_on_one_token": "447340",
+  "test_execute_one_node_no_fee": "407641",
+  "test_execute_signed_intent_five_nodes_with_permit_no_fee": "535094",
+  "test_execute_signed_intent_no_permit_no_fee": "456543",
+  "test_execute_signed_intent_three_nodes_with_permit_no_fee": "513632",
+  "test_execute_signed_intent_with_permit_fee_on_both_tokens": "559565",
+  "test_execute_signed_intent_with_permit_no_fee": "492772",
+  "test_execute_three_nodes_no_fee": "423329"
 }

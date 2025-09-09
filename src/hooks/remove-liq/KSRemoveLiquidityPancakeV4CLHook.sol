@@ -82,7 +82,7 @@ contract KSRemoveLiquidityPancakeV4CLHook is BaseTickBasedRemoveLiquidityHook {
     }
 
     (outputParams.balancesBefore[0], outputParams.balancesBefore[1]) =
-      _recordRouterBalances(msg.sender, outputParams.tokens);
+      _recordBalances(outputParams.outputReceiver, outputParams.tokens);
     _computePositionValues(pancakeCL);
   }
 

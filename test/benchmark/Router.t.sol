@@ -6,6 +6,8 @@ import '../mocks/MockHook.sol';
 
 import 'openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol';
 import 'src/hooks/swap/KSSwapHook.sol';
+
+import 'test/benchmark/CalldataGasCalculator.sol';
 import 'test/common/Permit.sol';
 
 contract RouterBenchmarkTest is BaseTest {
@@ -185,7 +187,26 @@ contract RouterBenchmarkTest is BaseTest {
 
     vm.startPrank(mainAddress);
     router.delegate(IntentData({coreData: coreData, tokenData: tokenData, extraData: ''}));
+
+    bytes memory callData = abi.encodeWithSelector(
+      router.delegate.selector,
+      IntentData({coreData: coreData, tokenData: tokenData, extraData: ''})
+    );
+    (uint256 totalGas, uint256 zeroBytesCount, uint256 nonZeroBytesCount) =
+      this.calculateCalldataGas(callData);
+    console.log('totalGas', totalGas);
+    console.log('zeroBytesCount', zeroBytesCount);
+    console.log('nonZeroBytesCount', nonZeroBytesCount);
     vm.snapshotGasLastCall('test_delegate_erc721');
+  }
+
+  function calculateCalldataGas(bytes calldata callData)
+    public
+    view
+    returns (uint256 totalGas, uint256 zeroBytesCount, uint256 nonZeroBytesCount)
+  {
+    (totalGas, zeroBytesCount, nonZeroBytesCount) =
+      CalldataGasCalculator.calculateCalldataGas(callData);
   }
 
   function testDelegate_UniV4Position_NoPermit() public {
@@ -327,7 +348,7 @@ contract RouterBenchmarkTest is BaseTest {
     vm.startPrank(caller);
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
-    vm.snapshotGasLastCall('test_execute_1_erc721');
+    vm.snapshotGasLastCall('test_execute_1_erc721_1_erc20');
   }
 
   function testExecute_TwoErc20() public {

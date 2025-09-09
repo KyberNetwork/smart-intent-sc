@@ -295,6 +295,40 @@ contract SmartExitUniswapV4Benchmark is BaseTest {
     vm.snapshotGasLastCall('test_execute_signed_intent_three_nodes_with_permit_no_fee');
   }
 
+  function testExecuteSignedIntent_FiveNodes_WithPermit_NoFee() public {
+    Node[] memory nodes = new Node[](5);
+    nodes[1] = _createLeafNode(_createCondition(PRICE_BASED));
+    nodes[2] = _createLeafNode(_createCondition(YIELD_BASED));
+    nodes[3] = _createLeafNode(_createCondition(TIME_BASED));
+    nodes[4] = _createLeafNode(_createCondition(YIELD_BASED));
+
+    uint256[] memory andChildren = new uint256[](4);
+    andChildren[0] = 1;
+    andChildren[1] = 2;
+    andChildren[2] = 3;
+    andChildren[3] = 4;
+    nodes[0] = _createParentNode(andChildren, AND);
+
+    IntentData memory intentData = _getIntentData(true, nodes);
+
+    ActionData memory actionData = _getActionData(
+      IPositionManager(pm).getPositionLiquidity(uniV4TokenId), 0, 0, false, token0, token1
+    );
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, actionData);
+
+    bytes memory maSignature = _getMASignature(intentData);
+
+    vm.startPrank(caller);
+    router.executeWithSignedIntent(
+      intentData, maSignature, daSignature, guardian, gdSignature, actionData
+    );
+    vm.stopPrank();
+
+    vm.snapshotGasLastCall('test_execute_signed_intent_five_nodes_with_permit_no_fee');
+  }
+
   function testExecuteSignedIntent_WithPermit_FeeOnBothTokens() public {
     Node[] memory nodes = new Node[](1);
     nodes[0] = _createLeafNode(_createCondition(TIME_BASED));
@@ -392,14 +426,20 @@ contract SmartExitUniswapV4Benchmark is BaseTest {
     address _token0,
     address _token1
   ) internal view returns (ActionData memory actionData) {
+    bool toRouter = intentFeesPercent0 != 0 || intentFeesPercent1 != 0;
+
     bytes[] memory multiCalldata;
     if (!unwrap) {
-      bytes memory actions = new bytes(2);
-      bytes[] memory params = new bytes[](2);
+      bytes memory actions;
+      bytes[] memory params;
+
+      actions = new bytes(2);
+      params = new bytes[](2);
+
       actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
       params[0] = abi.encode(uniV4TokenId, liquidity, 0, 0, '');
       actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
-      params[1] = abi.encode(_token0, _token1, address(router));
+      params[1] = abi.encode(_token0, _token1, toRouter ? address(router) : address(mainAddress));
 
       multiCalldata = new bytes[](2);
       multiCalldata[0] = abi.encodeWithSelector(
