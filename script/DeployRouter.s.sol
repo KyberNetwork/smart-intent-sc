@@ -16,6 +16,7 @@ contract DeployRouter is BaseScript {
     address admin = _readAddress('router-admin');
     address[] memory guardians = _readAddressArray('router-guardians');
     address[] memory rescuers = _readAddressArray('router-rescuers');
+    address[] memory actionContracts = _readAddressArray('action-contracts');
     address feeRecipient = _readAddress('fee-recipient');
     address forwarder = _readAddress('forwarder');
 
@@ -23,7 +24,7 @@ contract DeployRouter is BaseScript {
 
     bytes memory creationCode = abi.encodePacked(
       type(KSSmartIntentRouter).creationCode,
-      abi.encode(admin, guardians, rescuers, feeRecipient, IKSGenericForwarder(forwarder))
+      abi.encode(admin, guardians, rescuers, actionContracts, feeRecipient, forwarder)
     );
     address router = _create3Deploy(keccak256(abi.encodePacked(salt)), creationCode);
 

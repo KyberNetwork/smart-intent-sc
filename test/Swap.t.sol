@@ -7,6 +7,7 @@ import 'src/hooks/swap/KSSwapHook.sol';
 
 contract SwapTest is BaseTest {
   using SafeERC20 for IERC20;
+  using ArraysHelper for *;
 
   KSSwapHook swapHook;
 
@@ -68,8 +69,8 @@ contract SwapTest is BaseTest {
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(swapRouter),
-      actionSelectors: _toArray(IKSSwapRouterV2.swap.selector),
+      actionContracts: [swapRouter].toMemoryArray(),
+      actionSelectors: [IKSSwapRouterV2.swap.selector].toMemoryArray(),
       hook: address(swapHook),
       hookIntentData: abi.encode(hookData)
     });
@@ -99,7 +100,9 @@ contract SwapTest is BaseTest {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: [uint256(0)].toMemoryArray(),
+      erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
+      erc721Ids: new uint256[](0),
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

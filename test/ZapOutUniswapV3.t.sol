@@ -7,6 +7,8 @@ import 'src/hooks/zap-out/KSZapOutUniswapV3Hook.sol';
 import 'src/interfaces/actions/IKSZapRouter.sol';
 
 contract ZapOutUniswapV3Test is BaseTest {
+  using ArraysHelper for *;
+
   KSZapOutUniswapV3Hook zapOutHook;
 
   address zapRouter = 0x0e97C887b61cCd952a53578B04763E7134429e05;
@@ -22,9 +24,8 @@ contract ZapOutUniswapV3Test is BaseTest {
 
     zapOutHook = new KSZapOutUniswapV3Hook();
 
-    address[] memory actionContracts = new address[](1);
-    actionContracts[0] = address(zapRouter);
-    router.whitelistActionContracts(actionContracts, true);
+    vm.prank(admin);
+    router.grantRole(ACTION_CONTRACT_ROLE, address(zapRouter));
 
     recipient = 0x6dE36caC9520173d31dc6748d7bd90e41b9D192f;
     minRate = 22_060_326_920_328;
@@ -96,8 +97,8 @@ contract ZapOutUniswapV3Test is BaseTest {
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
       delegatedAddress: delegatedAddress,
-      actionContracts: _toArray(zapRouter),
-      actionSelectors: _toArray(IKSZapRouter.zap.selector),
+      actionContracts: [address(zapRouter)].toMemoryArray(),
+      actionSelectors: [IKSZapRouter.zap.selector].toMemoryArray(),
       hook: address(zapOutHook),
       hookIntentData: abi.encode(hookData)
     });
@@ -126,7 +127,9 @@ contract ZapOutUniswapV3Test is BaseTest {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,

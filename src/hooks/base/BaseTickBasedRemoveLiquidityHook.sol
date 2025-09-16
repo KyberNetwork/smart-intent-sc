@@ -20,9 +20,9 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   uint256 public constant Q128 = 1 << 128;
   address public immutable WETH;
 
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
-    require(tokenData.erc20Data.length == 0, InvalidTokenData());
-    require(tokenData.erc721Data.length == 1, InvalidTokenData());
+  modifier checkTokenLengths(ActionData calldata actionData) override {
+    require(actionData.erc20Ids.length == 0, InvalidTokenData());
+    require(actionData.erc721Ids.length == 1, InvalidTokenData());
     _;
   }
 
@@ -109,25 +109,21 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   }
 
   /// @inheritdoc IKSSmartIntentHook
-  function beforeExecution(
-    bytes32,
-    IntentCoreData calldata coreData,
-    ActionData calldata actionData
-  )
+  function beforeExecution(bytes32, IntentData calldata intentData, ActionData calldata actionData)
     external
     view
     override
-    checkTokenLengths(actionData.tokenData)
+    checkTokenLengths(actionData)
     returns (uint256[] memory, bytes memory beforeExecutionData)
   {
     // not collect fees before execution
-    beforeExecutionData = _validateBeforeExecution(coreData, actionData);
+    beforeExecutionData = _validateBeforeExecution(intentData, actionData);
   }
 
   /// @inheritdoc IKSSmartIntentHook
   function afterExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata
   )
@@ -140,16 +136,18 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       address recipient
     )
   {
-    (tokens, fees, amounts, recipient) = _validateAfterExecution(coreData, beforeExecutionData);
+    (tokens, fees, amounts, recipient) = _validateAfterExecution(intentData, beforeExecutionData);
   }
 
-  function _validateBeforeExecution(
-    IntentCoreData calldata coreData,
-    ActionData calldata actionData
-  ) internal view virtual returns (bytes memory beforeExecutionData) {}
+  function _validateBeforeExecution(IntentData calldata intentData, ActionData calldata actionData)
+    internal
+    view
+    virtual
+    returns (bytes memory beforeExecutionData)
+  {}
 
   function _validateAfterExecution(
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData
   )
     internal
@@ -167,7 +165,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     _validateTokenOwner(
       removeLiqParams.positionInfo.nftAddress,
       removeLiqParams.positionInfo.nftId,
-      coreData.mainAddress
+      intentData.coreData.mainAddress
     );
     _validateLiquidity(removeLiqParams);
     (fees, amounts) = _validateOutput(outputParams, removeLiqParams.positionInfo);

@@ -28,12 +28,15 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
 
   constructor(address _weth) BaseTickBasedRemoveLiquidityHook(_weth) {}
 
-  function _validateBeforeExecution(
-    IntentCoreData calldata coreData,
-    ActionData calldata actionData
-  ) internal view override returns (bytes memory beforeExecutionData) {
+  function _validateBeforeExecution(IntentData calldata intentData, ActionData calldata actionData)
+    internal
+    view
+    override
+    returns (bytes memory beforeExecutionData)
+  {
     UniswapV3Params memory uniswapV3;
-    RemoveLiquidityHookData calldata validationData = _decodeHookData(coreData.hookIntentData);
+    RemoveLiquidityHookData calldata validationData =
+      _decodeHookData(intentData.coreData.hookIntentData);
 
     _cacheValidationData(uniswapV3, validationData, actionData.hookActionData);
 

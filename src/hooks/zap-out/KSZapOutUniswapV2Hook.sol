@@ -35,30 +35,26 @@ contract KSZapOutUniswapV2Hook is BaseHook {
     address recipient;
   }
 
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
-    require(tokenData.erc20Data.length == 1, InvalidTokenData());
-    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+  modifier checkTokenLengths(ActionData calldata actionData) override {
+    require(actionData.erc20Ids.length == 1, InvalidTokenData());
+    require(actionData.erc721Ids.length == 0, InvalidTokenData());
     _;
   }
 
   /// @inheritdoc IKSSmartIntentHook
-  function beforeExecution(
-    bytes32,
-    IntentCoreData calldata coreData,
-    ActionData calldata actionData
-  )
+  function beforeExecution(bytes32, IntentData calldata intentData, ActionData calldata actionData)
     external
     override
-    checkTokenLengths(actionData.tokenData)
+    checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     uint256 index = abi.decode(actionData.hookActionData, (uint256));
 
     ZapOutUniswapV2HookData memory zapOutHookData =
-      abi.decode(coreData.hookIntentData, (ZapOutUniswapV2HookData));
+      abi.decode(intentData.coreData.hookIntentData, (ZapOutUniswapV2HookData));
 
-    ERC20Data[] calldata erc20Data = actionData.tokenData.erc20Data;
-    require(erc20Data[0].token == zapOutHookData.srcTokens[index], InvalidTokenData());
+    ERC20Data calldata erc20Data = intentData.tokenData.erc20Data[actionData.erc20Ids[0]];
+    require(erc20Data.token == zapOutHookData.srcTokens[index], InvalidTokenData());
 
     uint256 dstBalanceBefore = zapOutHookData.dstTokens[index].balanceOf(zapOutHookData.recipient);
 
@@ -81,11 +77,11 @@ contract KSZapOutUniswapV2Hook is BaseHook {
       )
     );
 
-    fees = new uint256[](actionData.tokenData.erc20Data.length);
+    fees = new uint256[](actionData.erc20Ids.length);
     beforeExecutionData = abi.encode(
       zapOutHookData.srcTokens[index],
       zapOutHookData.dstTokens[index],
-      erc20Data[0].amount,
+      actionData.erc20Amounts[0],
       dstBalanceBefore,
       zapOutHookData.minRates[index]
     );
@@ -94,7 +90,7 @@ contract KSZapOutUniswapV2Hook is BaseHook {
   /// @inheritdoc IKSSmartIntentHook
   function afterExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata
   ) external view override returns (address[] memory, uint256[] memory, uint256[] memory, address) {
@@ -102,7 +98,7 @@ contract KSZapOutUniswapV2Hook is BaseHook {
     uint256 inputAmount;
     uint256 outputAmount;
     ZapOutUniswapV2HookData memory zapOutHookData =
-      abi.decode(coreData.hookIntentData, (ZapOutUniswapV2HookData));
+      abi.decode(intentData.coreData.hookIntentData, (ZapOutUniswapV2HookData));
     {
       address srcToken;
       address dstToken;

@@ -25,23 +25,18 @@ contract KSSmartIntentRouter is
   using Address for address;
   using TokenHelper for address;
 
-  mapping(bytes32 => IntentStatus) public intentStatuses;
-
-  mapping(address => bool) public whitelistedActionContracts;
-
-  IKSGenericForwarder private forwarder;
-
-  address private feeRecipient;
-
   constructor(
     address initialAdmin,
     address[] memory initialGuardians,
     address[] memory initialRescuers,
+    address[] memory initialActionContracts,
     address _feeRecipient,
-    IKSGenericForwarder _forwarder
+    address _forwarder
   ) ManagementBase(0, initialAdmin) {
     _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
     _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
+    _batchGrantRole(ACTION_CONTRACT_ROLE, initialActionContracts);
+
     _updateFeeRecipient(_feeRecipient);
     _updateForwarder(_forwarder);
   }
@@ -59,21 +54,12 @@ contract KSSmartIntentRouter is
   }
 
   /// @inheritdoc IKSSmartIntentRouter
-  function whitelistActionContracts(address[] calldata actionContracts, bool grantOrRevoke) public {
-    for (uint256 i = 0; i < actionContracts.length; i++) {
-      whitelistedActionContracts[actionContracts[i]] = grantOrRevoke;
-
-      emit WhitelistActionContract(actionContracts[i], grantOrRevoke);
-    }
-  }
-
-  /// @inheritdoc IKSSmartIntentRouter
-  function updateForwarder(IKSGenericForwarder newForwarder) public onlyRole(DEFAULT_ADMIN_ROLE) {
+  function updateForwarder(address newForwarder) public onlyRole(DEFAULT_ADMIN_ROLE) {
     _updateForwarder(newForwarder);
   }
 
-  function _updateForwarder(IKSGenericForwarder newForwarder) internal {
-    forwarder = newForwarder;
+  function _updateForwarder(address newForwarder) internal {
+    forwarder = IKSGenericForwarder(newForwarder);
 
     emit UpdateForwarder(newForwarder);
   }
@@ -119,7 +105,7 @@ contract KSSmartIntentRouter is
     ActionData calldata actionData
   ) public {
     bytes32 intentHash = hashTypedIntentData(intentData);
-    _execute(intentHash, intentData.coreData, daSignature, guardian, gdSignature, actionData);
+    _execute(intentHash, intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   /// @inheritdoc IKSSmartIntentRouter
@@ -139,7 +125,7 @@ contract KSSmartIntentRouter is
     }
 
     _delegate(intentData, intentHash);
-    _execute(intentHash, intentData.coreData, daSignature, guardian, gdSignature, actionData);
+    _execute(intentHash, intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function _delegate(IntentData calldata intentData, bytes32 intentHash)
@@ -149,26 +135,26 @@ contract KSSmartIntentRouter is
       intentData.coreData.actionSelectors.length
     )
   {
-    IntentCoreData calldata intent = intentData.coreData;
+    IntentCoreData calldata coreData = intentData.coreData;
 
     _checkIntentStatus(intentHash, IntentStatus.NOT_DELEGATED);
 
     intentStatuses[intentHash] = IntentStatus.DELEGATED;
-    _approveTokens(intentHash, intentData.tokenData, intent.mainAddress);
+    _approveTokens(intentHash, intentData.tokenData, coreData.mainAddress);
 
-    emit DelegateIntent(intent.mainAddress, intent.delegatedAddress, intentData);
+    emit DelegateIntent(coreData.mainAddress, coreData.delegatedAddress, intentData);
   }
 
   function _execute(
     bytes32 intentHash,
-    IntentCoreData calldata intent,
+    IntentData calldata intentData,
     bytes memory daSignature,
     address guardian,
     bytes memory gdSignature,
     ActionData calldata actionData
   ) internal nonReentrant {
     _checkIntentStatus(intentHash, IntentStatus.DELEGATED);
-    if (actionData.actionSelectorId >= intent.actionContracts.length) {
+    if (actionData.actionSelectorId >= intentData.coreData.actionContracts.length) {
       revert InvalidActionSelectorId(actionData.actionSelectorId);
     }
     if (block.timestamp > actionData.deadline) {
@@ -178,28 +164,27 @@ contract KSSmartIntentRouter is
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 
-    _validateActionData(intent, daSignature, guardian, gdSignature, hashTypedActionData(actionData));
+    _validateActionData(
+      intentData.coreData, daSignature, guardian, gdSignature, hashTypedActionData(actionData)
+    );
 
     (uint256[] memory fees, bytes memory beforeExecutionData) =
-      HookLibrary.beforeExecution(intentHash, intent, feeRecipient, actionData);
+      HookLibrary.beforeExecution(intentHash, intentData, feeRecipient, actionData);
 
-    address actionContract = intent.actionContracts[actionData.actionSelectorId];
-    bytes4 actionSelector = intent.actionSelectors[actionData.actionSelectorId];
+    address actionContract = intentData.coreData.actionContracts[actionData.actionSelectorId];
+    bytes4 actionSelector = intentData.coreData.actionSelectors[actionData.actionSelectorId];
 
-    if (!whitelistedActionContracts[actionContract]) {
-      revert NotWhitelistedActionContract(actionContract);
-    }
+    _checkRole(ACTION_CONTRACT_ROLE, actionContract);
 
     IKSGenericForwarder _forwarder = _needForwarder(actionSelector);
     _collectTokens(
       intentHash,
-      intent.mainAddress,
+      intentData.coreData.mainAddress,
       actionContract,
-      actionData.tokenData,
+      intentData.tokenData,
+      actionData,
       _forwarder,
-      feeRecipient,
-      fees,
-      actionData.approvalFlags
+      fees
     );
 
     bytes memory actionResult;
@@ -212,7 +197,9 @@ contract KSSmartIntentRouter is
       }
     }
 
-    HookLibrary.afterExecution(intentHash, intent, feeRecipient, beforeExecutionData, actionResult);
+    HookLibrary.afterExecution(
+      intentHash, intentData, feeRecipient, beforeExecutionData, actionResult
+    );
 
     emit ExecuteIntent(intentHash, actionData, actionResult);
     emit ExtraData(intentHash, actionData.extraData);
@@ -230,14 +217,15 @@ contract KSSmartIntentRouter is
   }
 
   function _validateActionData(
-    IntentCoreData calldata intent,
+    IntentCoreData calldata coreData,
     bytes memory daSignature,
     address guardian,
     bytes memory gdSignature,
     bytes32 actionHash
   ) internal view {
-    if (msg.sender != intent.delegatedAddress) {
-      if (!SignatureChecker.isValidSignatureNow(intent.delegatedAddress, actionHash, daSignature)) {
+    if (msg.sender != coreData.delegatedAddress) {
+      if (!SignatureChecker.isValidSignatureNow(coreData.delegatedAddress, actionHash, daSignature))
+      {
         revert InvalidDelegatedAddressSignature();
       }
     }

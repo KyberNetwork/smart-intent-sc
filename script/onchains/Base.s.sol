@@ -128,8 +128,15 @@ contract BaseOnchainScript is BaseScript {
     view
     returns (ActionData memory actionData)
   {
+    uint256[] memory erc20Amounts = new uint256[](tokenData.erc20Data.length);
+    for (uint256 i = 0; i < tokenData.erc20Data.length; i++) {
+      erc20Amounts[i] = tokenData.erc20Data[i].amount;
+    }
+
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: _consecutiveArray(0, tokenData.erc20Data.length),
+      erc20Amounts: erc20Amounts,
+      erc721Ids: _consecutiveArray(0, tokenData.erc721Data.length),
       approvalFlags: type(uint256).max,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
@@ -218,6 +225,14 @@ contract BaseOnchainScript is BaseScript {
   function _toArray(bytes4 value) internal pure returns (bytes4[] memory) {
     bytes4[] memory array = new bytes4[](1);
     array[0] = value;
+    return array;
+  }
+
+  function _consecutiveArray(uint256 start, uint256 end) internal pure returns (uint256[] memory) {
+    uint256[] memory array = new uint256[](end - start);
+    for (uint256 i = 0; i < array.length; i++) {
+      array[i] = start + i;
+    }
     return array;
   }
 }

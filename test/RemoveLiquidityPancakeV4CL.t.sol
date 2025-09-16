@@ -26,6 +26,7 @@ import 'test/common/Permit.sol';
 contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
+  using ArraysHelper for *;
 
   ICLPositionManager positionManager =
     ICLPositionManager(0x55f4c8abA71A1e923edC303eb4fEfF14608cC226);
@@ -74,14 +75,6 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   function setUp() public override {
     super.setUp();
 
-    {
-      vm.startPrank(admin);
-      address[] memory actionContracts = new address[](2);
-      actionContracts[0] = address(positionManager);
-      router.whitelistActionContracts(actionContracts, true);
-      vm.stopPrank();
-    }
-
     vm.label(token0, 'BNB');
     vm.label(token1, 'CAKE');
     vm.label(address(positionManager), 'CLPositionManager');
@@ -114,6 +107,9 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     vm.prank(tokenOwner);
     positionManager.safeTransferFrom(tokenOwner, mainAddress, tokenId);
     tokenOwner = mainAddress;
+
+    vm.prank(admin);
+    router.grantRole(ACTION_CONTRACT_ROLE, address(positionManager));
   }
 
   function _selectFork() public virtual override {
@@ -141,8 +137,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId, true);
 
-    ActionData memory actionData =
-      _getActionData(intentData.tokenData, pancakeCL.removeLiqParams.liquidityToRemove);
+    ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -235,7 +230,9 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     _setUpMainAddress(intentData, false, tokenId, true);
 
     ActionData memory actionData = ActionData({
-      tokenData: intentData.tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -260,8 +257,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
@@ -313,8 +309,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId, !wrap);
 
-    ActionData memory actionData =
-      _getActionData(intentData.tokenData, pancakeCL.removeLiqParams.liquidityToRemove);
+    ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
@@ -477,10 +472,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     return rmLqValidator.evaluateCondition(condition, additionalData);
   }
 
-  function _getActionData(TokenData memory tokenData, uint256 _liquidity)
-    internal
-    returns (ActionData memory actionData)
-  {
+  function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
     MockActionContract.RemovePancakeV4CLParams memory params = MockActionContract
       .RemovePancakeV4CLParams({
       pm: ICLPositionManager(positionManager),
@@ -498,7 +490,9 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       fees: fees
     });
     actionData = ActionData({
-      tokenData: tokenData,
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: [uint256(0)].toMemoryArray(),
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(params),
@@ -781,7 +775,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     vm.prank(posOwner);
     positionManager.safeTransferFrom(posOwner, mainAddress, tokenId);
 
-    (PKey memory poolKey, CLPositionInfo posInfo) = positionManager.getPoolAndPositionInfo(tokenId);
+    (PKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
 
     (
       poolKey,
