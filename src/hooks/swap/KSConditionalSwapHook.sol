@@ -71,31 +71,31 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
 
-  modifier checkTokenLengths(TokenData calldata tokenData) override {
-    require(tokenData.erc20Data.length == 1, InvalidTokenData());
-    require(tokenData.erc721Data.length == 0, InvalidTokenData());
+  modifier checkTokenLengths(ActionData calldata actionData) override {
+    require(actionData.erc20Ids.length == 1, InvalidTokenData());
+    require(actionData.erc721Ids.length == 0, InvalidTokenData());
     _;
   }
 
   /// @inheritdoc IKSSmartIntentHook
   function beforeExecution(
     bytes32 intentHash,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     ActionData calldata actionData
   )
     external
     override
     onlyWhitelistedRouter
-    checkTokenLengths(actionData.tokenData)
+    checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
-    SwapHookData calldata swapHookData = _decodeHookData(coreData.hookIntentData);
+    SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
     (uint256 index, uint256 intentSrcFee, uint256 intentDstFee) =
       _decodeAndValidateHookActionData(actionData.hookActionData, swapHookData);
 
-    address tokenIn = actionData.tokenData.erc20Data[0].token;
+    address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
     address tokenOut = swapHookData.dstTokens[index];
-    uint256 amountIn = actionData.tokenData.erc20Data[0].amount;
+    uint256 amountIn = actionData.erc20Amounts[0];
 
     require(
       tokenIn == swapHookData.srcTokens[index],
@@ -115,7 +115,7 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
         srcFeePercent: intentSrcFee,
         dstFeePercent: intentDstFee,
         recipientBalanceBefore: _getRecipientBalance(tokenOut, swapHookData.recipient, intentDstFee), // if dstFee is 0, transfer directly to the recipient
-        swapperBalanceBefore: tokenIn.balanceOf(coreData.mainAddress),
+        swapperBalanceBefore: tokenIn.balanceOf(intentData.coreData.mainAddress),
         recipient: swapHookData.recipient
       })
     );
@@ -126,7 +126,7 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
   /// @inheritdoc IKSSmartIntentHook
   function afterExecution(
     bytes32,
-    IntentCoreData calldata coreData,
+    IntentData calldata intentData,
     bytes calldata beforeExecutionData,
     bytes calldata
   )
@@ -146,7 +146,7 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
     uint256 amountIn = validationData.amountIn;
 
     uint256 swappedAmount =
-      validationData.swapperBalanceBefore - tokenIn.balanceOf(coreData.mainAddress);
+      validationData.swapperBalanceBefore - tokenIn.balanceOf(intentData.coreData.mainAddress);
     require(swappedAmount <= amountIn, AmountInMismatch(amountIn, swappedAmount));
 
     uint256 amountOut = _getRecipientBalance(
