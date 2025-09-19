@@ -6,9 +6,11 @@ import 'src/hooks/base/BaseConditionalHook.sol';
 
 import 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
 import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {ArraysHelper} from 'test/libraries/ArraysHelper.sol';
 
 abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   using TokenHelper for address;
+  using ArraysHelper for *;
 
   event LiquidityRemoved(address nftAddress, uint256 nftId, uint256 liquidity);
 
@@ -70,7 +72,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
 
   /**
    * @notice Data structure for output validation params
-   * @param router The router address that receives the output tokens after removing liquidity
+   * @param outputReceiver The receiver address that receives the output tokens after removing liquidity
    * @param balancesBefore The token0, token1 balances of the router before removing liquidity
    * @param maxFees The max fee percents for each output token (1e6 = 100%)
    * @param intentFeesPercent The intent fees percents for each output token (1e6 = 100%)
@@ -79,7 +81,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
    * @param unclaimedFees The unclaimed fees of the position
    */
   struct OutputValidationParams {
-    address router;
+    address outputReceiver;
     uint256[2] balancesBefore;
     uint256[2] maxFees;
     uint256[2] intentFeesPercent;
@@ -170,9 +172,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     _validateLiquidity(removeLiqParams);
     (fees, amounts) = _validateOutput(outputParams, removeLiqParams.positionInfo);
 
-    tokens = new address[](2);
-    tokens[0] = outputParams.tokens[0];
-    tokens[1] = outputParams.tokens[1];
+    tokens = outputParams.tokens.toMemoryArray();
     recipient = removeLiqParams.recipient;
 
     emit LiquidityRemoved(
@@ -192,29 +192,29 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     OutputValidationParams calldata outputParams,
     PositionInfo calldata positionInfo
   ) internal view virtual returns (uint256[] memory fees, uint256[] memory userReceived) {
-    (uint256 routerReceived0, uint256 routerReceived1) =
-      _recordRouterBalances(outputParams.router, outputParams.tokens);
+    (uint256 amount0Received, uint256 amount1Received) =
+      _recordBalances(outputParams.outputReceiver, outputParams.tokens);
 
-    routerReceived0 -= outputParams.balancesBefore[0];
-    routerReceived1 -= outputParams.balancesBefore[1];
+    amount0Received -= outputParams.balancesBefore[0];
+    amount1Received -= outputParams.balancesBefore[1];
 
     require(
-      routerReceived0 >= positionInfo.unclaimedFees[0]
-        && routerReceived1 >= positionInfo.unclaimedFees[1],
+      amount0Received >= positionInfo.unclaimedFees[0]
+        && amount1Received >= positionInfo.unclaimedFees[1],
       NotEnoughFeesReceived()
     );
 
-    uint256 amount0ReceivedForLiquidity = routerReceived0 - positionInfo.unclaimedFees[0];
-    uint256 amount1ReceivedForLiquidity = routerReceived1 - positionInfo.unclaimedFees[1];
+    uint256 amount0ReceivedForLiquidity = amount0Received - positionInfo.unclaimedFees[0];
+    uint256 amount1ReceivedForLiquidity = amount1Received - positionInfo.unclaimedFees[1];
 
     // not charge fee on the user's unclaimed fees
-    fees = new uint256[](2);
-    fees[0] = amount0ReceivedForLiquidity * outputParams.intentFeesPercent[0] / PRECISION;
-    fees[1] = amount1ReceivedForLiquidity * outputParams.intentFeesPercent[1] / PRECISION;
+    fees = [
+      amount0ReceivedForLiquidity * outputParams.intentFeesPercent[0] / PRECISION,
+      amount1ReceivedForLiquidity * outputParams.intentFeesPercent[1] / PRECISION
+    ].toMemoryArray();
 
-    userReceived = new uint256[](2);
-    userReceived[0] = routerReceived0 - fees[0];
-    userReceived[1] = routerReceived1 - fees[1];
+    amount0Received -= fees[0];
+    amount1Received -= fees[1];
 
     uint256 minReceived0 = positionInfo.unclaimedFees[0]
       + (positionInfo.amounts[0] * (PRECISION - outputParams.maxFees[0])) / PRECISION;
@@ -222,8 +222,14 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       + (positionInfo.amounts[1] * (PRECISION - outputParams.maxFees[1])) / PRECISION;
 
     require(
-      userReceived[0] >= minReceived0 && userReceived[1] >= minReceived1, NotEnoughOutputAmount()
+      amount0Received >= minReceived0 && amount1Received >= minReceived1, NotEnoughOutputAmount()
     );
+
+    if (outputParams.intentFeesPercent[0] == 0 && outputParams.intentFeesPercent[1] == 0) {
+      userReceived = [uint256(0), 0].toMemoryArray();
+    } else {
+      userReceived = [amount0Received, amount1Received].toMemoryArray();
+    }
   }
 
   function _cacheBaseData(
@@ -244,7 +250,9 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     removeLiqParams.positionInfo.nftAddress = validationData.nftAddresses[removeLiqParams.index];
     removeLiqParams.positionInfo.nftId = validationData.nftIds[removeLiqParams.index];
 
-    outputParams.router = msg.sender;
+    outputParams.outputReceiver = outputParams.intentFeesPercent[0] == 0
+      && outputParams.intentFeesPercent[1] == 0 ? removeLiqParams.recipient : msg.sender;
+
     outputParams.maxFees = [
       validationData.maxFees[removeLiqParams.index] >> 128,
       uint128(validationData.maxFees[removeLiqParams.index])
@@ -292,13 +300,13 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     liquidity = IPositionManager(nftAddress).getPositionLiquidity(nftId);
   }
 
-  function _recordRouterBalances(address router, address[2] memory tokens)
+  function _recordBalances(address receiver, address[2] memory tokens)
     internal
     view
     returns (uint256 balance0, uint256 balance1)
   {
-    balance0 = tokens[0].balanceOf(router);
-    balance1 = tokens[1].balanceOf(router);
+    balance0 = tokens[0].balanceOf(receiver);
+    balance1 = tokens[1].balanceOf(receiver);
   }
 
   function _adjustTokens(address[2] memory tokens)

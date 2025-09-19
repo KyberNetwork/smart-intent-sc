@@ -48,6 +48,7 @@ contract BaseTest is Test {
   MockDex mockDex;
 
   ERC20Mock erc20Mock;
+  ERC20Mock erc20Mock2;
   ERC721Mock erc721Mock;
 
   function setUp() public virtual {
@@ -76,6 +77,7 @@ contract BaseTest is Test {
     vm.stopPrank();
 
     erc20Mock = new ERC20Mock();
+    erc20Mock2 = new ERC20Mock();
     erc721Mock = new ERC721Mock();
   }
 

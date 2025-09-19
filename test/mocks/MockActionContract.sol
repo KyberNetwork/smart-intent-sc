@@ -30,11 +30,24 @@ contract MockActionContract {
   uint256 constant TAKE_PAIR = 0x11;
   uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
 
+  function doNothing() external {}
+
   function execute(bytes calldata data) external {
     if (data.length > 0) {
       (address token, address router) = abi.decode(data, (address, address));
       uint256 amount = token.balanceOf(msg.sender);
       token.safeTransferFrom(msg.sender, router, amount);
+    }
+  }
+
+  function execute2(bytes calldata data) external {
+    if (data.length > 0) {
+      console.log('data length', data.length);
+      (address[] memory tokens, address router) = abi.decode(data, (address[], address));
+
+      for (uint256 i = 0; i < tokens.length; i++) {
+        tokens[i].safeTransferFrom(msg.sender, router, tokens[i].balanceOf(msg.sender));
+      }
     }
   }
 

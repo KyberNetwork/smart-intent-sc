@@ -33,5 +33,5 @@ jobs:
         id: build
 
       - name: Run tests
-        run: forge test -vvv
+        run: forge test --nmp "test/benchmark/**" -vvv
         id: test

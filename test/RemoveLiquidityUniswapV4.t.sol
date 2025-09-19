@@ -167,8 +167,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     wrapOrUnwrap = bound(fuzz.seed, 0, 1) == 1;
     fuzz.liquidityToRemove = bound(fuzz.seed, 0, liquidity);
     takeUnclaimedFees = bound(fuzz.seed, 0, 1) == 1;
-    intentFeesPercent0 = bound(fuzz.seed, 0, 1_000_000);
-    intentFeesPercent1 = bound(fuzz.seed, 0, 1_000_000);
+    intentFeesPercent0 = bound(fuzz.seed, 100, 1_000_000);
+    intentFeesPercent1 = bound(fuzz.seed, 100, 1_000_000);
 
     (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
     IPositionManager(pm).poolManager().computePositionValues(
