@@ -38,6 +38,20 @@ contract MockActionContract {
     }
   }
 
+  function swap(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOut,
+    address recipient,
+    address mainAddress
+  ) external {
+    uint256 remainingAmountIn = tokenIn.balanceOf(msg.sender) - amountIn;
+    tokenIn.safeTransferFrom(msg.sender, address(this), tokenIn.balanceOf(msg.sender));
+    tokenOut.safeTransfer(recipient, amountOut);
+    tokenIn.safeTransfer(mainAddress, remainingAmountIn);
+  }
+
   struct RemoveUniswapV4Params {
     IPositionManager posManager;
     uint256 tokenId;

@@ -5,11 +5,11 @@ import './BaseHook.sol';
 
 import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 import 'src/interfaces/hooks/IKSConditionalHook.sol';
+
 /**
  * @param startTimestamp the start timestamp of the condition
  * @param endTimestamp the end timestamp of the condition
  */
-
 struct TimeCondition {
   uint256 startTimestamp;
   uint256 endTimestamp;
