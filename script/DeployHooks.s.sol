@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import 'ks-common-sc/script/Base.s.sol';
 
 contract DeployHooks is BaseScript {
-  string salt = '';
+  string salt = '250922';
 
   struct HookConfig {
     string[] constructorParams;
