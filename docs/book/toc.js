@@ -1,0 +1,70 @@
+// Populate the sidebar
+//
+// This is a script, and not included directly in the page, to control the total size of the book.
+// The TOC contains an entry for each page, so if each page includes a copy of the TOC,
+// the total size of the page becomes O(n**2).
+class MDBookSidebarScrollbox extends HTMLElement {
+    constructor() {
+        super();
+    }
+    connectedCallback() {
+        this.innerHTML = '<ol class="chapter"><li class="chapter-item "><a href="index.html">Home</a></li><li class="chapter-item affix "><li class="part-title">src</li><li class="chapter-item "><a href="src/hooks/index.html">❱ hooks</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/hooks/base/index.html">❱ base</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/hooks/base/BaseConditionalHook.sol/struct.TimeCondition.html">TimeCondition</a></li><li class="chapter-item "><a href="src/hooks/base/BaseConditionalHook.sol/struct.YieldCondition.html">YieldCondition</a></li><li class="chapter-item "><a href="src/hooks/base/BaseConditionalHook.sol/struct.PriceCondition.html">PriceCondition</a></li><li class="chapter-item "><a href="src/hooks/base/BaseConditionalHook.sol/abstract.BaseConditionalHook.html">BaseConditionalHook</a></li><li class="chapter-item "><a href="src/hooks/base/BaseHook.sol/abstract.BaseHook.html">BaseHook</a></li><li class="chapter-item "><a href="src/hooks/base/BaseStatefulHook.sol/abstract.BaseStatefulHook.html">BaseStatefulHook</a></li><li class="chapter-item "><a href="src/hooks/base/BaseTickBasedRemoveLiquidityHook.sol/abstract.BaseTickBasedRemoveLiquidityHook.html">BaseTickBasedRemoveLiquidityHook</a></li></ol></li><li class="chapter-item "><a href="src/hooks/remove-liq/index.html">❱ remove-liq</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/hooks/remove-liq/KSRemoveLiquidityPancakeV4CLHook.sol/contract.KSRemoveLiquidityPancakeV4CLHook.html">KSRemoveLiquidityPancakeV4CLHook</a></li><li class="chapter-item "><a href="src/hooks/remove-liq/KSRemoveLiquidityUniswapV3Hook.sol/contract.KSRemoveLiquidityUniswapV3Hook.html">KSRemoveLiquidityUniswapV3Hook</a></li><li class="chapter-item "><a href="src/hooks/remove-liq/KSRemoveLiquidityUniswapV4Hook.sol/contract.KSRemoveLiquidityUniswapV4Hook.html">KSRemoveLiquidityUniswapV4Hook</a></li></ol></li><li class="chapter-item "><a href="src/hooks/swap/index.html">❱ swap</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/hooks/swap/KSConditionalSwapHook.sol/contract.KSConditionalSwapHook.html">KSConditionalSwapHook</a></li><li class="chapter-item "><a href="src/hooks/swap/KSPriceBasedDCAHook.sol/contract.KSPriceBasedDCAHook.html">KSPriceBasedDCAHook</a></li><li class="chapter-item "><a href="src/hooks/swap/KSSwapHook.sol/contract.KSSwapHook.html">KSSwapHook</a></li><li class="chapter-item "><a href="src/hooks/swap/KSTimeBasedDCAHook.sol/contract.KSTimeBasedDCAHook.html">KSTimeBasedDCAHook</a></li></ol></li><li class="chapter-item "><a href="src/hooks/zap-out/index.html">❱ zap-out</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/hooks/zap-out/KSZapOutUniswapV2Hook.sol/contract.KSZapOutUniswapV2Hook.html">KSZapOutUniswapV2Hook</a></li><li class="chapter-item "><a href="src/hooks/zap-out/KSZapOutUniswapV3Hook.sol/contract.KSZapOutUniswapV3Hook.html">KSZapOutUniswapV3Hook</a></li><li class="chapter-item "><a href="src/hooks/zap-out/KSZapOutUniswapV4Hook.sol/contract.KSZapOutUniswapV4Hook.html">KSZapOutUniswapV4Hook</a></li></ol></li></ol></li><li class="chapter-item "><a href="src/interfaces/index.html">❱ interfaces</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/actions/index.html">❱ actions</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/actions/IKSSwapRouterV2.sol/interface.IKSSwapRouterV2.html">IKSSwapRouterV2</a></li><li class="chapter-item "><a href="src/interfaces/actions/IKSSwapRouterV3.sol/interface.IKSSwapRouterV3.html">IKSSwapRouterV3</a></li><li class="chapter-item "><a href="src/interfaces/actions/IKSZapRouter.sol/interface.IKSZapRouter.html">IKSZapRouter</a></li></ol></li><li class="chapter-item "><a href="src/interfaces/hooks/index.html">❱ hooks</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/hooks/IKSConditionalHook.sol/interface.IKSConditionalHook.html">IKSConditionalHook</a></li><li class="chapter-item "><a href="src/interfaces/hooks/IKSSmartIntentHook.sol/interface.IKSSmartIntentHook.html">IKSSmartIntentHook</a></li></ol></li><li class="chapter-item "><a href="src/interfaces/pancakev4/index.html">❱ pancakev4</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/pancakev4/ICLPoolManager.sol/interface.ICLPoolManager.html">ICLPoolManager</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/ICLPositionManager.sol/interface.ICLPositionManager.html">ICLPositionManager</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/Types.sol/type.PoolId.html">PoolId</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/Types.sol/type.BalanceDelta.html">BalanceDelta</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/Types.sol/type.CLPositionInfo.html">CLPositionInfo</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/Types.sol/struct.TickInfo.html">TickInfo</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/Types.sol/struct.PoolKey.html">PoolKey</a></li><li class="chapter-item "><a href="src/interfaces/pancakev4/Types.sol/library.Actions.html">Actions</a></li></ol></li><li class="chapter-item "><a href="src/interfaces/uniswapv2/index.html">❱ uniswapv2</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/uniswapv2/IUniswapV2Pair.sol/interface.IUniswapV2Pair.html">IUniswapV2Pair</a></li></ol></li><li class="chapter-item "><a href="src/interfaces/uniswapv3/index.html">❱ uniswapv3</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/uniswapv3/IUniswapV3PM.sol/interface.IUniswapV3PM.html">IUniswapV3PM</a></li><li class="chapter-item "><a href="src/interfaces/uniswapv3/IUniswapV3Pool.sol/interface.IUniswapV3Pool.html">IUniswapV3Pool</a></li></ol></li><li class="chapter-item "><a href="src/interfaces/uniswapv4/index.html">❱ uniswapv4</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/interfaces/uniswapv4/IPoolManager.sol/struct.PoolKey.html">PoolKey</a></li><li class="chapter-item "><a href="src/interfaces/uniswapv4/IPoolManager.sol/interface.IPoolManager.html">IPoolManager</a></li><li class="chapter-item "><a href="src/interfaces/uniswapv4/IPositionManager.sol/interface.IPositionManager.html">IPositionManager</a></li></ol></li><li class="chapter-item "><a href="src/interfaces/IKSSmartIntentRouter.sol/interface.IKSSmartIntentRouter.html">IKSSmartIntentRouter</a></li><li class="chapter-item "><a href="src/interfaces/IWETH.sol/interface.IWETH.html">IWETH</a></li></ol></li><li class="chapter-item "><a href="src/libraries/index.html">❱ libraries</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/libraries/types/index.html">❱ types</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/libraries/types/ActionData.sol/struct.ActionData.html">ActionData</a></li><li class="chapter-item "><a href="src/libraries/types/ActionData.sol/library.ActionDataLibrary.html">ActionDataLibrary</a></li><li class="chapter-item "><a href="src/libraries/types/ConditionTree.sol/type.ConditionType.html">ConditionType</a></li><li class="chapter-item "><a href="src/libraries/types/ConditionTree.sol/enum.OperationType.html">OperationType</a></li><li class="chapter-item "><a href="src/libraries/types/ConditionTree.sol/struct.Condition.html">Condition</a></li><li class="chapter-item "><a href="src/libraries/types/ConditionTree.sol/struct.Node.html">Node</a></li><li class="chapter-item "><a href="src/libraries/types/ConditionTree.sol/struct.ConditionTree.html">ConditionTree</a></li><li class="chapter-item "><a href="src/libraries/types/ConditionTree.sol/library.ConditionTreeLibrary.html">ConditionTreeLibrary</a></li><li class="chapter-item "><a href="src/libraries/types/ERC20Data.sol/struct.ERC20Data.html">ERC20Data</a></li><li class="chapter-item "><a href="src/libraries/types/ERC20Data.sol/library.ERC20DataLibrary.html">ERC20DataLibrary</a></li><li class="chapter-item "><a href="src/libraries/types/ERC721Data.sol/struct.ERC721Data.html">ERC721Data</a></li><li class="chapter-item "><a href="src/libraries/types/ERC721Data.sol/library.ERC721DataLibrary.html">ERC721DataLibrary</a></li><li class="chapter-item "><a href="src/libraries/types/IntentCoreData.sol/struct.IntentCoreData.html">IntentCoreData</a></li><li class="chapter-item "><a href="src/libraries/types/IntentCoreData.sol/library.IntentCoreDataLibrary.html">IntentCoreDataLibrary</a></li><li class="chapter-item "><a href="src/libraries/types/IntentData.sol/struct.IntentData.html">IntentData</a></li><li class="chapter-item "><a href="src/libraries/types/IntentData.sol/library.IntentDataLibrary.html">IntentDataLibrary</a></li><li class="chapter-item "><a href="src/libraries/types/TokenData.sol/struct.TokenData.html">TokenData</a></li><li class="chapter-item "><a href="src/libraries/types/TokenData.sol/library.TokenDataLibrary.html">TokenDataLibrary</a></li></ol></li><li class="chapter-item "><a href="src/libraries/uniswapv4/index.html">❱ uniswapv4</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="src/libraries/uniswapv4/FixedPoint96.sol/library.FixedPoint96.html">FixedPoint96</a></li><li class="chapter-item "><a href="src/libraries/uniswapv4/LiquidityAmounts.sol/library.LiquidityAmounts.html">LiquidityAmounts</a></li><li class="chapter-item "><a href="src/libraries/uniswapv4/StateLibrary.sol/library.StateLibrary.html">StateLibrary</a></li><li class="chapter-item "><a href="src/libraries/uniswapv4/TickMath.sol/library.TickMath.html">TickMath</a></li></ol></li><li class="chapter-item "><a href="src/libraries/HookLibrary.sol/library.HookLibrary.html">HookLibrary</a></li></ol></li><li class="chapter-item "><a href="src/KSSmartIntentRouter.sol/contract.KSSmartIntentRouter.html">KSSmartIntentRouter</a></li><li class="chapter-item "><a href="src/KSSmartIntentRouterAccounting.sol/abstract.KSSmartIntentRouterAccounting.html">KSSmartIntentRouterAccounting</a></li><li class="chapter-item "><a href="src/KSSmartIntentRouterNonces.sol/abstract.KSSmartIntentRouterNonces.html">KSSmartIntentRouterNonces</a></li><li class="chapter-item "><a href="src/KSSmartIntentStorage.sol/abstract.KSSmartIntentStorage.html">KSSmartIntentStorage</a></li></ol>';
+        // Set the current, active page, and reveal it if it's hidden
+        let current_page = document.location.href.toString().split("#")[0].split("?")[0];
+        if (current_page.endsWith("/")) {
+            current_page += "index.html";
+        }
+        var links = Array.prototype.slice.call(this.querySelectorAll("a"));
+        var l = links.length;
+        for (var i = 0; i < l; ++i) {
+            var link = links[i];
+            var href = link.getAttribute("href");
+            if (href && !href.startsWith("#") && !/^(?:[a-z+]+:)?\/\//.test(href)) {
+                link.href = path_to_root + href;
+            }
+            // The "index" page is supposed to alias the first chapter in the book.
+            if (link.href === current_page || (i === 0 && path_to_root === "" && current_page.endsWith("/index.html"))) {
+                link.classList.add("active");
+                var parent = link.parentElement;
+                if (parent && parent.classList.contains("chapter-item")) {
+                    parent.classList.add("expanded");
+                }
+                while (parent) {
+                    if (parent.tagName === "LI" && parent.previousElementSibling) {
+                        if (parent.previousElementSibling.classList.contains("chapter-item")) {
+                            parent.previousElementSibling.classList.add("expanded");
+                        }
+                    }
+                    parent = parent.parentElement;
+                }
+            }
+        }
+        // Track and set sidebar scroll position
+        this.addEventListener('click', function(e) {
+            if (e.target.tagName === 'A') {
+                sessionStorage.setItem('sidebar-scroll', this.scrollTop);
+            }
+        }, { passive: true });
+        var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+        sessionStorage.removeItem('sidebar-scroll');
+        if (sidebarScrollTop) {
+            // preserve sidebar scroll position when navigating via links within sidebar
+            this.scrollTop = sidebarScrollTop;
+        } else {
+            // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+            var activeSection = document.querySelector('#sidebar .active');
+            if (activeSection) {
+                activeSection.scrollIntoView({ block: 'center' });
+            }
+        }
+        // Toggle buttons
+        var sidebarAnchorToggles = document.querySelectorAll('#sidebar a.toggle');
+        function toggleSection(ev) {
+            ev.currentTarget.parentElement.classList.toggle('expanded');
+        }
+        Array.from(sidebarAnchorToggles).forEach(function (el) {
+            el.addEventListener('click', toggleSection);
+        });
+    }
+}
+window.customElements.define("mdbook-sidebar-scrollbox", MDBookSidebarScrollbox);

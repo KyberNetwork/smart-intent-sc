@@ -1,0 +1,420 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>StateLibrary</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../../../favicon.svg">
+        <link rel="shortcut icon" href="../../../../favicon.png">
+        <link rel="stylesheet" href="../../../../css/variables.css">
+        <link rel="stylesheet" href="../../../../css/general.css">
+        <link rel="stylesheet" href="../../../../css/chrome.css">
+        <link rel="stylesheet" href="../../../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../../../../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../../../../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../../../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../../../book.css">
+
+        <!-- MathJax -->
+        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../../../../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../../../../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../../../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../../../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title"></h1>
+
+                    <div class="right-buttons">
+                        <a href="../../../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/KyberNetwork/smart-intent-sc" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="statelibrary"><a class="header" href="#statelibrary">StateLibrary</a></h1>
+<p><a href="https://github.com/KyberNetwork/smart-intent-sc/blob/93222d2e196228c709f4e585edadefb65277a3e4/src/libraries/uniswapv4/StateLibrary.sol">Git Source</a></p>
+<p>A helper library to provide state getters that use extsload</p>
+<h2 id="state-variables"><a class="header" href="#state-variables">State Variables</a></h2>
+<h3 id="pools_slot"><a class="header" href="#pools_slot">POOLS_SLOT</a></h3>
+<p>index of pools mapping in the PoolManager</p>
+<pre><code class="language-solidity">bytes32 public constant POOLS_SLOT = bytes32(uint256(6));
+</code></pre>
+<h3 id="fee_growth_global0_offset"><a class="header" href="#fee_growth_global0_offset">FEE_GROWTH_GLOBAL0_OFFSET</a></h3>
+<p>index of feeGrowthGlobal0X128 in Pool.State</p>
+<pre><code class="language-solidity">uint256 public constant FEE_GROWTH_GLOBAL0_OFFSET = 1;
+</code></pre>
+<h3 id="liquidity_offset"><a class="header" href="#liquidity_offset">LIQUIDITY_OFFSET</a></h3>
+<p>index of liquidity in Pool.State</p>
+<pre><code class="language-solidity">uint256 public constant LIQUIDITY_OFFSET = 3;
+</code></pre>
+<h3 id="ticks_offset"><a class="header" href="#ticks_offset">TICKS_OFFSET</a></h3>
+<p>index of TicksInfo mapping in Pool.State: mapping(int24 =&gt; TickInfo) ticks;</p>
+<pre><code class="language-solidity">uint256 public constant TICKS_OFFSET = 4;
+</code></pre>
+<h3 id="tick_bitmap_offset"><a class="header" href="#tick_bitmap_offset">TICK_BITMAP_OFFSET</a></h3>
+<p>index of tickBitmap mapping in Pool.State</p>
+<pre><code class="language-solidity">uint256 public constant TICK_BITMAP_OFFSET = 5;
+</code></pre>
+<h3 id="positions_offset"><a class="header" href="#positions_offset">POSITIONS_OFFSET</a></h3>
+<p>index of Position.State mapping in Pool.State: mapping(bytes32 =&gt; Position.State) positions;</p>
+<pre><code class="language-solidity">uint256 public constant POSITIONS_OFFSET = 6;
+</code></pre>
+<h3 id="q128"><a class="header" href="#q128">Q128</a></h3>
+<pre><code class="language-solidity">uint256 public constant Q128 = 1 &lt;&lt; 128;
+</code></pre>
+<h2 id="functions"><a class="header" href="#functions">Functions</a></h2>
+<h3 id="computepositionvalues"><a class="header" href="#computepositionvalues">computePositionValues</a></h3>
+<pre><code class="language-solidity">function computePositionValues(
+  IPoolManager poolManager,
+  IPositionManager positionManager,
+  uint256 tokenId,
+  uint256 liquidityToRemove
+)
+  internal
+  view
+  returns (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1);
+</code></pre>
+<h3 id="getfeegrowthinside"><a class="header" href="#getfeegrowthinside">getFeeGrowthInside</a></h3>
+<pre><code class="language-solidity">function getFeeGrowthInside(
+  IPoolManager poolManager,
+  bytes32 poolId,
+  int24 tickLower,
+  int24 tickUpper,
+  int24 tickCurrent
+) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128);
+</code></pre>
+<h3 id="getpoolid"><a class="header" href="#getpoolid">getPoolId</a></h3>
+<pre><code class="language-solidity">function getPoolId(PoolKey memory poolKey) internal pure returns (bytes32 poolId);
+</code></pre>
+<h3 id="getslot0"><a class="header" href="#getslot0">getSlot0</a></h3>
+<p>Get Slot0 of the pool: sqrtPriceX96, tick, protocolFee, lpFee</p>
+<p><em>Corresponds to pools[poolId].slot0</em></p>
+<pre><code class="language-solidity">function getSlot0(IPoolManager manager, bytes32 poolId)
+  internal
+  view
+  returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
+</code></pre>
+<p><strong>Parameters</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>manager</code></td><td><code>IPoolManager</code></td><td>The pool manager contract.</td></tr>
+<tr><td><code>poolId</code></td><td><code>bytes32</code></td><td>The ID of the pool.</td></tr>
+</tbody></table>
+</div>
+<p><strong>Returns</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>sqrtPriceX96</code></td><td><code>uint160</code></td><td>The square root of the price of the pool, in Q96 precision.</td></tr>
+<tr><td><code>tick</code></td><td><code>int24</code></td><td>The current tick of the pool.</td></tr>
+<tr><td><code>protocolFee</code></td><td><code>uint24</code></td><td>The protocol fee of the pool.</td></tr>
+<tr><td><code>lpFee</code></td><td><code>uint24</code></td><td>The swap fee of the pool.</td></tr>
+</tbody></table>
+</div>
+<h3 id="getpositioninfo"><a class="header" href="#getpositioninfo">getPositionInfo</a></h3>
+<p>Retrieves the position information of a pool at a specific position ID.</p>
+<p><em>Corresponds to pools[poolId].positions[positionId]</em></p>
+<pre><code class="language-solidity">function getPositionInfo(IPoolManager manager, bytes32 poolId, bytes32 positionId)
+  internal
+  view
+  returns (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128);
+</code></pre>
+<p><strong>Parameters</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>manager</code></td><td><code>IPoolManager</code></td><td>The pool manager contract.</td></tr>
+<tr><td><code>poolId</code></td><td><code>bytes32</code></td><td>The ID of the pool.</td></tr>
+<tr><td><code>positionId</code></td><td><code>bytes32</code></td><td>The ID of the position.</td></tr>
+</tbody></table>
+</div>
+<p><strong>Returns</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>liquidity</code></td><td><code>uint128</code></td><td>The liquidity of the position.</td></tr>
+<tr><td><code>feeGrowthInside0LastX128</code></td><td><code>uint256</code></td><td>The fee growth inside the position for token0.</td></tr>
+<tr><td><code>feeGrowthInside1LastX128</code></td><td><code>uint256</code></td><td>The fee growth inside the position for token1.</td></tr>
+</tbody></table>
+</div>
+<h3 id="calculatepositionkey"><a class="header" href="#calculatepositionkey">calculatePositionKey</a></h3>
+<p>A helper function to calculate the position key</p>
+<pre><code class="language-solidity">function calculatePositionKey(address owner, int24 tickLower, int24 tickUpper, bytes32 salt)
+  internal
+  pure
+  returns (bytes32 positionKey);
+</code></pre>
+<p><strong>Parameters</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>owner</code></td><td><code>address</code></td><td>The address of the position owner</td></tr>
+<tr><td><code>tickLower</code></td><td><code>int24</code></td><td>the lower tick boundary of the position</td></tr>
+<tr><td><code>tickUpper</code></td><td><code>int24</code></td><td>the upper tick boundary of the position</td></tr>
+<tr><td><code>salt</code></td><td><code>bytes32</code></td><td>A unique value to differentiate between multiple positions in the same range, by the same owner. Passed in by the caller.</td></tr>
+</tbody></table>
+</div>
+<h3 id="getfeegrowthglobals"><a class="header" href="#getfeegrowthglobals">getFeeGrowthGlobals</a></h3>
+<p>Retrieves the global fee growth of a pool.</p>
+<p><em>Corresponds to pools[poolId].feeGrowthGlobal0X128 and pools[poolId].feeGrowthGlobal1X128</em></p>
+<pre><code class="language-solidity">function getFeeGrowthGlobals(IPoolManager manager, bytes32 poolId)
+  internal
+  view
+  returns (uint256 feeGrowthGlobal0, uint256 feeGrowthGlobal1);
+</code></pre>
+<p><strong>Parameters</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>manager</code></td><td><code>IPoolManager</code></td><td>The pool manager contract.</td></tr>
+<tr><td><code>poolId</code></td><td><code>bytes32</code></td><td>The ID of the pool.</td></tr>
+</tbody></table>
+</div>
+<p><strong>Returns</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>feeGrowthGlobal0</code></td><td><code>uint256</code></td><td>The global fee growth for token0.</td></tr>
+<tr><td><code>feeGrowthGlobal1</code></td><td><code>uint256</code></td><td>The global fee growth for token1.</td></tr>
+</tbody></table>
+</div>
+<h3 id="gettickfeegrowthoutside"><a class="header" href="#gettickfeegrowthoutside">getTickFeeGrowthOutside</a></h3>
+<p>Retrieves the fee growth outside a tick range of a pool</p>
+<p><em>Corresponds to pools[poolId].ticks[tick].feeGrowthOutside0X128 and pools[poolId].ticks[tick].feeGrowthOutside1X128. A more gas efficient version of getTickInfo</em></p>
+<pre><code class="language-solidity">function getTickFeeGrowthOutside(IPoolManager manager, bytes32 poolId, int24 tick)
+  internal
+  view
+  returns (uint256 feeGrowthOutside0X128, uint256 feeGrowthOutside1X128);
+</code></pre>
+<p><strong>Parameters</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>manager</code></td><td><code>IPoolManager</code></td><td>The pool manager contract.</td></tr>
+<tr><td><code>poolId</code></td><td><code>bytes32</code></td><td>The ID of the pool.</td></tr>
+<tr><td><code>tick</code></td><td><code>int24</code></td><td>The tick to retrieve fee growth for.</td></tr>
+</tbody></table>
+</div>
+<p><strong>Returns</strong></p>
+<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>feeGrowthOutside0X128</code></td><td><code>uint256</code></td><td>fee growth per unit of liquidity on the <em>other</em> side of this tick (relative to the current tick)</td></tr>
+<tr><td><code>feeGrowthOutside1X128</code></td><td><code>uint256</code></td><td>fee growth per unit of liquidity on the <em>other</em> side of this tick (relative to the current tick)</td></tr>
+</tbody></table>
+</div>
+<h3 id="_getpositioninfoslot"><a class="header" href="#_getpositioninfoslot">_getPositionInfoSlot</a></h3>
+<pre><code class="language-solidity">function _getPositionInfoSlot(bytes32 poolId, bytes32 positionId) internal pure returns (bytes32);
+</code></pre>
+<h3 id="_gettickinfoslot"><a class="header" href="#_gettickinfoslot">_getTickInfoSlot</a></h3>
+<pre><code class="language-solidity">function _getTickInfoSlot(bytes32 poolId, int24 tick) internal pure returns (bytes32);
+</code></pre>
+<h3 id="_getpoolstateslot"><a class="header" href="#_getpoolstateslot">_getPoolStateSlot</a></h3>
+<pre><code class="language-solidity">function _getPoolStateSlot(bytes32 poolId) internal pure returns (bytes32);
+</code></pre>
+<h3 id="gettickrange"><a class="header" href="#gettickrange">getTickRange</a></h3>
+<pre><code class="language-solidity">function getTickRange(uint256 posInfo) internal pure returns (int24 _tickLower, int24 _tickUpper);
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../../../src/libraries/uniswapv4/LiquidityAmounts.sol/library.LiquidityAmounts.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../../../src/libraries/uniswapv4/TickMath.sol/library.TickMath.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../../../src/libraries/uniswapv4/LiquidityAmounts.sol/library.LiquidityAmounts.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../../../src/libraries/uniswapv4/TickMath.sol/library.TickMath.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../../../elasticlunr.min.js"></script>
+        <script src="../../../../mark.min.js"></script>
+        <script src="../../../../searcher.js"></script>
+
+        <script src="../../../../clipboard.min.js"></script>
+        <script src="../../../../highlight.js"></script>
+        <script src="../../../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../../../../solidity.min.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
