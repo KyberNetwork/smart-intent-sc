@@ -1,0 +1,43 @@
+name: Build page
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ['self-hosted']
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Gcloud Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCR_CREDENTIALS }}'
+
+      - name: Setup Gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@master
+
+      - name: Docker build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          build-args: |
+            GH_PAT=${{ secrets.GH_PAT }}
+            GH_USER=kyber-ci-bot
+          file: Dockerfile
+          push: true
+          tags: |
+            asia.gcr.io/kyber-operation/sc/smart-intent-doc:latest
+          secrets: |
+            "gh_pat=${{ secrets.GH_PAT }}"
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
