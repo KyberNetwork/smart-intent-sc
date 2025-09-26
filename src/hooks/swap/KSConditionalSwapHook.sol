@@ -2,10 +2,9 @@
 pragma solidity ^0.8.0;
 
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseConditionalHook.sol';
 import 'src/hooks/base/BaseStatefulHook.sol';
 
-contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
+contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;
 
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
@@ -13,6 +12,7 @@ contract KSConditionalSwapHook is BaseStatefulHook, BaseConditionalHook {
   error InvalidSwap();
 
   uint256 public constant DENOMINATOR = 1e18;
+  uint256 public constant PRECISION = 1_000_000;
 
   /**
    * @notice Data structure for conditional swap
