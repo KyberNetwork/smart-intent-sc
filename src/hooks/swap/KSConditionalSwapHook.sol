@@ -105,7 +105,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
 
-    bytes32 leaf = keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, abi.encode(condition)));
+    bytes32 leaf = keccak256(abi.encode(leafIndex, tokenIn, tokenOut, condition));
     require(MerkleProof.verifyCalldata(proof, swapHookData.root, leaf), InvalidProof());
 
     uint256 amountIn = actionData.erc20Amounts[0];

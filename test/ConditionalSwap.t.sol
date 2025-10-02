@@ -570,7 +570,7 @@ contract ConditionalSwapTest is BaseTest {
     leaves = new bytes32[](leafIndexes.length);
     for (uint256 i = 0; i < leafIndexes.length; i++) {
       leaves[i] = keccak256(
-        abi.encodePacked(leafIndexes[i], _tokenIn[i], _tokenOut[i], abi.encode(conditions[i]))
+        abi.encode(leafIndexes[i], _tokenIn[i], _tokenOut[i], conditions[i])
       );
     }
 
