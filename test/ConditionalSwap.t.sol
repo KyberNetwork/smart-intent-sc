@@ -215,47 +215,54 @@ contract ConditionalSwapTest is BaseTest {
       _swap(mode, intentData, actionData, 0, 0);
     }
 
-    // swap 2
+    // {
+    //   actionData = _getActionData(
+    //     tokenData,
+    //     abi.encode(
+    //       tokenIn,
+    //       tokenOut,
+    //       swapAmount,
+    //       1000,
+    //       feeAfter == 0 ? mainAddress : address(router),
+    //       mainAddress
+    //     ),
+    //     true,
+    //     1,
+    //     MerkleUtils.getProof(_memLeaves, 1),
+    //     condition[1]
+    //   );
+    //   actionData.nonce += 1;
+    // }
     {
-      vm.warp(block.timestamp + 500);
-      actionData = _getActionData(
-        tokenData,
-        abi.encode(
-          tokenIn,
-          tokenOut,
-          swapAmount,
-          1000,
-          feeAfter == 0 ? mainAddress : address(router),
-          mainAddress
-        ),
-        true,
-        1,
+      actionData.hookActionData = abi.encode(
         MerkleUtils.getProof(_memLeaves, 1),
+        1,
+        tokenOut,
+        toPackedU128(feeBefore, feeAfter),
         condition[1]
       );
       actionData.nonce += 1;
+    }
+
+    // swap 2
+    {
+      vm.warp(block.timestamp + 500);
       _swap(mode, intentData, actionData, 0, 1);
     }
 
     // swap 3
     {
-      vm.warp(block.timestamp + 500);
-      actionData = _getActionData(
-        tokenData,
-        abi.encode(
-          tokenIn,
-          tokenOut,
-          swapAmount,
-          1000,
-          feeAfter == 0 ? mainAddress : address(router),
-          mainAddress
-        ),
-        true,
-        2,
+      vm.warp(block.timestamp + 1000);
+      actionData.hookActionData = abi.encode(
         MerkleUtils.getProof(_memLeaves, 2),
+        2,
+        tokenOut,
+        toPackedU128(feeBefore, feeAfter),
         condition[2]
       );
       actionData.nonce += 2;
+    }
+    {
       _swap(mode, intentData, actionData, 0, 2);
     }
   }
@@ -468,37 +475,6 @@ contract ConditionalSwapTest is BaseTest {
     }
   }
 
-  function testRevert_InvalidTokenIn(uint256 mode) public {
-    mode = bound(mode, 0, 2);
-    IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
-    _setUpMainAddress(intentData, false);
-
-    bytes32[] memory _memLeaves = leaves;
-    address tmp = tokenIn;
-    tokenIn = makeAddr('dummy');
-    ActionData memory actionData = _getActionData(
-      intentData.tokenData,
-      _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata),
-      false,
-      0,
-      MerkleUtils.getProof(_memLeaves, 0),
-      defaultCondition
-    );
-    tokenIn = tmp;
-
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        KSConditionalSwapHook.InvalidTokenIn.selector, makeAddr('dummy'), tokenIn
-      )
-    );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
-  }
-
   function testRevert_AmountInTooSmallOrTooLarge(uint256 mode, uint128 min, uint128 max) public {
     mode = bound(mode, 0, 2);
     vm.assume(min < max && (min > swapAmount || max < swapAmount));
@@ -593,9 +569,9 @@ contract ConditionalSwapTest is BaseTest {
   ) internal returns (bytes32[] memory _leaves, bytes32 _root) {
     leaves = new bytes32[](leafIndexes.length);
     for (uint256 i = 0; i < leafIndexes.length; i++) {
-      bytes32 conditionHash = keccak256(abi.encode(conditions[i]));
-      leaves[i] =
-        keccak256(abi.encodePacked(leafIndexes[i], _tokenIn[i], _tokenOut[i], conditionHash));
+      leaves[i] = keccak256(
+        abi.encodePacked(leafIndexes[i], _tokenIn[i], _tokenOut[i], abi.encode(conditions[i]))
+      );
     }
 
     root = leaves.getRoot();
@@ -634,7 +610,7 @@ contract ConditionalSwapTest is BaseTest {
         )
         : actionCalldata,
       hookActionData: abi.encode(
-        proof, leafIndex, tokenIn, tokenOut, toPackedU128(feeBefore, feeAfter), condition
+        proof, leafIndex, tokenOut, toPackedU128(feeBefore, feeAfter), condition
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,
