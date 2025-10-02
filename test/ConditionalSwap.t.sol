@@ -408,6 +408,8 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0), 1);
   }
 
+  /// @dev tokenIn is read from the intent and hashed into the leaf, so a token the holder never
+  ///      committed to fails the proof rather than a dedicated tokenIn check.
   function testRevert_InvalidTokenIn(uint256 mode) public {
     mode = bound(mode, 0, 2);
     IntentData memory intentData =
@@ -421,14 +423,7 @@ contract ConditionalSwapTest is BaseTest {
     );
     actionData.erc20Ids[0] = 0;
 
-    _expectExecuteRevert(
-      mode,
-      intentData,
-      actionData,
-      abi.encodeWithSelector(
-        KSConditionalSwapHook.InvalidTokenIn.selector, makeAddr('dummy'), tokenIn
-      )
-    );
+    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidProof.selector);
   }
 
   function testRevert_AmountInTooSmallOrTooLarge(uint256 mode, uint128 min, uint128 max) public {
@@ -487,7 +482,6 @@ contract ConditionalSwapTest is BaseTest {
     actionData.hookActionData = abi.encode(
       MerkleUtils.getProof(memLeaves, 0),
       uint256(1),
-      tokenIn,
       tokenOut,
       toPackedU128(feeBefore, feeAfter),
       leafConditions[0]
@@ -1354,8 +1348,7 @@ contract ConditionalSwapTest is BaseTest {
     delete leafConditions;
 
     for (uint256 i = 0; i < conditions.length; i++) {
-      leaves[i] =
-        keccak256(abi.encodePacked(i, tokenIn, tokenOut, keccak256(abi.encode(conditions[i]))));
+      leaves[i] = keccak256(abi.encodePacked(i, tokenIn, tokenOut, abi.encode(conditions[i])));
       leafConditions.push(conditions[i]);
     }
 
@@ -1378,7 +1371,6 @@ contract ConditionalSwapTest is BaseTest {
     return abi.encode(
       MerkleUtils.getProof(memLeaves, leafIndex),
       leafIndex,
-      tokenIn,
       tokenOut,
       toPackedU128(srcFee, dstFee),
       leafConditions[leafIndex]

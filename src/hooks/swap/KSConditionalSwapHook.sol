@@ -15,7 +15,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;
   using CalldataDecoder for bytes;
 
-  error InvalidTokenIn(address tokenIn, address actualTokenIn);
   error InvalidProof();
   error InvalidSwapTime(uint256 timestamp, uint128 minTime, uint128 maxTime);
   error InvalidSwapAmountIn(uint256 amountIn, uint128 minAmountIn, uint128 maxAmountIn);
@@ -32,7 +31,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   /**
    * @notice Data structure for conditional swap
    * @param root The merkle root committing to the allowed swap leaves, where each leaf is
-   *        keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, keccak256(abi.encode(condition))))
+   *        keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, abi.encode(condition)))
    * @param recipient The recipient of the destination token
    */
   struct SwapHookData {
@@ -108,17 +107,16 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       bytes32[] calldata proof,
       SwapCondition calldata condition,
       uint256 leafIndex,
-      address tokenIn,
       address tokenOut,
       uint256 intentSrcFeeRate,
       uint256 intentDstFeeRate
     ) = _decodeHookActionData(actionData.hookActionData);
 
-    address intentTokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
-    require(intentTokenIn == tokenIn, InvalidTokenIn(intentTokenIn, tokenIn));
+    // tokenIn is taken from the intent rather than the action data, so a token the holder never
+    // committed to simply fails the proof below.
+    address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
 
-    bytes32 leaf =
-      keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, keccak256(abi.encode(condition))));
+    bytes32 leaf = keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, abi.encode(condition)));
     require(MerkleProof.verifyCalldata(proof, swapHookData.root, leaf), InvalidProof());
 
     uint256 amountIn = actionData.erc20Amounts[0];
@@ -309,8 +307,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
   }
 
-  // @dev: equivalent to
-  //       abi.decode(data, (bytes32[], uint256, address, address, uint256, SwapCondition)).
+  // @dev: equivalent to abi.decode(data, (bytes32[], uint256, address, uint256, SwapCondition)).
   //       SwapCondition is dynamic (it carries OracleConfig), so its head slot holds an offset.
   function _decodeHookActionData(bytes calldata data)
     internal
@@ -319,7 +316,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       bytes32[] calldata proof,
       SwapCondition calldata condition,
       uint256 leafIndex,
-      address tokenIn,
       address tokenOut,
       uint256 intentSrcFee,
       uint256 intentDstFee
@@ -328,10 +324,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     PackedU128 packedFees;
     assembly ('memory-safe') {
       leafIndex := calldataload(add(data.offset, 0x20))
-      tokenIn := calldataload(add(data.offset, 0x40))
-      tokenOut := calldataload(add(data.offset, 0x60))
-      packedFees := calldataload(add(data.offset, 0x80))
-      condition := add(data.offset, calldataload(add(data.offset, 0xa0)))
+      tokenOut := calldataload(add(data.offset, 0x40))
+      packedFees := calldataload(add(data.offset, 0x60))
+      condition := add(data.offset, calldataload(add(data.offset, 0x80)))
     }
 
     (uint256 length, uint256 offset) = data.decodeLengthOffset(0);
