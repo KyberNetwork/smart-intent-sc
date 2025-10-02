@@ -569,9 +569,7 @@ contract ConditionalSwapTest is BaseTest {
   ) internal returns (bytes32[] memory _leaves, bytes32 _root) {
     leaves = new bytes32[](leafIndexes.length);
     for (uint256 i = 0; i < leafIndexes.length; i++) {
-      leaves[i] = keccak256(
-        abi.encode(leafIndexes[i], _tokenIn[i], _tokenOut[i], conditions[i])
-      );
+      leaves[i] = keccak256(abi.encode(leafIndexes[i], _tokenIn[i], _tokenOut[i], conditions[i]));
     }
 
     root = leaves.getRoot();
