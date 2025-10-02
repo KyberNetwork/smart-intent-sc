@@ -31,7 +31,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   /**
    * @notice Data structure for conditional swap
    * @param root The merkle root committing to the allowed swap leaves, where each leaf is
-   *        keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, abi.encode(condition)))
+   *        keccak256(abi.encode(leafIndex, tokenIn, tokenOut, condition))
    * @param recipient The recipient of the destination token
    */
   struct SwapHookData {
@@ -116,7 +116,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     // committed to simply fails the proof below.
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
 
-    bytes32 leaf = keccak256(abi.encodePacked(leafIndex, tokenIn, tokenOut, abi.encode(condition)));
+    bytes32 leaf = keccak256(abi.encode(leafIndex, tokenIn, tokenOut, condition));
     require(MerkleProof.verifyCalldata(proof, swapHookData.root, leaf), InvalidProof());
 
     uint256 amountIn = actionData.erc20Amounts[0];

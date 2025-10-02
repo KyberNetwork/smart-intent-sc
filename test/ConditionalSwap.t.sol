@@ -1348,7 +1348,7 @@ contract ConditionalSwapTest is BaseTest {
     delete leafConditions;
 
     for (uint256 i = 0; i < conditions.length; i++) {
-      leaves[i] = keccak256(abi.encodePacked(i, tokenIn, tokenOut, abi.encode(conditions[i])));
+      leaves[i] = keccak256(abi.encode(i, tokenIn, tokenOut, conditions[i]));
       leafConditions.push(conditions[i]);
     }
 
