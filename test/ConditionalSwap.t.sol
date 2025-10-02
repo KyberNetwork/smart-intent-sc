@@ -5,11 +5,14 @@ import './Base.t.sol';
 
 import {console} from 'forge-std/console.sol';
 import 'src/hooks/swap/KSConditionalSwapHook.sol';
+import 'src/libraries/types/PackedU128.sol';
+import 'test/utils/MerkleUtils.sol';
 
 contract ConditionalSwapTest is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
   using ArraysHelper for *;
+  using MerkleUtils for *;
 
   bytes swapdata =
     hex'00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000f4a1d7fdf4890be35e71f3e0bbc4a0ec377eca3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000007a000000000000000000000000000000000000000000000000000000000000009e000000000000000000000000000000000000000000000000000000000000006e0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec70000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000000000000000000000002e234DAe75C793f67A35089C9d99245E1C58470b0000000000000000000000000000000000000000000000000000000067db987b00000000000000000000000000000000000000000000000000000000000006800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000040f59b1df7000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000002000000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040a9d4c672000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000180000000000000000000000000655edce464cc797526600a462a8154650eee4b77000000000000000000000000000000000000000000000000000000003b9d5f1a000000000000000000000000000000000000000000000000000000003b9d5f1a00000000000000000000000000000000000000000000000006dac07944b594800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc20000000000000000000000000f4a1d7fdf4890be35e71f3e0bbc4a0ec377eca3000000000000005fa94793ea0000001a371930340fc8fbcc09c409c467db9414000000000000000000000000000000000000000000000000000000000000001bdcffd1bf68c2c17dcf00a25c935efba96aa63b7f75dd43d42b3df2cf7273c2260fb4b38a9db829fbfdabcc6262ac3982f1d31366bfde12a7b67f6f31ba52b2cb0000000000000000000000000000000000000000000000000000000000000040d90ce4910000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001000000000000000000000000007f86bf177dd4f3494b841a37e810a34dd56c829b000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc20000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000006da929a6bb58cc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000010000000000000000000000000011cbb0000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec70000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c599000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000001a000000000000000000000000000000000000000000000000000000000000001e000000000000000000000000000000000000000000000000000000000000002000000000000000000000000002e234DAe75C793f67A35089C9d99245E1C58470b000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000000000000000000000000000000000000011c7210000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000f4a1d7fdf4890be35e71f3e0bbc4a0ec377eca30000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024f7b22536f75726365223a22222c22416d6f756e74496e555344223a22313030302e31373135393231313738353037222c22416d6f756e744f7574555344223a22313030302e34373538333032323939323331222c22526566657272616c223a22222c22466c616773223a302c22416d6f756e744f7574223a2231313636323536222c2254696d657374616d70223a313734323434333436392c22526f7574654944223a2263383438663432632d326465322d343364382d623366372d636637366362666430363536222c22496e74656772697479496e666f223a7b224b65794944223a2231222c225369676e6174757265223a224e39426b4975436430714961362f4d64736635717a61657863436c3754413539426e4d70454741437a74432b5875325176494a36444c34476b7075746b636f627554395657357a42744e427a5463736b4e7768434662372f6f52675173676970424e693878716d323869524b3048496834527a70316457512f437737676a58375168653270313853506966492b7550674e5a34647a5a6a4461686b664d416852796d7765783233714942536a65565a6f44483932596a534b4e546176396f2f2f634754766476336a52555538536841763153464b55514b54515470682f4d4f71534f7370646c37306632714155705274566d7739434b4d383347726164506b55546f5854684a2f6c734e784561634267395a37617a363837394d366d31517538465a687237796374367a4242524a774171464e6646436a364b523969307a4e702f665a2b6876394b6970455341666d5078634e4d67773d3d227d7d0000000000000000000000000000000000';
@@ -23,8 +26,12 @@ contract ConditionalSwapTest is BaseTest {
 
   uint256 swapAmount = 1_000_000_000;
 
+  bytes32 root;
+  bytes32[] leaves;
+
   KSConditionalSwapHook conditionalSwapHook;
-  uint256 currentPrice = 11_662_550_000_000; // USDC/BTC denominated by 1e18
+  uint256 currentPrice = 1_166_255_000_000_000; // USDC/BTC denominated by 1e18
+  KSConditionalSwapHook.SwapCondition defaultCondition;
 
   function setUp() public override {
     super.setUp();
@@ -63,6 +70,8 @@ contract ConditionalSwapTest is BaseTest {
     uint256 beforeSwapFee = (amountIn * feeBefore) / 1_000_000;
     uint256 afterSwapFee = (returnAmount * feeAfter) / 1_000_000;
 
+    bytes32[] memory _memLeaves = leaves;
+
     ActionData memory actionData = _getActionData(
       intentData.tokenData,
       abi.encode(
@@ -73,7 +82,10 @@ contract ConditionalSwapTest is BaseTest {
         feeAfter == 0 ? mainAddress : address(router),
         mainAddress
       ),
-      true
+      true,
+      0,
+      MerkleUtils.getProof(_memLeaves, 0),
+      defaultCondition
     );
 
     returnAmount = returnAmount - afterSwapFee;
@@ -84,7 +96,7 @@ contract ConditionalSwapTest is BaseTest {
     if (feeBefore > maxSrcFee || feeAfter > maxDstFee) {
       vm.expectRevert(
         abi.encodeWithSelector(
-          KSConditionalSwapHook.InvalidSwap.selector, feeBefore, feeAfter, maxSrcFee, maxDstFee
+          KSConditionalSwapHook.InvalidFees.selector, feeBefore, feeAfter, maxSrcFee, maxDstFee
         )
       );
       vm.startPrank(caller);
@@ -117,8 +129,15 @@ contract ConditionalSwapTest is BaseTest {
 
     _setUpMainAddress(intentData, false);
 
+    bytes32[] memory _memLeaves = leaves;
+
     ActionData memory actionData = _getActionData(
-      intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
+      intentData.tokenData,
+      _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata),
+      false,
+      0,
+      MerkleUtils.getProof(_memLeaves, 0),
+      defaultCondition
     );
 
     vm.warp(block.timestamp + 100);
@@ -138,24 +157,24 @@ contract ConditionalSwapTest is BaseTest {
     {
       condition[0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: ((block.timestamp - 100) << 128) | (block.timestamp + 100),
-        amountInLimits: (swapAmount << 128) | swapAmount,
-        maxFees: (0 << 128) | type(uint128).max,
-        priceLimits: (0 << 128) | type(uint128).max
+        timeLimits: toPackedU128(block.timestamp - 100, block.timestamp + 100),
+        amountInLimits: toPackedU128(swapAmount, swapAmount),
+        maxFees: toPackedU128(0, type(uint128).max),
+        priceLimits: toPackedU128(0, type(uint128).max)
       });
       condition[1] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: ((block.timestamp + 500) << 128) | (block.timestamp + 700),
-        amountInLimits: (swapAmount << 128) | swapAmount,
-        maxFees: (0 << 128) | type(uint128).max,
-        priceLimits: (0 << 128) | type(uint128).max
+        timeLimits: toPackedU128(block.timestamp + 500, block.timestamp + 700),
+        amountInLimits: toPackedU128(swapAmount, swapAmount),
+        maxFees: toPackedU128(0, type(uint128).max),
+        priceLimits: toPackedU128(0, type(uint128).max)
       });
       condition[2] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: ((block.timestamp + 1000) << 128) | (block.timestamp + 1200),
-        amountInLimits: (swapAmount << 128) | swapAmount,
-        maxFees: (0 << 128) | type(uint128).max,
-        priceLimits: (0 << 128) | type(uint128).max
+        timeLimits: toPackedU128(block.timestamp + 1000, block.timestamp + 1200),
+        amountInLimits: toPackedU128(swapAmount, swapAmount),
+        maxFees: toPackedU128(0, type(uint128).max),
+        priceLimits: toPackedU128(0, type(uint128).max)
       });
     }
 
@@ -169,8 +188,9 @@ contract ConditionalSwapTest is BaseTest {
     }
 
     ActionData memory actionData;
+    TokenData memory tokenData;
+    bytes32[] memory _memLeaves = leaves;
     {
-      TokenData memory tokenData;
       tokenData.erc20Data = new ERC20Data[](1);
       tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
       actionData = _getActionData(
@@ -183,7 +203,10 @@ contract ConditionalSwapTest is BaseTest {
           feeAfter == 0 ? mainAddress : address(router),
           mainAddress
         ),
-        true
+        true,
+        0,
+        MerkleUtils.getProof(_memLeaves, 0),
+        condition[0]
       );
     }
 
@@ -192,17 +215,54 @@ contract ConditionalSwapTest is BaseTest {
       _swap(mode, intentData, actionData, 0, 0);
     }
 
+    // {
+    //   actionData = _getActionData(
+    //     tokenData,
+    //     abi.encode(
+    //       tokenIn,
+    //       tokenOut,
+    //       swapAmount,
+    //       1000,
+    //       feeAfter == 0 ? mainAddress : address(router),
+    //       mainAddress
+    //     ),
+    //     true,
+    //     1,
+    //     MerkleUtils.getProof(_memLeaves, 1),
+    //     condition[1]
+    //   );
+    //   actionData.nonce += 1;
+    // }
+    {
+      actionData.hookActionData = abi.encode(
+        MerkleUtils.getProof(_memLeaves, 1),
+        1,
+        tokenOut,
+        toPackedU128(feeBefore, feeAfter),
+        condition[1]
+      );
+      actionData.nonce += 1;
+    }
+
     // swap 2
     {
       vm.warp(block.timestamp + 500);
-      actionData.nonce += 1;
       _swap(mode, intentData, actionData, 0, 1);
     }
 
     // swap 3
     {
       vm.warp(block.timestamp + 1000);
-      actionData.nonce += 1;
+      actionData.hookActionData = abi.encode(
+        MerkleUtils.getProof(_memLeaves, 2),
+        2,
+        tokenOut,
+        toPackedU128(feeBefore, feeAfter),
+        condition[2]
+      );
+      actionData.nonce += 2;
+    }
+    {
       _swap(mode, intentData, actionData, 0, 2);
     }
   }
@@ -215,10 +275,10 @@ contract ConditionalSwapTest is BaseTest {
     {
       condition[0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 4,
-        timeLimits: (0 << 128) | type(uint128).max,
-        amountInLimits: (swapAmount << 128) | swapAmount,
-        maxFees: (0 << 128) | type(uint128).max,
-        priceLimits: (1_000_000_000_000 - 100 << 128) | (1_000_000_000_000 + 100)
+        timeLimits: toPackedU128(0, type(uint128).max),
+        amountInLimits: toPackedU128(swapAmount, swapAmount),
+        maxFees: toPackedU128(0, type(uint128).max),
+        priceLimits: toPackedU128(1_000_000_000_000 - 100, 1_000_000_000_000 + 100)
       });
     }
 
@@ -231,8 +291,9 @@ contract ConditionalSwapTest is BaseTest {
       swapAmount = tmpSwapAmount;
     }
     ActionData memory actionData;
+    TokenData memory tokenData;
+    bytes32[] memory _memLeaves = leaves;
     {
-      TokenData memory tokenData;
       tokenData.erc20Data = new ERC20Data[](1);
       tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
       actionData = _getActionData(
@@ -245,7 +306,10 @@ contract ConditionalSwapTest is BaseTest {
           feeAfter == 0 ? mainAddress : address(router),
           mainAddress
         ),
-        true
+        true,
+        0,
+        MerkleUtils.getProof(_memLeaves, 0),
+        condition[0]
       );
     }
 
@@ -280,11 +344,11 @@ contract ConditionalSwapTest is BaseTest {
 
     uint256 balanceBefore = tokenOut.balanceOf(mainAddress);
 
-    assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, index), swapCount);
+    assertEq(conditionalSwapHook.getSwapExecutionCount(hash, index), swapCount);
     vm.startPrank(caller);
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     vm.stopPrank();
-    assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, index), swapCount + 1);
+    assertEq(conditionalSwapHook.getSwapExecutionCount(hash, index), swapCount + 1);
 
     assertGt(tokenOut.balanceOf(mainAddress), balanceBefore);
   }
@@ -296,24 +360,37 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (block.timestamp + 100 << 128) | (block.timestamp + 1000),
-      amountInLimits: (0 << 128) | type(uint128).max,
-      maxFees: (0 << 128) | type(uint128).max,
-      priceLimits: (0 << 128) | type(uint128).max
+      timeLimits: toPackedU128(block.timestamp + 100, block.timestamp + 1000),
+      amountInLimits: toPackedU128(0, type(uint128).max),
+      maxFees: toPackedU128(0, type(uint128).max),
+      priceLimits: toPackedU128(0, type(uint128).max)
     });
 
     IntentData memory intentData = _getIntentData(0, type(uint128).max, 1, condition);
     _setUpMainAddress(intentData, false);
 
+    bytes32[] memory _memLeaves = leaves;
     ActionData memory actionData = _getActionData(
-      intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
+      intentData.tokenData,
+      _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata),
+      false,
+      0,
+      MerkleUtils.getProof(_memLeaves, 0),
+      condition[0]
     );
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        KSConditionalSwapHook.InvalidTime.selector,
+        block.timestamp,
+        block.timestamp + 100,
+        block.timestamp + 1000
+      )
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -324,25 +401,38 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (block.timestamp - 100 << 128) | (block.timestamp + 100),
-      amountInLimits: (0 << 128) | type(uint128).max,
-      maxFees: (0 << 128) | type(uint128).max,
-      priceLimits: (uint256(type(uint128).max) << 128) | type(uint128).max
+      timeLimits: toPackedU128(block.timestamp - 100, block.timestamp + 100),
+      amountInLimits: toPackedU128(0, type(uint128).max),
+      maxFees: toPackedU128(0, type(uint128).max),
+      priceLimits: toPackedU128(type(uint128).max, type(uint128).max)
     });
 
     IntentData memory intentData = _getIntentData(0, type(uint128).max, 1, condition);
 
     _setUpMainAddress(intentData, false);
 
+    bytes32[] memory _memLeaves = leaves;
     ActionData memory actionData = _getActionData(
-      intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
+      intentData.tokenData,
+      _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata),
+      false,
+      0,
+      MerkleUtils.getProof(_memLeaves, 0),
+      condition[0]
     );
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        KSConditionalSwapHook.InvalidPrice.selector,
+        currentPrice,
+        type(uint128).max,
+        type(uint128).max
+      )
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -355,15 +445,18 @@ contract ConditionalSwapTest is BaseTest {
     _setUpMainAddress(intentData, false);
     swapAmount = tmpSwapAmount;
     ActionData memory actionData;
+    bytes32[] memory _memLeaves = leaves;
     {
       TokenData memory tokenData;
       tokenData.erc20Data = new ERC20Data[](1);
       tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
-      actionData = _getActionData(tokenData, '', true);
+      actionData = _getActionData(
+        tokenData, '', true, 0, MerkleUtils.getProof(_memLeaves, 0), defaultCondition
+      );
     }
 
     bytes32 hash = router.hashTypedIntentData(intentData);
-    assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, 0), 0);
+    assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0), 0);
 
     {
       (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -374,38 +467,12 @@ contract ConditionalSwapTest is BaseTest {
       actionData.nonce += 1;
       (caller, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
       vm.startPrank(caller);
-      vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+      vm.expectRevert(abi.encodeWithSelector(KSConditionalSwapHook.InvalidSwapLimit.selector, 2, 1));
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     }
     {
-      assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, 0), 1);
+      assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0), 1);
     }
-  }
-
-  function testRevert_InvalidTokenIn(uint256 mode) public {
-    mode = bound(mode, 0, 2);
-    IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
-    _setUpMainAddress(intentData, false);
-    intentData.tokenData.erc20Data[0].token = makeAddr('dummy');
-    _setUpMainAddress(intentData, false);
-
-    ActionData memory actionData = _getActionData(
-      intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
-    );
-
-    actionData.erc20Ids[0] = 0;
-
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
-
-    vm.startPrank(caller);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        KSConditionalSwapHook.InvalidTokenIn.selector, makeAddr('dummy'), tokenIn
-      )
-    );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_AmountInTooSmallOrTooLarge(uint256 mode, uint128 min, uint128 max) public {
@@ -415,15 +482,23 @@ contract ConditionalSwapTest is BaseTest {
       _getIntentData(min, max, 1, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
 
+    bytes32[] memory _memLeaves = leaves;
     ActionData memory actionData = _getActionData(
-      intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
+      intentData.tokenData,
+      _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata),
+      false,
+      0,
+      MerkleUtils.getProof(_memLeaves, 0),
+      defaultCondition
     );
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+    vm.expectRevert(
+      abi.encodeWithSelector(KSConditionalSwapHook.InvalidAmountIn.selector, swapAmount, min, max)
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
@@ -438,29 +513,79 @@ contract ConditionalSwapTest is BaseTest {
 
     uint256 beforeSwapFee = (swapAmount * feeBefore) / 1_000_000;
 
+    bytes32[] memory _memLeaves = leaves;
     ActionData memory actionData = _getActionData(
       intentData.tokenData,
       abi.encode(tokenIn, tokenOut, swapAmount - beforeSwapFee, 1000, address(router), mainAddress),
-      true
+      true,
+      0,
+      MerkleUtils.getProof(_memLeaves, 0),
+      defaultCondition
     );
 
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        KSConditionalSwapHook.InvalidFees.selector, feeBefore, feeAfter, maxSrcFee, maxDstFee
+      )
+    );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function _getActionData(TokenData memory tokenData, bytes memory actionCalldata, bool swapViaMock)
-    internal
-    view
-    returns (ActionData memory actionData)
-  {
-    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+  function testRevert_InvalidProof(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    IntentData memory intentData =
+      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+    _setUpMainAddress(intentData, false);
 
-    console.log('feeBefore', feeBefore);
-    console.log('feeAfter', feeAfter);
+    uint256 beforeSwapFee = (swapAmount * feeBefore) / 1_000_000;
+
+    bytes32[] memory _memLeaves = leaves;
+    ActionData memory actionData = _getActionData(
+      intentData.tokenData,
+      abi.encode(tokenIn, tokenOut, swapAmount - beforeSwapFee, 1000, address(router), mainAddress),
+      true,
+      1, // wrong leaf index
+      MerkleUtils.getProof(_memLeaves, 0),
+      defaultCondition
+    );
+
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(KSConditionalSwapHook.InvalidProof.selector);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+  }
+
+  function _setUpLeaves(
+    uint256[] memory leafIndexes,
+    KSConditionalSwapHook.SwapCondition[] memory conditions,
+    address[] memory _tokenIn,
+    address[] memory _tokenOut
+  ) internal returns (bytes32[] memory _leaves, bytes32 _root) {
+    leaves = new bytes32[](leafIndexes.length);
+    for (uint256 i = 0; i < leafIndexes.length; i++) {
+      leaves[i] = keccak256(abi.encode(leafIndexes[i], _tokenIn[i], _tokenOut[i], conditions[i]));
+    }
+
+    root = leaves.getRoot();
+
+    return (leaves, root);
+  }
+
+  function _getActionData(
+    TokenData memory tokenData,
+    bytes memory actionCalldata,
+    bool swapViaMock,
+    uint256 leafIndex,
+    bytes32[] memory proof,
+    KSConditionalSwapHook.SwapCondition memory condition
+  ) internal view returns (ActionData memory actionData) {
+    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
@@ -482,7 +607,9 @@ contract ConditionalSwapTest is BaseTest {
             : actionCalldata
         )
         : actionCalldata,
-      hookActionData: abi.encode(0, (feeBefore << 128) | feeAfter),
+      hookActionData: abi.encode(
+        proof, leafIndex, tokenOut, toPackedU128(feeBefore, feeAfter), condition
+      ),
       extraData: '',
       deadline: block.timestamp + 1 days,
       nonce: 0
@@ -494,29 +621,41 @@ contract ConditionalSwapTest is BaseTest {
     uint256 max,
     uint256 swapLimit,
     KSConditionalSwapHook.SwapCondition[] memory swapConditions
-  ) internal view returns (IntentData memory intentData) {
+  ) internal returns (IntentData memory intentData) {
     KSConditionalSwapHook.SwapHookData memory hookData;
-    {
-      hookData.srcTokens = new address[](1);
-      hookData.srcTokens[0] = tokenIn;
-      hookData.dstTokens = new address[](1);
-      hookData.dstTokens[0] = tokenOut;
-      hookData.recipient = mainAddress;
-      hookData.swapConditions = new KSConditionalSwapHook.SwapCondition[][](1);
-    }
 
     if (swapConditions.length > 0) {
-      hookData.swapConditions[0] = swapConditions;
+      uint256[] memory leafIndexes = new uint256[](swapConditions.length);
+      address[] memory _tokenIn = new address[](swapConditions.length);
+      address[] memory _tokenOut = new address[](swapConditions.length);
+      for (uint256 i = 0; i < swapConditions.length; i++) {
+        leafIndexes[i] = i;
+        _tokenIn[i] = tokenIn;
+        _tokenOut[i] = tokenOut;
+      }
+      _setUpLeaves(leafIndexes, swapConditions, _tokenIn, _tokenOut);
     } else {
-      hookData.swapConditions[0] = new KSConditionalSwapHook.SwapCondition[](1);
-      hookData.swapConditions[0][0] = KSConditionalSwapHook.SwapCondition({
+      defaultCondition = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: (block.timestamp << 128) | (block.timestamp + 1 days),
-        amountInLimits: (min << 128) | max,
-        maxFees: (maxSrcFee << 128) | maxDstFee,
-        priceLimits: (0 << 128) | type(uint128).max
+        timeLimits: toPackedU128(block.timestamp, block.timestamp + 1 days),
+        amountInLimits: toPackedU128(min, max),
+        maxFees: toPackedU128(maxSrcFee, maxDstFee),
+        priceLimits: toPackedU128(0, type(uint128).max)
       });
+
+      swapConditions = new KSConditionalSwapHook.SwapCondition[](1);
+      swapConditions[0] = defaultCondition;
+
+      _setUpLeaves(
+        [uint256(0)].toMemoryArray(),
+        swapConditions,
+        [tokenIn].toMemoryArray(),
+        [tokenOut].toMemoryArray()
+      );
     }
+
+    hookData.root = root;
+    hookData.recipient = mainAddress;
 
     IntentCoreData memory coreData;
     TokenData memory tokenData;
