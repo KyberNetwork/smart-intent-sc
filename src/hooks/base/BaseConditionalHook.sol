@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import './BaseHook.sol';
 
+import '../../interfaces/hooks/IKSConditionalHook.sol';
 import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
-import 'src/interfaces/hooks/IKSConditionalHook.sol';
 
 /**
  * @param startTimestamp the start timestamp of the condition

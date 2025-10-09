@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'src/interfaces/uniswapv2/IUniswapV2Pair.sol';
+import '../../interfaces/uniswapv2/IUniswapV2Pair.sol';
 
+import '../base/BaseHook.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseHook.sol';
 
 contract KSZapOutUniswapV2Hook is BaseHook {
   using TokenHelper for address;

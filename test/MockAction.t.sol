@@ -37,23 +37,6 @@ contract MockActionTest is BaseTest {
     router.updateForwarder(address(forwarder));
   }
 
-  function testUpdateFeeRecipient() public {
-    address newFeeRecipient = makeAddr('newFeeRecipient');
-
-    vm.prank(makeAddr('random'));
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IAccessControl.AccessControlUnauthorizedAccount.selector, makeAddr('random'), 0
-      )
-    );
-    router.updateFeeRecipient(newFeeRecipient);
-
-    vm.prank(admin);
-    vm.expectEmit(true, true, true, true);
-    emit IKSSmartIntentRouter.UpdateFeeRecipient(newFeeRecipient);
-    router.updateFeeRecipient(newFeeRecipient);
-  }
-
   function testMockActionExecuteSuccess(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
@@ -64,7 +47,7 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -81,7 +64,7 @@ contract MockActionTest is BaseTest {
     bytes32 intentHash = router.hashTypedIntentData(intentData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -106,7 +89,7 @@ contract MockActionTest is BaseTest {
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
     newTokenData.erc20Data[0].amount =
       intentData.tokenData.erc20Data[0].amount + bound(seed, 1, 1e18);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -141,7 +124,7 @@ contract MockActionTest is BaseTest {
     IntentData memory intentData = _getIntentData(seed);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -174,7 +157,7 @@ contract MockActionTest is BaseTest {
     router.revokeRole(ACTION_CONTRACT_ROLE, address(mockActionContract));
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -201,7 +184,7 @@ contract MockActionTest is BaseTest {
     vm.stopPrank();
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -231,7 +214,7 @@ contract MockActionTest is BaseTest {
     vm.stopPrank();
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -247,7 +230,7 @@ contract MockActionTest is BaseTest {
     IntentData memory intentData = _getIntentData(seed);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -281,7 +264,7 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
@@ -304,7 +287,7 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
     actionData.actionSelectorId = 1; // set to 1 to make sure the action is not in the list
 
     vm.warp(block.timestamp + 100);
@@ -328,7 +311,7 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
     actionData.extraData = hex'1234';
 
     vm.warp(block.timestamp + 100);
@@ -365,7 +348,7 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''));
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
     actionData.nonce = seed;
 
     vm.warp(block.timestamp + 100);
@@ -394,8 +377,9 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
 
     TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
-    ActionData memory actionData =
-      _getActionData(newTokenData, abi.encode(abi.encode(address(erc20Mock), address(router))));
+    ActionData memory actionData = _getActionData(
+      newTokenData, abi.encode(abi.encode(address(erc20Mock), address(router))), seed
+    );
 
     address[] memory tokens = new address[](1);
     uint256[] memory feesBefore = new uint256[](1);
@@ -418,27 +402,56 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
 
-    uint256 feeRecipientBalanceBefore = erc20Mock.balanceOf(feeRecipient);
+    FeeInfo feeInfo = FeeInfoBuildParams({
+      feeMode: seed % 2 == 0,
+      protocolBps: uint24(bound(seed, 0, 1e6)),
+      protocolRecipient: protocolRecipient
+    }).build();
 
+    (uint256 protocolFeeBefore, uint256 partnerFeeBefore) = feeInfo.computeFee(feesBefore[0]);
     vm.expectEmit(true, true, true, true);
-    emit HookLibrary.RecordFeeAndVolume(
-      address(erc20Mock), feeRecipient, feesBefore[0], actionData.erc20Amounts[0]
+    emit IKSSmartIntentRouter.CollectFeeBeforeExecution(
+      address(erc20Mock),
+      protocolRecipient,
+      partnerRecipient,
+      actionData.erc20Amounts[0],
+      protocolFeeBefore,
+      partnerFeeBefore
     );
 
+    (uint256 protocolFeeAfter, uint256 partnerFeeAfter) = feeInfo.computeFee(feesAfter[0]);
     vm.expectEmit(true, true, true, true);
-    emit HookLibrary.RecordFeeAndVolume(
-      address(erc20Mock), feeRecipient, feesAfter[0], amounts[0] + feesAfter[0]
+    emit IKSSmartIntentRouter.CollectFeeAfterExecution(
+      address(erc20Mock),
+      protocolRecipient,
+      partnerRecipient,
+      amounts[0] + feesAfter[0],
+      protocolFeeAfter,
+      partnerFeeAfter
     );
 
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     assertEq(erc20Mock.balanceOf(address(this)), amounts[0]);
-    assertEq(
-      erc20Mock.balanceOf(feeRecipient),
-      feeRecipientBalanceBefore + feesBefore[0] + feesAfter[0],
-      'Fee recipient did not receive expected fees'
-    );
+    if (feeInfo.feeMode()) {
+      assertEq(
+        erc20Mock.balanceOf(protocolRecipient),
+        feesBefore[0] + feesAfter[0],
+        'Protocol recipient did not receive expected fees'
+      );
+    } else {
+      assertEq(
+        erc20Mock.balanceOf(protocolRecipient),
+        protocolFeeBefore + protocolFeeAfter,
+        'Protocol recipient did not receive expected fees'
+      );
+      assertEq(
+        erc20Mock.balanceOf(partnerRecipient),
+        partnerFeeBefore + partnerFeeAfter,
+        'Partner recipient did not receive expected fees'
+      );
+    }
   }
 
   function _getNewTokenData(TokenData memory tokenData, uint256 seed)
@@ -487,7 +500,7 @@ contract MockActionTest is BaseTest {
     vm.stopPrank();
   }
 
-  function _getActionData(TokenData memory tokenData, bytes memory actionCalldata)
+  function _getActionData(TokenData memory tokenData, bytes memory actionCalldata, uint256 seed)
     internal
     returns (ActionData memory actionData)
   {
@@ -498,10 +511,18 @@ contract MockActionTest is BaseTest {
       erc20Amounts[i] = tokenData.erc20Data[i].amount;
     }
 
+    FeeInfo feeInfo = FeeInfoBuildParams({
+      feeMode: seed % 2 == 0,
+      protocolBps: uint24(bound(seed, 0, 1e6)),
+      protocolRecipient: protocolRecipient
+    }).build();
+
     actionData = ActionData({
       erc20Ids: _consecutiveArray(0, tokenData.erc20Data.length),
       erc20Amounts: erc20Amounts,
       erc721Ids: _consecutiveArray(0, tokenData.erc721Data.length),
+      feeInfo: feeInfo,
+      partnerRecipient: partnerRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

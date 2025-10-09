@@ -233,6 +233,12 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: FeeInfoBuildParams({
+        feeMode: false,
+        protocolBps: 1e6,
+        protocolRecipient: protocolRecipient
+      }).build(),
+      partnerRecipient: partnerRecipient,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -253,7 +259,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       token0 = wbnb;
     }
 
-    uint256[2] memory feeBefore = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
+    uint256[2] memory feeBefore =
+      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
@@ -275,7 +282,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     uint256 received1 = pancakeCL.removeLiqParams.positionInfo.amounts[1]
       + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1] - intentFee1;
 
-    uint256[2] memory feeAfter = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
+    uint256[2] memory feeAfter =
+      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
 
     assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
     assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
@@ -493,6 +501,12 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: FeeInfoBuildParams({
+        feeMode: false,
+        protocolBps: 1e6,
+        protocolRecipient: protocolRecipient
+      }).build(),
+      partnerRecipient: partnerRecipient,
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(params),
@@ -792,10 +806,6 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     pancakeCL.removeLiqParams.positionInfo.ticks[0] = tickLower;
     pancakeCL.removeLiqParams.positionInfo.ticks[1] = tickUpper;
     pancakeCL.removeLiqParams.liquidityToRemove = liquidity;
-
-    console.log('tickLower', tickLower);
-    console.log('tickUpper', tickUpper);
-    console.log('currentTick', currentTick);
 
     assertTrue(currentTick < tickLower || currentTick > tickUpper, 'wrong position');
   }

@@ -6,21 +6,17 @@ import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 import '../interfaces/hooks/IKSSmartIntentHook.sol';
 
-import './types/ActionData.sol';
-import './types/IntentCoreData.sol';
+import '../types/ActionData.sol';
+import '../types/ERC20Data.sol';
+import '../types/IntentCoreData.sol';
 
 library HookLibrary {
   using TokenHelper for address;
-
-  // @notice Emit the ERC20/Native fee and volume
-  event RecordFeeAndVolume(
-    address indexed token, address indexed feeRecipient, uint256 fee, uint256 volume
-  );
+  using ERC20DataLibrary for address;
 
   function beforeExecution(
     bytes32 intentHash,
     IntentData calldata intentData,
-    address feeRecipient,
     ActionData calldata actionData
   ) internal returns (uint256[] memory fees, bytes memory beforeExecutionData) {
     (fees, beforeExecutionData) = IKSSmartIntentHook(intentData.coreData.hook).beforeExecution(
@@ -30,21 +26,12 @@ library HookLibrary {
     if (actionData.erc20Ids.length != fees.length) {
       revert ICommon.MismatchedArrayLengths();
     }
-
-    for (uint256 i = 0; i < actionData.erc20Ids.length; i++) {
-      emit RecordFeeAndVolume(
-        intentData.tokenData.erc20Data[actionData.erc20Ids[i]].token,
-        feeRecipient,
-        fees[i],
-        actionData.erc20Amounts[i]
-      );
-    }
   }
 
   function afterExecution(
     bytes32 intentHash,
     IntentData calldata intentData,
-    address feeRecipient,
+    ActionData calldata actionData,
     bytes memory beforeExecutionData,
     bytes memory actionResult
   ) internal {
@@ -62,9 +49,10 @@ library HookLibrary {
 
     for (uint256 i = 0; i < tokens.length; i++) {
       tokens[i].safeTransfer(recipient, amounts[i]);
-      tokens[i].safeTransfer(feeRecipient, fees[i]);
 
-      emit RecordFeeAndVolume(tokens[i], feeRecipient, fees[i], amounts[i] + fees[i]);
+      tokens[i].collectFeeAfterExecution(
+        amounts[i] + fees[i], fees[i], actionData.feeInfo, actionData.partnerRecipient
+      );
     }
   }
 }

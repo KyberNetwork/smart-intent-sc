@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import 'forge-std/Test.sol';
 
-import 'src/libraries/types/ConditionTree.sol';
+import 'src/types/ConditionTree.sol';
 import 'test/mocks/MockConditionalHook.sol';
 
 contract ConditionTreeTest is Test {

@@ -9,6 +9,4 @@ abstract contract KSSmartIntentStorage is IKSSmartIntentRouter {
   mapping(bytes32 => IntentStatus) internal intentStatuses;
 
   IKSGenericForwarder internal forwarder;
-
-  address internal feeRecipient;
 }

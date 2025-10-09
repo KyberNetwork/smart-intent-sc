@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
-import 'src/hooks/base/BaseTickBasedRemoveLiquidityHook.sol';
-import 'src/libraries/uniswapv4/StateLibrary.sol';
+import '../../libraries/uniswapv4/StateLibrary.sol';
+import '../base/BaseTickBasedRemoveLiquidityHook.sol';
 
 contract KSRemoveLiquidityUniswapV4Hook is BaseTickBasedRemoveLiquidityHook {
   using StateLibrary for IPoolManager;

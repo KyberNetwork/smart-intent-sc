@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseTickBasedRemoveLiquidityHook.sol';
+import '../base/BaseTickBasedRemoveLiquidityHook.sol';
+
+import '../../interfaces/uniswapv3/IUniswapV3PM.sol';
+import '../../interfaces/uniswapv3/IUniswapV3Pool.sol';
+import '../../libraries/uniswapv4/LiquidityAmounts.sol';
+import '../../libraries/uniswapv4/TickMath.sol';
 
 import 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
-import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import 'src/libraries/uniswapv4/TickMath.sol';
+import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
   using TokenHelper for address;
