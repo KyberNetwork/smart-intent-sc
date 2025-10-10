@@ -3,11 +3,11 @@ pragma solidity ^0.8.0;
 
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
-import 'src/hooks/base/BaseTickBasedRemoveLiquidityHook.sol';
-import 'src/interfaces/pancakev4/ICLPositionManager.sol';
-import {PoolId, TickInfo} from 'src/interfaces/pancakev4/Types.sol';
-import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import 'src/libraries/uniswapv4/TickMath.sol';
+import '../../interfaces/pancakev4/ICLPositionManager.sol';
+import {PoolId, TickInfo} from '../../interfaces/pancakev4/Types.sol';
+import '../../libraries/uniswapv4/LiquidityAmounts.sol';
+import '../../libraries/uniswapv4/TickMath.sol';
+import '../base/BaseTickBasedRemoveLiquidityHook.sol';
 
 contract KSRemoveLiquidityPancakeV4CLHook is BaseTickBasedRemoveLiquidityHook {
   using TokenHelper for address;

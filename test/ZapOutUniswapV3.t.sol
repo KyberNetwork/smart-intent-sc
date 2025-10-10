@@ -130,6 +130,12 @@ contract ZapOutUniswapV3Test is BaseTest {
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: FeeInfoBuildParams({
+        feeMode: false,
+        protocolFee: 1e6,
+        protocolRecipient: protocolRecipient
+      }).build(),
+      partnerRecipient: partnerRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,

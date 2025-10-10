@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import {console} from 'forge-std/console.sol';
 import 'src/hooks/swap/KSConditionalSwapHook.sol';
 
 contract ConditionalSwapTest is BaseTest {
@@ -97,7 +96,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256[2] memory mainAddressBefore =
       [tokenIn.balanceOf(mainAddress), tokenOut.balanceOf(mainAddress)];
     uint256[2] memory feeReceiversBefore =
-      [tokenIn.balanceOf(feeRecipient), tokenOut.balanceOf(feeRecipient)];
+      [tokenIn.balanceOf(protocolRecipient), tokenOut.balanceOf(protocolRecipient)];
 
     vm.startPrank(caller);
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -106,8 +105,8 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(tokenOut.balanceOf(address(router)), routerBefore[1]);
     assertEq(tokenIn.balanceOf(mainAddress), mainAddressBefore[0] - amountIn);
     assertEq(tokenOut.balanceOf(mainAddress), mainAddressBefore[1] + returnAmount);
-    assertEq(tokenIn.balanceOf(feeRecipient), feeReceiversBefore[0] + beforeSwapFee);
-    assertEq(tokenOut.balanceOf(feeRecipient), feeReceiversBefore[1] + afterSwapFee);
+    assertEq(tokenIn.balanceOf(protocolRecipient), feeReceiversBefore[0] + beforeSwapFee);
+    assertEq(tokenOut.balanceOf(protocolRecipient), feeReceiversBefore[1] + afterSwapFee);
   }
 
   function testConditionalSwapSuccess(uint256 mode) public {
@@ -121,7 +120,7 @@ contract ConditionalSwapTest is BaseTest {
       intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
     );
 
-    vm.warp(block.timestamp + 100);
+    vm.warp(vm.getBlockTimestamp() + 100);
     (address caller, bytes memory daSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
@@ -138,21 +137,21 @@ contract ConditionalSwapTest is BaseTest {
     {
       condition[0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: ((block.timestamp - 100) << 128) | (block.timestamp + 100),
+        timeLimits: ((vm.getBlockTimestamp() - 100) << 128) | (vm.getBlockTimestamp() + 100),
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (0 << 128) | type(uint128).max
       });
       condition[1] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: ((block.timestamp + 500) << 128) | (block.timestamp + 700),
+        timeLimits: ((vm.getBlockTimestamp() + 500) << 128) | (vm.getBlockTimestamp() + 700),
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (0 << 128) | type(uint128).max
       });
       condition[2] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: ((block.timestamp + 1000) << 128) | (block.timestamp + 1200),
+        timeLimits: ((vm.getBlockTimestamp() + 1000) << 128) | (vm.getBlockTimestamp() + 1200),
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
         priceLimits: (0 << 128) | type(uint128).max
@@ -194,14 +193,14 @@ contract ConditionalSwapTest is BaseTest {
 
     // swap 2
     {
-      vm.warp(block.timestamp + 500);
+      vm.warp(vm.getBlockTimestamp() + 500);
       actionData.nonce += 1;
       _swap(mode, intentData, actionData, 0, 1);
     }
 
     // swap 3
     {
-      vm.warp(block.timestamp + 1000);
+      vm.warp(vm.getBlockTimestamp() + 600);
       actionData.nonce += 1;
       _swap(mode, intentData, actionData, 0, 2);
     }
@@ -296,7 +295,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (block.timestamp + 100 << 128) | (block.timestamp + 1000),
+      timeLimits: (vm.getBlockTimestamp() + 100 << 128) | (vm.getBlockTimestamp() + 1000),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (0 << 128) | type(uint128).max
@@ -324,7 +323,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (block.timestamp - 100 << 128) | (block.timestamp + 100),
+      timeLimits: (vm.getBlockTimestamp() - 100 << 128) | (vm.getBlockTimestamp() + 100),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (uint256(type(uint128).max) << 128) | type(uint128).max
@@ -459,13 +458,16 @@ contract ConditionalSwapTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
-    console.log('feeBefore', feeBefore);
-    console.log('feeAfter', feeAfter);
-
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
+      feeInfo: FeeInfoBuildParams({
+        feeMode: false,
+        protocolFee: 1e6,
+        protocolRecipient: protocolRecipient
+      }).build(),
+      partnerRecipient: partnerRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: swapViaMock ? 0 : 1,
       actionCalldata: swapViaMock
@@ -484,7 +486,7 @@ contract ConditionalSwapTest is BaseTest {
         : actionCalldata,
       hookActionData: abi.encode(0, (feeBefore << 128) | feeAfter),
       extraData: '',
-      deadline: block.timestamp + 1 days,
+      deadline: vm.getBlockTimestamp() + 1 days,
       nonce: 0
     });
   }
@@ -511,7 +513,7 @@ contract ConditionalSwapTest is BaseTest {
       hookData.swapConditions[0] = new KSConditionalSwapHook.SwapCondition[](1);
       hookData.swapConditions[0][0] = KSConditionalSwapHook.SwapCondition({
         swapLimit: 1,
-        timeLimits: (block.timestamp << 128) | (block.timestamp + 1 days),
+        timeLimits: (vm.getBlockTimestamp() << 128) | (vm.getBlockTimestamp() + 1 days),
         amountInLimits: (min << 128) | max,
         maxFees: (maxSrcFee << 128) | maxDstFee,
         priceLimits: (0 << 128) | type(uint128).max
@@ -559,12 +561,18 @@ contract ConditionalSwapTest is BaseTest {
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
+      feeInfo: FeeInfoBuildParams({
+        feeMode: false,
+        protocolFee: 1e6,
+        protocolRecipient: protocolRecipient
+      }).build(),
+      partnerRecipient: partnerRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       hookActionData: abi.encode(0),
       extraData: '',
-      deadline: block.timestamp + 1 days,
+      deadline: vm.getBlockTimestamp() + 1 days,
       nonce: 0
     });
   }

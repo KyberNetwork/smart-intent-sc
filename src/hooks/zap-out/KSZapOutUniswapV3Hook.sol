@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import '../base/BaseHook.sol';
+
+import '../../interfaces/uniswapv3/IUniswapV3PM.sol';
+import '../../interfaces/uniswapv3/IUniswapV3Pool.sol';
+
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseHook.sol';
-
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
-
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
 
 contract KSZapOutUniswapV3Hook is BaseHook {
   using TokenHelper for address;

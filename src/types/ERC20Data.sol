@@ -5,6 +5,9 @@ import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
 import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
+import '../interfaces/IKSSmartIntentRouter.sol';
+import './FeeInfo.sol';
+
 import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 /**
@@ -42,7 +45,8 @@ library ERC20DataLibrary {
     uint256 fee,
     bool approvalFlag,
     IKSGenericForwarder forwarder,
-    address feeRecipient
+    FeeInfo feeInfo,
+    address partnerRecipient
   ) internal {
     if (address(forwarder) == address(0)) {
       token.safeTransferFrom(mainAddress, address(this), amount - fee);
@@ -56,7 +60,41 @@ library ERC20DataLibrary {
       }
     }
 
-    token.safeTransferFrom(mainAddress, feeRecipient, fee);
+    address protocolRecipient = feeInfo.protocolRecipient();
+    (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
+
+    if (feeInfo.feeMode()) {
+      token.safeTransferFrom(mainAddress, protocolRecipient, fee);
+    } else {
+      token.safeTransferFrom(mainAddress, protocolRecipient, protocolFeeAmount);
+      token.safeTransferFrom(mainAddress, partnerRecipient, partnerFeeAmount);
+    }
+
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
+      token, protocolRecipient, partnerRecipient, true, amount, protocolFeeAmount, partnerFeeAmount
+    );
+  }
+
+  function collectFeeAfterExecution(
+    address token,
+    uint256 amount,
+    uint256 fee,
+    FeeInfo feeInfo,
+    address partnerRecipient
+  ) internal {
+    address protocolRecipient = feeInfo.protocolRecipient();
+    (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
+
+    if (feeInfo.feeMode()) {
+      token.safeTransfer(protocolRecipient, fee);
+    } else {
+      token.safeTransfer(protocolRecipient, protocolFeeAmount);
+      token.safeTransfer(partnerRecipient, partnerFeeAmount);
+    }
+
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
+      token, protocolRecipient, partnerRecipient, false, amount, protocolFeeAmount, partnerFeeAmount
+    );
   }
 
   function _forwardApproveInf(IKSGenericForwarder forwarder, address token, address spender)

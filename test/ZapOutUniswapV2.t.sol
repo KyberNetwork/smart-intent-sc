@@ -142,6 +142,12 @@ contract ZapOutUniswapV2Test is BaseTest {
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
+      feeInfo: FeeInfoBuildParams({
+        feeMode: false,
+        protocolFee: 1e6,
+        protocolRecipient: protocolRecipient
+      }).build(),
+      partnerRecipient: partnerRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,

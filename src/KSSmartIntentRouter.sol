@@ -30,14 +30,12 @@ contract KSSmartIntentRouter is
     address[] memory initialGuardians,
     address[] memory initialRescuers,
     address[] memory initialActionContracts,
-    address _feeRecipient,
     address _forwarder
   ) ManagementBase(0, initialAdmin) {
     _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
     _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
     _batchGrantRole(ACTION_CONTRACT_ROLE, initialActionContracts);
 
-    _updateFeeRecipient(_feeRecipient);
     _updateForwarder(_forwarder);
   }
 
@@ -62,17 +60,6 @@ contract KSSmartIntentRouter is
     forwarder = IKSGenericForwarder(newForwarder);
 
     emit UpdateForwarder(newForwarder);
-  }
-
-  /// @inheritdoc IKSSmartIntentRouter
-  function updateFeeRecipient(address newFeeRecipient) public onlyRole(DEFAULT_ADMIN_ROLE) {
-    _updateFeeRecipient(newFeeRecipient);
-  }
-
-  function _updateFeeRecipient(address newFeeRecipient) internal {
-    feeRecipient = newFeeRecipient;
-
-    emit UpdateFeeRecipient(newFeeRecipient);
   }
 
   /// @inheritdoc IKSSmartIntentRouter
@@ -169,7 +156,7 @@ contract KSSmartIntentRouter is
     );
 
     (uint256[] memory fees, bytes memory beforeExecutionData) =
-      HookLibrary.beforeExecution(intentHash, intentData, feeRecipient, actionData);
+      HookLibrary.beforeExecution(intentHash, intentData, actionData);
 
     address actionContract = intentData.coreData.actionContracts[actionData.actionSelectorId];
     bytes4 actionSelector = intentData.coreData.actionSelectors[actionData.actionSelectorId];
@@ -198,7 +185,7 @@ contract KSSmartIntentRouter is
     }
 
     HookLibrary.afterExecution(
-      intentHash, intentData, feeRecipient, beforeExecutionData, actionResult
+      intentHash, intentData, actionData, beforeExecutionData, actionResult
     );
 
     emit ExecuteIntent(intentHash, actionData, actionResult);

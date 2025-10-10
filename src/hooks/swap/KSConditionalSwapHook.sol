@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import '../base/BaseStatefulHook.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseStatefulHook.sol';
 
 contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;

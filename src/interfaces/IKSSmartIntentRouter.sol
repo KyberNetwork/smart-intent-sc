@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../libraries/types/ActionData.sol';
-import '../libraries/types/IntentData.sol';
+import '../types/ActionData.sol';
+import '../types/IntentData.sol';
 
 interface IKSSmartIntentRouter {
   /// @notice Thrown when the caller is not the main address
@@ -62,6 +62,17 @@ interface IKSSmartIntentRouter {
 
   /// @notice Emitted when extra data is set
   event ExtraData(bytes32 indexed intentHash, bytes extraData);
+
+  /// @notice Emitted when the fee is collected before execution
+  event RecordVolumeAndFees(
+    address indexed token,
+    address indexed protocolRecipient,
+    address indexed partnerRecipient,
+    bool beforeExecution,
+    uint256 totalAmount,
+    uint256 protocolFeeAmount,
+    uint256 partnerFeeAmount
+  );
 
   enum IntentStatus {
     NOT_DELEGATED,
@@ -131,12 +142,6 @@ interface IKSSmartIntentRouter {
    * @param newForwarder The new forwarder address
    */
   function updateForwarder(address newForwarder) external;
-
-  /**
-   * @notice Update the intent fee recipient
-   * @param newFeeRecipient The new intent fee recipient
-   */
-  function updateFeeRecipient(address newFeeRecipient) external;
 
   /**
    * @notice Hash the intent data with EIP712

@@ -49,9 +49,6 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
     IKSGenericForwarder _forwarder,
     uint256[] memory fees
   ) internal checkLengths(actionData.erc20Ids.length, actionData.erc20Amounts.length) {
-    /// @dev gas optimization
-    address _feeRecipient = feeRecipient;
-
     uint256 approvalFlags = actionData.approvalFlags;
 
     for (uint256 i = 0; i < actionData.erc20Ids.length; i++) {
@@ -67,7 +64,8 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
         fees[i],
         _checkFlag(approvalFlags, i),
         _forwarder,
-        _feeRecipient
+        actionData.feeInfo,
+        actionData.partnerRecipient
       );
     }
     approvalFlags >>= tokenData.erc20Data.length;
