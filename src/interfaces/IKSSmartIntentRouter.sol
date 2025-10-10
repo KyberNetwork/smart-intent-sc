@@ -64,23 +64,14 @@ interface IKSSmartIntentRouter {
   event ExtraData(bytes32 indexed intentHash, bytes extraData);
 
   /// @notice Emitted when the fee is collected before execution
-  event CollectFeeBeforeExecution(
+  event RecordVolumeAndFees(
     address indexed token,
     address indexed protocolRecipient,
     address indexed partnerRecipient,
+    bool beforeExecution,
     uint256 totalAmount,
-    uint256 protocolFee,
-    uint256 partnerFee
-  );
-
-  /// @notice Emitted when the fee is collected after execution
-  event CollectFeeAfterExecution(
-    address indexed token,
-    address indexed protocolRecipient,
-    address indexed partnerRecipient,
-    uint256 totalAmount,
-    uint256 protocolFee,
-    uint256 partnerFee
+    uint256 protocolFeeAmount,
+    uint256 partnerFeeAmount
   );
 
   enum IntentStatus {

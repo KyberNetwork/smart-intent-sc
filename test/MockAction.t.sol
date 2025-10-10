@@ -404,27 +404,29 @@ contract MockActionTest is BaseTest {
 
     FeeInfo feeInfo = FeeInfoBuildParams({
       feeMode: seed % 2 == 0,
-      protocolBps: uint24(bound(seed, 0, 1e6)),
+      protocolFee: uint24(bound(seed, 0, 1e6)),
       protocolRecipient: protocolRecipient
     }).build();
 
-    (uint256 protocolFeeBefore, uint256 partnerFeeBefore) = feeInfo.computeFee(feesBefore[0]);
+    (uint256 protocolFeeBefore, uint256 partnerFeeBefore) = feeInfo.computeFees(feesBefore[0]);
     vm.expectEmit(true, true, true, true);
-    emit IKSSmartIntentRouter.CollectFeeBeforeExecution(
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
       partnerRecipient,
+      true,
       actionData.erc20Amounts[0],
       protocolFeeBefore,
       partnerFeeBefore
     );
 
-    (uint256 protocolFeeAfter, uint256 partnerFeeAfter) = feeInfo.computeFee(feesAfter[0]);
+    (uint256 protocolFeeAfter, uint256 partnerFeeAfter) = feeInfo.computeFees(feesAfter[0]);
     vm.expectEmit(true, true, true, true);
-    emit IKSSmartIntentRouter.CollectFeeAfterExecution(
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
       partnerRecipient,
+      false,
       amounts[0] + feesAfter[0],
       protocolFeeAfter,
       partnerFeeAfter
@@ -513,7 +515,7 @@ contract MockActionTest is BaseTest {
 
     FeeInfo feeInfo = FeeInfoBuildParams({
       feeMode: seed % 2 == 0,
-      protocolBps: uint24(bound(seed, 0, 1e6)),
+      protocolFee: uint24(bound(seed, 0, 1e6)),
       protocolRecipient: protocolRecipient
     }).build();
 

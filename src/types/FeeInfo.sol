@@ -6,13 +6,13 @@ import '../libraries/BitMask.sol';
 /**
  * @notice FeeInfo is packed version of solidity structure.
  *
- * Layout: 1 bit feeMode | 24 bits protocolBps
+ * Layout: 1 bit feeMode | 24 bits protocolFee | 160 bits protocolRecipient
  */
 type FeeInfo is uint256;
 
 struct FeeInfoBuildParams {
   bool feeMode;
-  uint24 protocolBps;
+  uint24 protocolFee;
   address protocolRecipient;
 }
 
@@ -31,9 +31,9 @@ library FeeInfoLibrary {
     }
   }
 
-  function protocolBps(FeeInfo self) internal pure returns (uint24 _protocolBps) {
+  function protocolFee(FeeInfo self) internal pure returns (uint24 _protocolFee) {
     assembly ("memory-safe") {
-      _protocolBps := and(shr(PROTOCOL_BPS_OFFSET, self), MASK_24_BITS)
+      _protocolFee := and(shr(PROTOCOL_BPS_OFFSET, self), MASK_24_BITS)
     }
   }
 
@@ -43,25 +43,25 @@ library FeeInfoLibrary {
     }
   }
 
-  function computeFee(FeeInfo self, uint256 totalAmount)
+  function computeFees(FeeInfo self, uint256 totalAmount)
     internal
     pure
-    returns (uint256 protocolFee, uint256 partnerFee)
+    returns (uint256 protocolFeeAmount, uint256 partnerFeeAmount)
   {
     unchecked {
-      protocolFee = totalAmount * self.protocolBps() / FEE_DENOMINATOR;
-      partnerFee = totalAmount - protocolFee;
+      protocolFeeAmount = totalAmount * self.protocolFee() / FEE_DENOMINATOR;
+      partnerFeeAmount = totalAmount - protocolFeeAmount;
     }
   }
 
   function build(FeeInfoBuildParams memory params) internal pure returns (FeeInfo feeInfo) {
     bool _feeMode = params.feeMode;
-    uint24 _protocolBps = params.protocolBps;
+    uint24 _protocolFee = params.protocolFee;
     address _protocolRecipient = params.protocolRecipient;
 
     assembly ("memory-safe") {
       feeInfo := or(feeInfo, shl(FEE_MODE_OFFSET, _feeMode))
-      feeInfo := or(feeInfo, shl(PROTOCOL_BPS_OFFSET, _protocolBps))
+      feeInfo := or(feeInfo, shl(PROTOCOL_BPS_OFFSET, _protocolFee))
       feeInfo := or(feeInfo, _protocolRecipient)
     }
   }

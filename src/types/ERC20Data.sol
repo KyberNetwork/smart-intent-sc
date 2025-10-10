@@ -61,17 +61,17 @@ library ERC20DataLibrary {
     }
 
     address protocolRecipient = feeInfo.protocolRecipient();
-    (uint256 protocolFee, uint256 partnerFee) = feeInfo.computeFee(fee);
+    (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
 
     if (feeInfo.feeMode()) {
       token.safeTransferFrom(mainAddress, protocolRecipient, fee);
     } else {
-      token.safeTransferFrom(mainAddress, protocolRecipient, protocolFee);
-      token.safeTransferFrom(mainAddress, partnerRecipient, partnerFee);
+      token.safeTransferFrom(mainAddress, protocolRecipient, protocolFeeAmount);
+      token.safeTransferFrom(mainAddress, partnerRecipient, partnerFeeAmount);
     }
 
-    emit IKSSmartIntentRouter.CollectFeeBeforeExecution(
-      token, protocolRecipient, partnerRecipient, amount, protocolFee, partnerFee
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
+      token, protocolRecipient, partnerRecipient, true, amount, protocolFeeAmount, partnerFeeAmount
     );
   }
 
@@ -83,17 +83,17 @@ library ERC20DataLibrary {
     address partnerRecipient
   ) internal {
     address protocolRecipient = feeInfo.protocolRecipient();
-    (uint256 protocolFee, uint256 partnerFee) = feeInfo.computeFee(fee);
+    (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
 
     if (feeInfo.feeMode()) {
       token.safeTransfer(protocolRecipient, fee);
     } else {
-      token.safeTransfer(protocolRecipient, protocolFee);
-      token.safeTransfer(partnerRecipient, partnerFee);
+      token.safeTransfer(protocolRecipient, protocolFeeAmount);
+      token.safeTransfer(partnerRecipient, partnerFeeAmount);
     }
 
-    emit IKSSmartIntentRouter.CollectFeeAfterExecution(
-      token, protocolRecipient, partnerRecipient, amount, protocolFee, partnerFee
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
+      token, protocolRecipient, partnerRecipient, false, amount, protocolFeeAmount, partnerFeeAmount
     );
   }
 

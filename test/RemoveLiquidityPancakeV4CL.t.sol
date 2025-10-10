@@ -235,7 +235,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       erc721Ids: [uint256(0)].toMemoryArray(),
       feeInfo: FeeInfoBuildParams({
         feeMode: false,
-        protocolBps: 1e6,
+        protocolFee: 1e6,
         protocolRecipient: protocolRecipient
       }).build(),
       partnerRecipient: partnerRecipient,
@@ -503,7 +503,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       erc721Ids: [uint256(0)].toMemoryArray(),
       feeInfo: FeeInfoBuildParams({
         feeMode: false,
-        protocolBps: 1e6,
+        protocolFee: 1e6,
         protocolRecipient: protocolRecipient
       }).build(),
       partnerRecipient: partnerRecipient,

@@ -144,7 +144,7 @@ contract ZapOutUniswapV2Test is BaseTest {
       erc721Ids: new uint256[](0),
       feeInfo: FeeInfoBuildParams({
         feeMode: false,
-        protocolBps: 1e6,
+        protocolFee: 1e6,
         protocolRecipient: protocolRecipient
       }).build(),
       partnerRecipient: partnerRecipient,
