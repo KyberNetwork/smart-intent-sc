@@ -17,7 +17,7 @@ contract SimulateIntent is Test {
 
   function setUp() public {
     // (Step 1) Load parameters
-    RPC_URL = vm.envString('BASE_NODE_URL');
+    RPC_URL = vm.envString('BSC_NODE_URL');
     BLOCK_NUMBER = 0;
     SENDER = 0x5ACf6f6E6c0a5B8595251416B50F6c7CF9508F7E;
     TARGET = 0xCa611DEb2914056D392bF77e13aCD544334dD957;
