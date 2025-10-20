@@ -22,9 +22,9 @@ jobs:
           submodules: recursive
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: KyberNetwork/foundry-toolchain@master
         with:
-          version: v1.3.0
+          version: v1.4.0
 
       - name: Build
         run: |
