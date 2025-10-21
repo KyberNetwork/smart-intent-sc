@@ -96,7 +96,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256[2] memory mainAddressBefore =
       [tokenIn.balanceOf(mainAddress), tokenOut.balanceOf(mainAddress)];
     uint256[2] memory feeReceiversBefore =
-      [tokenIn.balanceOf(protocolRecipient), tokenOut.balanceOf(protocolRecipient)];
+      [tokenIn.balanceOf(partnerRecipient), tokenOut.balanceOf(partnerRecipient)];
 
     vm.startPrank(caller);
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -105,8 +105,8 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(tokenOut.balanceOf(address(router)), routerBefore[1]);
     assertEq(tokenIn.balanceOf(mainAddress), mainAddressBefore[0] - amountIn);
     assertEq(tokenOut.balanceOf(mainAddress), mainAddressBefore[1] + returnAmount);
-    assertEq(tokenIn.balanceOf(protocolRecipient), feeReceiversBefore[0] + beforeSwapFee);
-    assertEq(tokenOut.balanceOf(protocolRecipient), feeReceiversBefore[1] + afterSwapFee);
+    assertEq(tokenIn.balanceOf(partnerRecipient), feeReceiversBefore[0] + beforeSwapFee);
+    assertEq(tokenOut.balanceOf(partnerRecipient), feeReceiversBefore[1] + afterSwapFee);
   }
 
   function testConditionalSwapSuccess(uint256 mode) public {
@@ -458,16 +458,19 @@ contract ConditionalSwapTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](1);
+    partnerFeeInfos[0] = FeeInfoBuildParams({
+      feeMode: false,
+      partnerFee: 1e6,
+      partnerRecipient: partnerRecipient
+    }).build();
+
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: swapViaMock ? 0 : 1,
       actionCalldata: swapViaMock
@@ -557,16 +560,19 @@ contract ConditionalSwapTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](1);
+    partnerFeeInfos[0] = FeeInfoBuildParams({
+      feeMode: false,
+      partnerFee: 1e6,
+      partnerRecipient: partnerRecipient
+    }).build();
+
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

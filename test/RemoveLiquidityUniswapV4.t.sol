@@ -313,6 +313,13 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     }
 
     IntentData memory intentData = _getIntentData(false, new Node[](0));
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
+    partnerFeeInfos[0] = FeeInfoBuildParams({
+      feeMode: false,
+      partnerFee: 1e6,
+      partnerRecipient: partnerRecipient
+    }).build();
+    partnerFeeInfos[1] = partnerFeeInfos[0];
 
     _setUpMainAddress(intentData, false, uniV4TokenId, true);
 
@@ -320,12 +327,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -347,7 +350,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     }
 
     uint256[2] memory feeBefore =
-      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(partnerRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
@@ -366,7 +369,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256 received1 = liqAmount1 + unclaimedFee1 - intentFee1;
 
     uint256[2] memory feeAfter =
-      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(partnerRecipient)];
 
     assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
     assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
@@ -736,16 +739,20 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       takeFees: takeUnclaimedFees
     });
 
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
+    partnerFeeInfos[0] = FeeInfoBuildParams({
+      feeMode: false,
+      partnerFee: 1e6,
+      partnerRecipient: partnerRecipient
+    }).build();
+    partnerFeeInfos[1] = partnerFeeInfos[0];
+
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       approvalFlags: type(uint256).max,
       actionSelectorId: 0,
       actionCalldata: abi.encode(params),

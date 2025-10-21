@@ -6,14 +6,14 @@ import '../libraries/BitMask.sol';
 /**
  * @notice FeeInfo is packed version of solidity structure.
  *
- * Layout: 1 bit feeMode | 24 bits protocolFee | 160 bits protocolRecipient
+ * Layout: 1 bit feeMode | 24 bits partnerFee | 160 bits partnerRecipient
  */
 type FeeInfo is uint256;
 
 struct FeeInfoBuildParams {
   bool feeMode;
-  uint24 protocolFee;
-  address protocolRecipient;
+  uint24 partnerFee;
+  address partnerRecipient;
 }
 
 using FeeInfoLibrary for FeeInfo global;
@@ -31,15 +31,15 @@ library FeeInfoLibrary {
     }
   }
 
-  function protocolFee(FeeInfo self) internal pure returns (uint24 _protocolFee) {
+  function partnerFee(FeeInfo self) internal pure returns (uint24 _partnerFee) {
     assembly ("memory-safe") {
-      _protocolFee := and(shr(PROTOCOL_BPS_OFFSET, self), MASK_24_BITS)
+      _partnerFee := and(shr(PROTOCOL_BPS_OFFSET, self), MASK_24_BITS)
     }
   }
 
-  function protocolRecipient(FeeInfo self) internal pure returns (address _protocolRecipient) {
+  function partnerRecipient(FeeInfo self) internal pure returns (address _partnerRecipient) {
     assembly ("memory-safe") {
-      _protocolRecipient := and(self, MASK_160_BITS)
+      _partnerRecipient := and(self, MASK_160_BITS)
     }
   }
 
@@ -49,20 +49,20 @@ library FeeInfoLibrary {
     returns (uint256 protocolFeeAmount, uint256 partnerFeeAmount)
   {
     unchecked {
-      protocolFeeAmount = totalAmount * self.protocolFee() / FEE_DENOMINATOR;
-      partnerFeeAmount = totalAmount - protocolFeeAmount;
+      partnerFeeAmount = totalAmount * self.partnerFee() / FEE_DENOMINATOR;
+      protocolFeeAmount = totalAmount - partnerFeeAmount;
     }
   }
 
   function build(FeeInfoBuildParams memory params) internal pure returns (FeeInfo feeInfo) {
     bool _feeMode = params.feeMode;
-    uint24 _protocolFee = params.protocolFee;
-    address _protocolRecipient = params.protocolRecipient;
+    uint24 _partnerFee = params.partnerFee;
+    address _partnerRecipient = params.partnerRecipient;
 
     assembly ("memory-safe") {
       feeInfo := or(feeInfo, shl(FEE_MODE_OFFSET, _feeMode))
-      feeInfo := or(feeInfo, shl(PROTOCOL_BPS_OFFSET, _protocolFee))
-      feeInfo := or(feeInfo, _protocolRecipient)
+      feeInfo := or(feeInfo, shl(PROTOCOL_BPS_OFFSET, _partnerFee))
+      feeInfo := or(feeInfo, _partnerRecipient)
     }
   }
 }

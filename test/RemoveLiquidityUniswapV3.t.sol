@@ -276,16 +276,20 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId);
 
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
+    partnerFeeInfos[0] = FeeInfoBuildParams({
+      feeMode: false,
+      partnerFee: 1e6,
+      partnerRecipient: partnerRecipient
+    }).build();
+    partnerFeeInfos[1] = partnerFeeInfos[0];
+
     ActionData memory actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -307,8 +311,8 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     }
 
     uint256[2] memory feeBefore = [
-      uniswapV3.outputParams.tokens[0].balanceOf(protocolRecipient),
-      uniswapV3.outputParams.tokens[1].balanceOf(protocolRecipient)
+      uniswapV3.outputParams.tokens[0].balanceOf(partnerRecipient),
+      uniswapV3.outputParams.tokens[1].balanceOf(partnerRecipient)
     ];
     uint256[2] memory mainAddrBefore = [
       uniswapV3.outputParams.tokens[0].balanceOf(mainAddress),
@@ -334,8 +338,8 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       + uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1] - intentFee1;
 
     uint256[2] memory feeAfter = [
-      uniswapV3.outputParams.tokens[0].balanceOf(protocolRecipient),
-      uniswapV3.outputParams.tokens[1].balanceOf(protocolRecipient)
+      uniswapV3.outputParams.tokens[0].balanceOf(partnerRecipient),
+      uniswapV3.outputParams.tokens[1].balanceOf(partnerRecipient)
     ];
 
     assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
@@ -602,16 +606,19 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   }
 
   function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
+    partnerFeeInfos[0] = FeeInfoBuildParams({
+      feeMode: false,
+      partnerFee: 1e6,
+      partnerRecipient: partnerRecipient
+    }).build();
+    partnerFeeInfos[1] = partnerFeeInfos[0];
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(

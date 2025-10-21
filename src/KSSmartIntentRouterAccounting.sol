@@ -64,8 +64,8 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
         fees[i],
         _checkFlag(approvalFlags, i),
         _forwarder,
-        actionData.feeInfo,
-        actionData.partnerRecipient
+        actionData.partnerFeeInfos[i],
+        actionData.protocolRecipient
       );
     }
     approvalFlags >>= tokenData.erc20Data.length;

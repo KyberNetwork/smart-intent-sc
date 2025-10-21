@@ -47,11 +47,19 @@ library HookLibrary {
       revert ICommon.MismatchedArrayLengths();
     }
 
+    if (fees.length == 0) {
+      return;
+    }
+
+    if (actionData.partnerFeeInfos.length != fees.length) {
+      revert ICommon.MismatchedArrayLengths();
+    }
+
     for (uint256 i = 0; i < tokens.length; i++) {
       tokens[i].safeTransfer(recipient, amounts[i]);
 
       tokens[i].collectFeeAfterExecution(
-        amounts[i] + fees[i], fees[i], actionData.feeInfo, actionData.partnerRecipient
+        amounts[i] + fees[i], fees[i], actionData.partnerFeeInfos[i], actionData.protocolRecipient
       );
     }
   }

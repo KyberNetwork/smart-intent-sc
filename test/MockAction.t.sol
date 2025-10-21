@@ -404,8 +404,8 @@ contract MockActionTest is BaseTest {
 
     FeeInfo feeInfo = FeeInfoBuildParams({
       feeMode: seed % 2 == 0,
-      protocolFee: uint24(bound(seed, 0, 1e6)),
-      protocolRecipient: protocolRecipient
+      partnerFee: uint24(bound(seed, 0, 1e6)),
+      partnerRecipient: partnerRecipient
     }).build();
 
     (uint256 protocolFeeBefore, uint256 partnerFeeBefore) = feeInfo.computeFees(feesBefore[0]);
@@ -513,18 +513,20 @@ contract MockActionTest is BaseTest {
       erc20Amounts[i] = tokenData.erc20Data[i].amount;
     }
 
-    FeeInfo feeInfo = FeeInfoBuildParams({
+    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](1);
+
+    partnerFeeInfos[0] = FeeInfoBuildParams({
       feeMode: seed % 2 == 0,
-      protocolFee: uint24(bound(seed, 0, 1e6)),
-      protocolRecipient: protocolRecipient
+      partnerFee: uint24(bound(seed, 0, 1e6)),
+      partnerRecipient: partnerRecipient
     }).build();
 
     actionData = ActionData({
       erc20Ids: _consecutiveArray(0, tokenData.erc20Data.length),
       erc20Amounts: erc20Amounts,
       erc721Ids: _consecutiveArray(0, tokenData.erc721Data.length),
-      feeInfo: feeInfo,
-      partnerRecipient: partnerRecipient,
+      partnerFeeInfos: partnerFeeInfos,
+      protocolRecipient: protocolRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

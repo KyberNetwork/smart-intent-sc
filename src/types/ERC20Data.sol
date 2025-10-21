@@ -46,7 +46,7 @@ library ERC20DataLibrary {
     bool approvalFlag,
     IKSGenericForwarder forwarder,
     FeeInfo feeInfo,
-    address partnerRecipient
+    address protocolRecipient
   ) internal {
     if (address(forwarder) == address(0)) {
       token.safeTransferFrom(mainAddress, address(this), amount - fee);
@@ -60,7 +60,7 @@ library ERC20DataLibrary {
       }
     }
 
-    address protocolRecipient = feeInfo.protocolRecipient();
+    address partnerRecipient = feeInfo.partnerRecipient();
     (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
 
     if (feeInfo.feeMode()) {
@@ -80,9 +80,9 @@ library ERC20DataLibrary {
     uint256 amount,
     uint256 fee,
     FeeInfo feeInfo,
-    address partnerRecipient
+    address protocolRecipient
   ) internal {
-    address protocolRecipient = feeInfo.protocolRecipient();
+    address partnerRecipient = feeInfo.partnerRecipient();
     (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
 
     if (feeInfo.feeMode()) {
