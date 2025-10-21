@@ -314,12 +314,18 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     IntentData memory intentData = _getIntentData(false, new Node[](0));
     FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
-    partnerFeeInfos[0] = FeeInfoBuildParams({
-      feeMode: false,
-      partnerFee: 1e6,
-      partnerRecipient: partnerRecipient
-    }).build();
-    partnerFeeInfos[1] = partnerFeeInfos[0];
+    {
+      partnerFeeInfos[0] = FeeInfoBuildParams({
+        feeMode: false,
+        partnerFee: 0.5e6,
+        partnerRecipient: partnerRecipient
+      }).build();
+      partnerFeeInfos[1] = FeeInfoBuildParams({
+        feeMode: false,
+        partnerFee: 0.5e6,
+        partnerRecipient: makeAddr('partnerRecipient2')
+      }).build();
+    }
 
     _setUpMainAddress(intentData, false, uniV4TokenId, true);
 
@@ -350,7 +356,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     }
 
     uint256[2] memory feeBefore =
-      [token0.balanceOf(partnerRecipient), token1.balanceOf(partnerRecipient)];
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(makeAddr('partnerRecipient2'))];
+    uint256[2] memory protocolFeeBefore =
+      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
@@ -369,10 +377,22 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256 received1 = liqAmount1 + unclaimedFee1 - intentFee1;
 
     uint256[2] memory feeAfter =
-      [token0.balanceOf(partnerRecipient), token1.balanceOf(partnerRecipient)];
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(makeAddr('partnerRecipient2'))];
+    uint256[2] memory protocolFeeAfter =
+      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
 
-    assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
-    assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
+    assertEq(feeAfter[0] - feeBefore[0], intentFee0 / 2, 'invalid intent fee 0');
+    assertEq(feeAfter[1] - feeBefore[1], intentFee1 / 2, 'invalid token1 fee 1');
+    assertEq(
+      protocolFeeAfter[0] - protocolFeeBefore[0],
+      intentFee0 - intentFee0 / 2,
+      'invalid protocol fee 0'
+    );
+    assertEq(
+      protocolFeeAfter[1] - protocolFeeBefore[1],
+      intentFee1 - intentFee1 / 2,
+      'invalid protocol fee 1'
+    );
 
     uint256[2] memory mainAddrAfter = [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
