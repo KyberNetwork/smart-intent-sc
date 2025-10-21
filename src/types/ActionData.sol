@@ -12,8 +12,8 @@ import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol
  * @param erc20Ids The IDs of the ERC20 tokens in the intent data
  * @param erc20Amounts The amounts of the ERC20 tokens
  * @param erc721Ids The IDs of the ERC721 tokens in the intent data
- * @param feeInfo The fee info for the action
- * @param partnerRecipient The partner recipient for the action
+ * @param partnerFeeInfos The fee infos for the action
+ * @param protocolRecipient The protocol recipient for the action
  * @param approvalFlags The approval flags for the tokens
  * @param actionSelectorId The ID of the action selector
  * @param actionCalldata The calldata for the action
