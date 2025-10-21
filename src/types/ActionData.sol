@@ -42,7 +42,7 @@ using ActionDataLibrary for ActionData global;
 library ActionDataLibrary {
   bytes32 constant ACTION_DATA_TYPE_HASH = keccak256(
     abi.encodePacked(
-      'ActionData(uint256[] erc20Ids,uint256[] erc20Amounts,uint256[] erc721Ids,uint256 feeInfo,address protocolRecipient,uint256 approvalFlags,uint256 actionSelectorId,bytes actionCalldata,bytes hookActionData,bytes extraData,uint256 deadline,uint256 nonce)'
+      'ActionData(uint256[] erc20Ids,uint256[] erc20Amounts,uint256[] erc721Ids,uint256[] partnerFeeInfos,address protocolRecipient,uint256 approvalFlags,uint256 actionSelectorId,bytes actionCalldata,bytes hookActionData,bytes extraData,uint256 deadline,uint256 nonce)'
     )
   );
 
@@ -53,7 +53,7 @@ library ActionDataLibrary {
         keccak256(abi.encodePacked(self.erc20Ids)),
         keccak256(abi.encodePacked(self.erc20Amounts)),
         keccak256(abi.encodePacked(self.erc721Ids)),
-        self.partnerFeeInfos,
+        keccak256(abi.encodePacked(self.partnerFeeInfos)),
         self.protocolRecipient,
         self.approvalFlags,
         self.actionSelectorId,
