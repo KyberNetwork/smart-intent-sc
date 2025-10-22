@@ -70,7 +70,7 @@ interface IKSSmartIntentRouter {
   event RecordVolumeAndFees(
     address indexed token,
     address indexed protocolRecipient,
-    address[] indexed partnerRecipients,
+    address[] partnerRecipients,
     uint256 protocolFeeAmount,
     uint256[] partnersFeeAmounts,
     bool beforeExecution,
