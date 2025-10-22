@@ -402,41 +402,50 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
 
-    FeeInfo feeInfo = FeeInfoBuildParams({
+    PartnersFeeInfo memory partnersFeeInfo = PartnersFeeInfoBuildParams({
       feeMode: seed % 2 == 0,
-      partnerFee: uint24(bound(seed, 0, 1e6)),
-      partnerRecipient: partnerRecipient
-    }).build();
+      partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
+      partnerRecipients: [partnerRecipient].toMemoryArray()
+    }).buildPartnersFeeInfo();
 
-    (uint256 protocolFeeBefore, uint256 partnerFeeBefore) = feeInfo.computeFees(feesBefore[0]);
+    (
+      uint256 protocolFeeBefore,
+      uint256[] memory partnersFeeAmountsBefore,
+      address[] memory partnerRecipientsBefore
+    ) = this.computeFees(partnersFeeInfo, feesBefore[0]);
+
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
-      partnerRecipient,
-      true,
-      actionData.erc20Amounts[0],
+      partnerRecipientsBefore,
       protocolFeeBefore,
-      partnerFeeBefore
+      partnersFeeAmountsBefore,
+      true,
+      actionData.erc20Amounts[0]
     );
 
-    (uint256 protocolFeeAfter, uint256 partnerFeeAfter) = feeInfo.computeFees(feesAfter[0]);
+    (
+      uint256 protocolFeeAfter,
+      uint256[] memory partnersFeeAmountsAfter,
+      address[] memory partnerRecipientsAfter
+    ) = this.computeFees(partnersFeeInfo, feesAfter[0]);
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
-      partnerRecipient,
-      false,
-      amounts[0] + feesAfter[0],
+      partnerRecipientsAfter,
       protocolFeeAfter,
-      partnerFeeAfter
+      partnersFeeAmountsAfter,
+      false,
+      amounts[0] + feesAfter[0]
     );
 
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     assertEq(erc20Mock.balanceOf(address(this)), amounts[0]);
-    if (feeInfo.feeMode()) {
+    if (partnersFeeInfo.feeMode) {
       assertEq(
         erc20Mock.balanceOf(protocolRecipient),
         feesBefore[0] + feesAfter[0],
@@ -450,10 +459,22 @@ contract MockActionTest is BaseTest {
       );
       assertEq(
         erc20Mock.balanceOf(partnerRecipient),
-        partnerFeeBefore + partnerFeeAfter,
+        partnersFeeAmountsBefore[0] + partnersFeeAmountsAfter[0],
         'Partner recipient did not receive expected fees'
       );
     }
+  }
+
+  function computeFees(PartnersFeeInfo calldata self, uint256 totalAmount)
+    external
+    view
+    returns (
+      uint256 protocolFeeAmount,
+      uint256[] memory partnersFeeAmounts,
+      address[] memory partnerRecipients
+    )
+  {
+    return self.computeFees(totalAmount);
   }
 
   function _getNewTokenData(TokenData memory tokenData, uint256 seed)
@@ -513,20 +534,22 @@ contract MockActionTest is BaseTest {
       erc20Amounts[i] = tokenData.erc20Data[i].amount;
     }
 
-    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](1);
-
-    partnerFeeInfos[0] = FeeInfoBuildParams({
-      feeMode: seed % 2 == 0,
-      partnerFee: uint24(bound(seed, 0, 1e6)),
-      partnerRecipient: partnerRecipient
-    }).build();
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](1);
+      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
+        feeMode: seed % 2 == 0,
+        partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      }).buildPartnersFeeInfo();
+    }
 
     actionData = ActionData({
       erc20Ids: _consecutiveArray(0, tokenData.erc20Data.length),
       erc20Amounts: erc20Amounts,
       erc721Ids: _consecutiveArray(0, tokenData.erc721Data.length),
-      partnerFeeInfos: partnerFeeInfos,
-      protocolRecipient: protocolRecipient,
+      feeInfo: feeInfo,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

@@ -5,6 +5,9 @@ import '../types/ActionData.sol';
 import '../types/IntentData.sol';
 
 interface IKSSmartIntentRouter {
+  /// @notice Thrown when total partner fee is greater than 100%
+  error InvalidFeeConfig();
+
   /// @notice Thrown when the caller is not the main address
   error NotMainAddress();
 
@@ -67,11 +70,11 @@ interface IKSSmartIntentRouter {
   event RecordVolumeAndFees(
     address indexed token,
     address indexed protocolRecipient,
-    address indexed partnerRecipient,
-    bool beforeExecution,
-    uint256 totalAmount,
+    address[] indexed partnerRecipients,
     uint256 protocolFeeAmount,
-    uint256 partnerFeeAmount
+    uint256[] partnersFeeAmounts,
+    bool beforeExecution,
+    uint256 totalAmount
   );
 
   enum IntentStatus {

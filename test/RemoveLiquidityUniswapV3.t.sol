@@ -276,20 +276,24 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId);
 
-    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
-    partnerFeeInfos[0] = FeeInfoBuildParams({
-      feeMode: false,
-      partnerFee: 1e6,
-      partnerRecipient: partnerRecipient
-    }).build();
-    partnerFeeInfos[1] = partnerFeeInfos[0];
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
+      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
+        feeMode: false,
+        partnerFees: [0.25e6, 0.25e6].toMemoryArray(),
+        partnerRecipients: [partnerRecipient, makeAddr('partnerRecipient2')].toMemoryArray()
+      }).buildPartnersFeeInfo();
+
+      feeInfo.partnersFeeInfos[1] = feeInfo.partnersFeeInfos[0];
+    }
 
     ActionData memory actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      partnerFeeInfos: partnerFeeInfos,
-      protocolRecipient: protocolRecipient,
+      feeInfo: feeInfo,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -314,9 +318,18 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       uniswapV3.outputParams.tokens[0].balanceOf(partnerRecipient),
       uniswapV3.outputParams.tokens[1].balanceOf(partnerRecipient)
     ];
+    uint256[2] memory fee2Before = [
+      uniswapV3.outputParams.tokens[0].balanceOf(makeAddr('partnerRecipient2')),
+      uniswapV3.outputParams.tokens[1].balanceOf(makeAddr('partnerRecipient2'))
+    ];
     uint256[2] memory mainAddrBefore = [
       uniswapV3.outputParams.tokens[0].balanceOf(mainAddress),
       uniswapV3.outputParams.tokens[1].balanceOf(mainAddress)
+    ];
+
+    uint256[2] memory protocolBefore = [
+      uniswapV3.outputParams.tokens[0].balanceOf(protocolRecipient),
+      uniswapV3.outputParams.tokens[1].balanceOf(protocolRecipient)
     ];
 
     (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
@@ -342,8 +355,28 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       uniswapV3.outputParams.tokens[1].balanceOf(partnerRecipient)
     ];
 
-    assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
-    assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
+    uint256[2] memory fee2After = [
+      uniswapV3.outputParams.tokens[0].balanceOf(makeAddr('partnerRecipient2')),
+      uniswapV3.outputParams.tokens[1].balanceOf(makeAddr('partnerRecipient2'))
+    ];
+    uint256[2] memory protocolAfter = [
+      uniswapV3.outputParams.tokens[0].balanceOf(protocolRecipient),
+      uniswapV3.outputParams.tokens[1].balanceOf(protocolRecipient)
+    ];
+
+    uint256 partnerFee0 = intentFee0 / 4;
+    uint256 partnerFee1 = intentFee1 / 4;
+
+    assertEq(feeAfter[0] - feeBefore[0], partnerFee0, 'invalid partner fee 0');
+    assertEq(feeAfter[1] - feeBefore[1], partnerFee1, 'invalid partner fee 1');
+    assertEq(fee2After[0] - fee2Before[0], partnerFee0, 'invalid partner fee 0');
+    assertEq(fee2After[1] - fee2Before[1], partnerFee1, 'invalid partner fee 1');
+    assertEq(
+      protocolAfter[0] - protocolBefore[0], intentFee0 - partnerFee0 * 2, 'invalid protocol fee 0'
+    );
+    assertEq(
+      protocolAfter[1] - protocolBefore[1], intentFee1 - partnerFee1 * 2, 'invalid protocol fee 1'
+    );
 
     uint256[2] memory mainAddrAfter = [
       uniswapV3.outputParams.tokens[0].balanceOf(mainAddress),
@@ -606,19 +639,24 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   }
 
   function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
-    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
-    partnerFeeInfos[0] = FeeInfoBuildParams({
-      feeMode: false,
-      partnerFee: 1e6,
-      partnerRecipient: partnerRecipient
-    }).build();
-    partnerFeeInfos[1] = partnerFeeInfos[0];
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
+      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
+        feeMode: false,
+        partnerFees: [1e6].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      }).buildPartnersFeeInfo();
+
+      feeInfo.partnersFeeInfos[1] = feeInfo.partnersFeeInfos[0];
+    }
+
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      partnerFeeInfos: partnerFeeInfos,
-      protocolRecipient: protocolRecipient,
+      feeInfo: feeInfo,
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(

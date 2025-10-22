@@ -229,21 +229,24 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId, true);
 
-    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
-    partnerFeeInfos[0] = FeeInfoBuildParams({
-      feeMode: false,
-      partnerFee: 1e6,
-      partnerRecipient: partnerRecipient
-    }).build();
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
+      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
+        feeMode: false,
+        partnerFees: [1e6].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      }).buildPartnersFeeInfo();
 
-    partnerFeeInfos[1] = partnerFeeInfos[0];
+      feeInfo.partnersFeeInfos[1] = feeInfo.partnersFeeInfos[0];
+    }
 
     ActionData memory actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      partnerFeeInfos: partnerFeeInfos,
-      protocolRecipient: protocolRecipient,
+      feeInfo: feeInfo,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -503,21 +506,24 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       fees: fees
     });
 
-    FeeInfo[] memory partnerFeeInfos = new FeeInfo[](2);
-    partnerFeeInfos[0] = FeeInfoBuildParams({
-      feeMode: false,
-      partnerFee: 1e6,
-      partnerRecipient: partnerRecipient
-    }).build();
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
+      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
+        feeMode: false,
+        partnerFees: [1e6].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      }).buildPartnersFeeInfo();
 
-    partnerFeeInfos[1] = partnerFeeInfos[0];
+      feeInfo.partnersFeeInfos[1] = feeInfo.partnersFeeInfos[0];
+    }
 
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      partnerFeeInfos: partnerFeeInfos,
-      protocolRecipient: protocolRecipient,
+      feeInfo: feeInfo,
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(params),

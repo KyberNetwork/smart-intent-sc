@@ -51,7 +51,7 @@ library HookLibrary {
       return;
     }
 
-    if (actionData.partnerFeeInfos.length != fees.length) {
+    if (tokens.length != actionData.feeInfo.partnersFeeInfos.length) {
       revert ICommon.MismatchedArrayLengths();
     }
 
@@ -59,7 +59,10 @@ library HookLibrary {
       tokens[i].safeTransfer(recipient, amounts[i]);
 
       tokens[i].collectFeeAfterExecution(
-        amounts[i] + fees[i], fees[i], actionData.partnerFeeInfos[i], actionData.protocolRecipient
+        amounts[i] + fees[i],
+        fees[i],
+        actionData.feeInfo.partnersFeeInfos[i],
+        actionData.feeInfo.protocolRecipient
       );
     }
   }

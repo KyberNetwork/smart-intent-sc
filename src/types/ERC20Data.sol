@@ -45,7 +45,7 @@ library ERC20DataLibrary {
     uint256 fee,
     bool approvalFlag,
     IKSGenericForwarder forwarder,
-    FeeInfo feeInfo,
+    PartnersFeeInfo calldata partnersFeeInfo,
     address protocolRecipient
   ) internal {
     if (address(forwarder) == address(0)) {
@@ -60,18 +60,25 @@ library ERC20DataLibrary {
       }
     }
 
-    address partnerRecipient = feeInfo.partnerRecipient();
-    (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
+    (
+      uint256 protocolFeeAmount,
+      uint256[] memory partnersFeeAmounts,
+      address[] memory partnerRecipients
+    ) = partnersFeeInfo.computeFees(fee);
 
-    if (feeInfo.feeMode()) {
-      token.safeTransferFrom(mainAddress, protocolRecipient, fee);
-    } else {
-      token.safeTransferFrom(mainAddress, protocolRecipient, protocolFeeAmount);
-      token.safeTransferFrom(mainAddress, partnerRecipient, partnerFeeAmount);
+    token.safeTransferFrom(mainAddress, protocolRecipient, protocolFeeAmount);
+    for (uint256 i = 0; i < partnersFeeAmounts.length; i++) {
+      token.safeTransferFrom(mainAddress, partnerRecipients[i], partnersFeeAmounts[i]);
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token, protocolRecipient, partnerRecipient, true, amount, protocolFeeAmount, partnerFeeAmount
+      token,
+      protocolRecipient,
+      partnerRecipients,
+      protocolFeeAmount,
+      partnersFeeAmounts,
+      true,
+      amount
     );
   }
 
@@ -79,21 +86,28 @@ library ERC20DataLibrary {
     address token,
     uint256 amount,
     uint256 fee,
-    FeeInfo feeInfo,
+    PartnersFeeInfo calldata partnersFeeInfo,
     address protocolRecipient
   ) internal {
-    address partnerRecipient = feeInfo.partnerRecipient();
-    (uint256 protocolFeeAmount, uint256 partnerFeeAmount) = feeInfo.computeFees(fee);
+    (
+      uint256 protocolFeeAmount,
+      uint256[] memory partnersFeeAmounts,
+      address[] memory partnerRecipients
+    ) = partnersFeeInfo.computeFees(fee);
 
-    if (feeInfo.feeMode()) {
-      token.safeTransfer(protocolRecipient, fee);
-    } else {
-      token.safeTransfer(protocolRecipient, protocolFeeAmount);
-      token.safeTransfer(partnerRecipient, partnerFeeAmount);
+    token.safeTransfer(protocolRecipient, protocolFeeAmount);
+    for (uint256 i = 0; i < partnersFeeAmounts.length; i++) {
+      token.safeTransfer(partnerRecipients[i], partnersFeeAmounts[i]);
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token, protocolRecipient, partnerRecipient, false, amount, protocolFeeAmount, partnerFeeAmount
+      token,
+      protocolRecipient,
+      partnerRecipients,
+      protocolFeeAmount,
+      partnersFeeAmounts,
+      false,
+      amount
     );
   }
 
