@@ -58,12 +58,7 @@ interface IKSSmartIntentRouter {
   event RevokeIntent(bytes32 indexed intentHash);
 
   /// @notice Emitted when an intent is executed
-  event ExecuteIntent(
-    bytes32 indexed intentHash,
-    bytes32 indexed actionHash,
-    ActionData actionData,
-    bytes actionResult
-  );
+  event ExecuteIntent(bytes32 indexed intentHash, ActionData actionData, bytes actionResult);
 
   /// @notice Emitted when a nonce is consumed
   event UseNonce(bytes32 indexed intentHash, uint256 nonce);

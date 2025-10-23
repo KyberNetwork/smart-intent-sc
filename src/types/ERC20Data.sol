@@ -72,7 +72,13 @@ library ERC20DataLibrary {
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token, protocolRecipient, partnerRecipients, protocolFeeAmount, partnersFeeAmounts, true, amount
+      token,
+      protocolRecipient,
+      partnerRecipients,
+      protocolFeeAmount,
+      partnersFeeAmounts,
+      true,
+      amount
     );
   }
 
@@ -95,7 +101,13 @@ library ERC20DataLibrary {
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token, protocolRecipient, partnerRecipients, protocolFeeAmount, partnersFeeAmounts, false, amount
+      token,
+      protocolRecipient,
+      partnerRecipients,
+      protocolFeeAmount,
+      partnersFeeAmounts,
+      false,
+      amount
     );
   }
 
