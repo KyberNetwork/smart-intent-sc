@@ -214,8 +214,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256 amount0ReceivedForLiquidity = actualReceived0 - unclaimedFee0;
     uint256 amount1ReceivedForLiquidity = actualReceived1 - unclaimedFee1;
 
-    uint256 intentFee0 = amount0ReceivedForLiquidity * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 = amount1ReceivedForLiquidity * intentFeesPercent1 / 1e6;
+    uint256 intentFee0 = (amount0ReceivedForLiquidity * intentFeesPercent0) / 1e6;
+    uint256 intentFee1 = (amount1ReceivedForLiquidity * intentFeesPercent1) / 1e6;
 
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
@@ -316,18 +316,18 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     FeeInfo memory feeInfo;
     {
       feeInfo.protocolRecipient = protocolRecipient;
-      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
-      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
-        feeMode: false,
-        partnerFees: [0.25e6].toMemoryArray(),
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(0.25e6)].toMemoryArray(),
         partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
 
-      feeInfo.partnersFeeInfos[1] = PartnersFeeInfoBuildParams({
-        feeMode: false,
-        partnerFees: [0.5e6].toMemoryArray(),
+      feeInfo.partnerFeeConfigs[1] = PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(0.25e6)].toMemoryArray(),
         partnerRecipients: [makeAddr('partnerRecipient2')].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
     }
 
     _setUpMainAddress(intentData, false, uniV4TokenId, true);
@@ -346,7 +346,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
         unclaimedFee1,
         liquidityToRemove,
         unwrap,
-        intentFeesPercent0 << 128 | intentFeesPercent1
+        (intentFeesPercent0 << 128) | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,
@@ -372,8 +372,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     );
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
 
-    uint256 intentFee0 = liqAmount0 * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 = liqAmount1 * intentFeesPercent1 / 1e6;
+    uint256 intentFee0 = (liqAmount0 * intentFeesPercent0) / 1e6;
+    uint256 intentFee1 = (liqAmount1 * intentFeesPercent1) / 1e6;
 
     uint256 received0 = liqAmount0 + unclaimedFee0 - intentFee0;
     uint256 received1 = liqAmount1 + unclaimedFee1 - intentFee1;
@@ -383,16 +383,16 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256[2] memory protocolFeeAfter =
       [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
 
-    assertEq(feeAfter[0] - feeBefore[0], intentFee0 / 2, 'invalid intent fee 0');
-    assertEq(feeAfter[1] - feeBefore[1], intentFee1 / 2, 'invalid token1 fee 1');
+    assertEq(feeAfter[0] - feeBefore[0], intentFee0 / 4, 'invalid intent fee 0');
+    assertEq(feeAfter[1] - feeBefore[1], intentFee1 / 4, 'invalid token1 fee 1');
     assertEq(
       protocolFeeAfter[0] - protocolFeeBefore[0],
-      intentFee0 - intentFee0 / 2,
+      intentFee0 - intentFee0 / 4,
       'invalid protocol fee 0'
     );
     assertEq(
       protocolFeeAfter[1] - protocolFeeBefore[1],
-      intentFee1 - intentFee1 / 2,
+      intentFee1 - intentFee1 / 4,
       'invalid protocol fee 1'
     );
 
@@ -400,6 +400,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     assertEq(mainAddrAfter[0] - mainAddrBefore[0], received0, 'invalid token0 received');
     assertEq(mainAddrAfter[1] - mainAddrBefore[1], received1, 'invalid token1 received');
+
+    assertEq(token0.balanceOf(address(router)), 0, 'invalid router balance 0');
+    assertEq(token1.balanceOf(address(router)), 0, 'invalid router balance 1');
   }
 
   function testRevert_NotMeetConditions_YieldBased(bool withPermit) public {
@@ -596,7 +599,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   }
 
   function testRevert_Transfer97Percent_NotTakeUnclaimedFees(uint256 liq) public {
-    liq = bound(liq, liquidity * 10 / 100, liquidity);
+    liq = bound(liq, (liquidity * 10) / 100, liquidity);
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
@@ -613,7 +616,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
   function testFuzz_OutputAmounts(uint256 liq) public {
     wrapOrUnwrap = bound(liq, 0, 1) == 1;
-    liq = bound(liq, liquidity * 10 / 100, liquidity);
+    liq = bound(liq, (liquidity * 10) / 100, liquidity);
     takeUnclaimedFees = bound(liq, 0, 1) == 1;
 
     IntentData memory intentData = _getIntentData(true, new Node[](0));
@@ -764,14 +767,14 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     FeeInfo memory feeInfo;
     {
       feeInfo.protocolRecipient = protocolRecipient;
-      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
-      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
-        feeMode: false,
-        partnerFees: [1e6].toMemoryArray(),
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(1e6)].toMemoryArray(),
         partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
 
-      feeInfo.partnersFeeInfos[1] = feeInfo.partnersFeeInfos[0];
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
     }
 
     actionData = ActionData({
@@ -783,7 +786,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       actionSelectorId: 0,
       actionCalldata: abi.encode(params),
       hookActionData: abi.encode(
-        0, fee0, fee1, _liquidity, wrapOrUnwrap, intentFeesPercent0 << 128 | intentFeesPercent1
+        0, fee0, fee1, _liquidity, wrapOrUnwrap, (intentFeesPercent0 << 128) | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,

@@ -51,7 +51,7 @@ library HookLibrary {
       return;
     }
 
-    if (tokens.length != actionData.feeInfo.partnersFeeInfos.length) {
+    if (tokens.length != actionData.feeInfo.partnerFeeConfigs.length) {
       revert ICommon.MismatchedArrayLengths();
     }
 
@@ -61,9 +61,8 @@ library HookLibrary {
       tokens[i].collectFeeAfterExecution(
         amounts[i] + fees[i],
         fees[i],
-        actionData.feeInfo.partnersFeeInfos[i],
-        actionData.feeInfo.protocolRecipient,
-        actionData.hash()
+        actionData.feeInfo.partnerFeeConfigs[i],
+        actionData.feeInfo.protocolRecipient
       );
     }
   }

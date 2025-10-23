@@ -45,9 +45,8 @@ library ERC20DataLibrary {
     uint256 fee,
     bool approvalFlag,
     IKSGenericForwarder forwarder,
-    PartnersFeeInfo calldata partnersFeeInfo,
-    address protocolRecipient,
-    bytes32 actionHash
+    FeeConfig[] calldata partnerFeeConfigs,
+    address protocolRecipient
   ) internal {
     if (address(forwarder) == address(0)) {
       token.safeTransferFrom(mainAddress, address(this), amount - fee);
@@ -65,7 +64,7 @@ library ERC20DataLibrary {
       uint256 protocolFeeAmount,
       uint256[] memory partnersFeeAmounts,
       address[] memory partnerRecipients
-    ) = partnersFeeInfo.computeFees(fee);
+    ) = FeeInfoLibrary.computeFees(partnerFeeConfigs, fee);
 
     token.safeTransferFrom(mainAddress, protocolRecipient, protocolFeeAmount);
     for (uint256 i = 0; i < partnersFeeAmounts.length; i++) {
@@ -73,7 +72,7 @@ library ERC20DataLibrary {
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token, actionHash, protocolFeeAmount, partnersFeeAmounts, true, amount
+      token, protocolRecipient, partnerRecipients, protocolFeeAmount, partnersFeeAmounts, true, amount
     );
   }
 
@@ -81,15 +80,14 @@ library ERC20DataLibrary {
     address token,
     uint256 amount,
     uint256 fee,
-    PartnersFeeInfo calldata partnersFeeInfo,
-    address protocolRecipient,
-    bytes32 actionHash
+    FeeConfig[] calldata partnerFeeConfigs,
+    address protocolRecipient
   ) internal {
     (
       uint256 protocolFeeAmount,
       uint256[] memory partnersFeeAmounts,
       address[] memory partnerRecipients
-    ) = partnersFeeInfo.computeFees(fee);
+    ) = FeeInfoLibrary.computeFees(partnerFeeConfigs, fee);
 
     token.safeTransfer(protocolRecipient, protocolFeeAmount);
     for (uint256 i = 0; i < partnersFeeAmounts.length; i++) {
@@ -97,7 +95,7 @@ library ERC20DataLibrary {
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token, actionHash, protocolFeeAmount, partnersFeeAmounts, false, amount
+      token, protocolRecipient, partnerRecipients, protocolFeeAmount, partnersFeeAmounts, false, amount
     );
   }
 

@@ -217,7 +217,7 @@ contract ConditionalSwapTest is BaseTest {
         timeLimits: (0 << 128) | type(uint128).max,
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
-        priceLimits: (1_000_000_000_000 - 100 << 128) | (1_000_000_000_000 + 100)
+        priceLimits: ((1_000_000_000_000 - 100) << 128) | (1_000_000_000_000 + 100)
       });
     }
 
@@ -295,7 +295,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (vm.getBlockTimestamp() + 100 << 128) | (vm.getBlockTimestamp() + 1000),
+      timeLimits: ((vm.getBlockTimestamp() + 100) << 128) | (vm.getBlockTimestamp() + 1000),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (0 << 128) | type(uint128).max
@@ -323,7 +323,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (vm.getBlockTimestamp() - 100 << 128) | (vm.getBlockTimestamp() + 100),
+      timeLimits: ((vm.getBlockTimestamp() - 100) << 128) | (vm.getBlockTimestamp() + 100),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (uint256(type(uint128).max) << 128) | type(uint128).max
@@ -461,12 +461,12 @@ contract ConditionalSwapTest is BaseTest {
     FeeInfo memory feeInfo;
     {
       feeInfo.protocolRecipient = protocolRecipient;
-      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](1);
-      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
-        feeMode: false,
-        partnerFees: [1e6].toMemoryArray(),
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(1e6)].toMemoryArray(),
         partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
     }
 
     actionData = ActionData({
@@ -566,12 +566,12 @@ contract ConditionalSwapTest is BaseTest {
     FeeInfo memory feeInfo;
     {
       feeInfo.protocolRecipient = protocolRecipient;
-      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](1);
-      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
-        feeMode: false,
-        partnerFees: [1e6].toMemoryArray(),
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(1e6)].toMemoryArray(),
         partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
     }
 
     actionData = ActionData({

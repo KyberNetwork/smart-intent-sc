@@ -141,14 +141,14 @@ contract ZapOutUniswapV2Test is BaseTest {
     FeeInfo memory feeInfo;
     {
       feeInfo.protocolRecipient = protocolRecipient;
-      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](2);
-      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
-        feeMode: false,
-        partnerFees: [1e6].toMemoryArray(),
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(1e6)].toMemoryArray(),
         partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
 
-      feeInfo.partnersFeeInfos[1] = feeInfo.partnersFeeInfos[0];
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
     }
 
     actionData = ActionData({

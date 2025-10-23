@@ -402,22 +402,23 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
 
-    PartnersFeeInfo memory partnersFeeInfo = PartnersFeeInfoBuildParams({
-      feeMode: seed % 2 == 0,
+    FeeConfig[] memory feeConfigs = PartnersFeeConfigBuildParams({
+      feeModes: [seed % 2 == 0].toMemoryArray(),
       partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
       partnerRecipients: [partnerRecipient].toMemoryArray()
-    }).buildPartnersFeeInfo();
+    }).buildPartnersConfigs();
 
     (
       uint256 protocolFeeBefore,
       uint256[] memory partnersFeeAmountsBefore,
       address[] memory partnerRecipientsBefore
-    ) = this.computeFees(partnersFeeInfo, feesBefore[0]);
+    ) = this.computeFees(feeConfigs, feesBefore[0]);
 
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
-      this.hash(actionData),
+      protocolRecipient,
+      partnerRecipientsBefore,
       protocolFeeBefore,
       partnersFeeAmountsBefore,
       true,
@@ -428,11 +429,12 @@ contract MockActionTest is BaseTest {
       uint256 protocolFeeAfter,
       uint256[] memory partnersFeeAmountsAfter,
       address[] memory partnerRecipientsAfter
-    ) = this.computeFees(partnersFeeInfo, feesAfter[0]);
+    ) = this.computeFees(feeConfigs, feesAfter[0]);
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
-      this.hash(actionData),
+      protocolRecipient,
+      partnerRecipientsAfter,
       protocolFeeAfter,
       partnersFeeAmountsAfter,
       false,
@@ -443,7 +445,7 @@ contract MockActionTest is BaseTest {
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     assertEq(erc20Mock.balanceOf(address(this)), amounts[0]);
-    if (partnersFeeInfo.feeMode) {
+    if (feeConfigs[0].feeMode()) {
       assertEq(
         erc20Mock.balanceOf(protocolRecipient),
         feesBefore[0] + feesAfter[0],
@@ -463,7 +465,7 @@ contract MockActionTest is BaseTest {
     }
   }
 
-  function computeFees(PartnersFeeInfo calldata self, uint256 totalAmount)
+  function computeFees(FeeConfig[] calldata self, uint256 totalAmount)
     external
     view
     returns (
@@ -472,7 +474,7 @@ contract MockActionTest is BaseTest {
       address[] memory partnerRecipients
     )
   {
-    return self.computeFees(totalAmount);
+    return FeeInfoLibrary.computeFees(self, totalAmount);
   }
 
   function hash(ActionData calldata self) external pure returns (bytes32) {
@@ -539,12 +541,12 @@ contract MockActionTest is BaseTest {
     FeeInfo memory feeInfo;
     {
       feeInfo.protocolRecipient = protocolRecipient;
-      feeInfo.partnersFeeInfos = new PartnersFeeInfo[](1);
-      feeInfo.partnersFeeInfos[0] = PartnersFeeInfoBuildParams({
-        feeMode: seed % 2 == 0,
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
+        feeModes: [seed % 2 == 0].toMemoryArray(),
         partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
         partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersFeeInfo();
+      }).buildPartnersConfigs();
     }
 
     actionData = ActionData({
