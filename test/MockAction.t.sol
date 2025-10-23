@@ -417,8 +417,7 @@ contract MockActionTest is BaseTest {
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
-      protocolRecipient,
-      partnerRecipientsBefore,
+      this.hash(actionData),
       protocolFeeBefore,
       partnersFeeAmountsBefore,
       true,
@@ -433,8 +432,7 @@ contract MockActionTest is BaseTest {
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
-      protocolRecipient,
-      partnerRecipientsAfter,
+      this.hash(actionData),
       protocolFeeAfter,
       partnersFeeAmountsAfter,
       false,
@@ -475,6 +473,10 @@ contract MockActionTest is BaseTest {
     )
   {
     return self.computeFees(totalAmount);
+  }
+
+  function hash(ActionData calldata self) external pure returns (bytes32) {
+    return self.hash();
   }
 
   function _getNewTokenData(TokenData memory tokenData, uint256 seed)
