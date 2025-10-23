@@ -46,7 +46,8 @@ library ERC20DataLibrary {
     bool approvalFlag,
     IKSGenericForwarder forwarder,
     PartnersFeeInfo calldata partnersFeeInfo,
-    address protocolRecipient
+    address protocolRecipient,
+    bytes32 actionHash
   ) internal {
     if (address(forwarder) == address(0)) {
       token.safeTransferFrom(mainAddress, address(this), amount - fee);
@@ -72,13 +73,7 @@ library ERC20DataLibrary {
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token,
-      protocolRecipient,
-      partnerRecipients,
-      protocolFeeAmount,
-      partnersFeeAmounts,
-      true,
-      amount
+      token, actionHash, protocolFeeAmount, partnersFeeAmounts, true, amount
     );
   }
 
@@ -87,7 +82,8 @@ library ERC20DataLibrary {
     uint256 amount,
     uint256 fee,
     PartnersFeeInfo calldata partnersFeeInfo,
-    address protocolRecipient
+    address protocolRecipient,
+    bytes32 actionHash
   ) internal {
     (
       uint256 protocolFeeAmount,
@@ -101,13 +97,7 @@ library ERC20DataLibrary {
     }
 
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      token,
-      protocolRecipient,
-      partnerRecipients,
-      protocolFeeAmount,
-      partnersFeeAmounts,
-      false,
-      amount
+      token, actionHash, protocolFeeAmount, partnersFeeAmounts, false, amount
     );
   }
 

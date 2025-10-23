@@ -69,8 +69,7 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when the fee is collected before execution
   event RecordVolumeAndFees(
     address indexed token,
-    address indexed protocolRecipient,
-    address[] indexed partnerRecipients,
+    bytes32 indexed actionHash,
     uint256 protocolFeeAmount,
     uint256[] partnersFeeAmounts,
     bool beforeExecution,

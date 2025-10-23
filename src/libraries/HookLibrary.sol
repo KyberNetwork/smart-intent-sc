@@ -62,7 +62,8 @@ library HookLibrary {
         amounts[i] + fees[i],
         fees[i],
         actionData.feeInfo.partnersFeeInfos[i],
-        actionData.feeInfo.protocolRecipient
+        actionData.feeInfo.protocolRecipient,
+        actionData.hash()
       );
     }
   }
