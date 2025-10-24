@@ -408,33 +408,27 @@ contract MockActionTest is BaseTest {
       partnerRecipients: [partnerRecipient].toMemoryArray()
     }).buildPartnersConfigs();
 
-    (
-      uint256 protocolFeeBefore,
-      uint256[] memory partnersFeeAmountsBefore,
-      address[] memory partnerRecipientsBefore
-    ) = this.computeFees(feeConfigs, feesBefore[0]);
+    (uint256 protocolFeeBefore, uint256[] memory partnersFeeAmountsBefore) =
+      this.computeFees(feeConfigs, feesBefore[0]);
 
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
-      partnerRecipientsBefore,
+      feeConfigs,
       protocolFeeBefore,
       partnersFeeAmountsBefore,
       true,
       actionData.erc20Amounts[0]
     );
 
-    (
-      uint256 protocolFeeAfter,
-      uint256[] memory partnersFeeAmountsAfter,
-      address[] memory partnerRecipientsAfter
-    ) = this.computeFees(feeConfigs, feesAfter[0]);
+    (uint256 protocolFeeAfter, uint256[] memory partnersFeeAmountsAfter) =
+      this.computeFees(feeConfigs, feesAfter[0]);
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
-      partnerRecipientsAfter,
+      feeConfigs,
       protocolFeeAfter,
       partnersFeeAmountsAfter,
       false,
@@ -468,11 +462,7 @@ contract MockActionTest is BaseTest {
   function computeFees(FeeConfig[] calldata self, uint256 totalAmount)
     external
     view
-    returns (
-      uint256 protocolFeeAmount,
-      uint256[] memory partnersFeeAmounts,
-      address[] memory partnerRecipients
-    )
+    returns (uint256 protocolFeeAmount, uint256[] memory partnersFeeAmounts)
   {
     return FeeInfoLibrary.computeFees(self, totalAmount);
   }

@@ -62,15 +62,10 @@ library FeeInfoLibrary {
   function computeFees(FeeConfig[] calldata self, uint256 totalAmount)
     internal
     pure
-    returns (
-      uint256 protocolFeeAmount,
-      uint256[] memory partnersFeeAmounts,
-      address[] memory partnerRecipients
-    )
+    returns (uint256 protocolFeeAmount, uint256[] memory partnersFeeAmounts)
   {
     unchecked {
       partnersFeeAmounts = new uint256[](self.length);
-      partnerRecipients = new address[](self.length);
       uint256 _totalPartnerFee;
       uint256 _totalPartnerFeeAmount;
       uint256 _feeAmount;
@@ -79,15 +74,12 @@ library FeeInfoLibrary {
       for (uint256 i = 0; i < self.length; i++) {
         _partnerFee = self[i].partnerFee();
         _feeAmount = (totalAmount * _partnerFee) / FEE_DENOMINATOR;
-        partnerRecipients[i] = self[i].partnerRecipient();
+        partnersFeeAmounts[i] = _feeAmount;
 
-        if (!self[i].feeMode()) {
-          partnersFeeAmounts[i] = _feeAmount;
-          _totalPartnerFee += _partnerFee;
-          _totalPartnerFeeAmount += _feeAmount;
-        }
+        _totalPartnerFee += _partnerFee;
+        _totalPartnerFeeAmount += _feeAmount;
       }
-      protocolFeeAmount += totalAmount - _totalPartnerFeeAmount;
+      protocolFeeAmount = totalAmount - _totalPartnerFeeAmount;
 
       require(_totalPartnerFee <= FEE_DENOMINATOR, IKSSmartIntentRouter.InvalidFeeConfig());
     }
