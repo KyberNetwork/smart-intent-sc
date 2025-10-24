@@ -27,14 +27,14 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
       erc20Allowances[intentHash][erc20Data.token] = erc20Data.amount;
 
       if (erc20Data.permitData.length > 0) {
-        erc20Data.token.erc20Permit(mainAddress, erc20Data.permitData);
+        erc20Data.token.callERC20Permit(mainAddress, erc20Data.permitData);
       }
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
       ERC721Data calldata erc721Data = tokenData.erc721Data[i];
 
       if (erc721Data.permitData.length > 0) {
-        erc721Data.token.erc721Permit(erc721Data.tokenId, erc721Data.permitData);
+        erc721Data.token.callERC721Permit(erc721Data.tokenId, erc721Data.permitData);
       }
     }
   }
