@@ -14,6 +14,12 @@ import 'ks-common-sc/src/KSGenericForwarder.sol';
 import 'src/KSSmartIntentRouter.sol';
 import 'src/interfaces/actions/IKSSwapRouterV2.sol';
 
+struct PartnersFeeConfigBuildParams {
+  bool[] feeModes;
+  uint24[] partnerFees;
+  address[] partnerRecipients;
+}
+
 contract BaseTest is Test {
   using ArraysHelper for *;
 
@@ -31,6 +37,8 @@ contract BaseTest is Test {
   uint256 delegatedAddressKey;
   address randomCaller = makeAddr('randomCaller');
   address recipient = 0x318d280C0dc7C0A3B4F03372F54c07d923c08ddA;
+  uint256 constant PROTOCOL_BPS_OFFSET = 160;
+  uint256 constant FEE_MODE_OFFSET = 184;
 
   address protocolRecipient = makeAddr('protocolRecipient');
   address partnerRecipient = makeAddr('partnerRecipient');
@@ -112,6 +120,30 @@ contract BaseTest is Test {
     }
     if (mode == 0 || mode == 2) {
       gdSignature = _getGDSignature(actionData);
+    }
+  }
+
+  function _buildPartnersConfigs(PartnersFeeConfigBuildParams memory params)
+    internal
+    pure
+    returns (FeeConfig[] memory feeConfigs)
+  {
+    feeConfigs = new FeeConfig[](params.partnerFees.length);
+    for (uint256 i = 0; i < params.partnerFees.length; i++) {
+      feeConfigs[i] =
+        _buildFeeConfig(params.partnerFees[i], params.partnerRecipients[i], params.feeModes[i]);
+    }
+  }
+
+  function _buildFeeConfig(uint24 _partnerFee, address _partnerRecipient, bool _feeMode)
+    internal
+    pure
+    returns (FeeConfig feeConfig)
+  {
+    assembly ("memory-safe") {
+      feeConfig := or(feeConfig, shl(FEE_MODE_OFFSET, _feeMode))
+      feeConfig := or(feeConfig, shl(PROTOCOL_BPS_OFFSET, _partnerFee))
+      feeConfig := or(feeConfig, _partnerRecipient)
     }
   }
 }

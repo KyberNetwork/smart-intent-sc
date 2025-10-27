@@ -21,15 +21,8 @@ struct FeeInfo {
   FeeConfig[][] partnerFeeConfigs;
 }
 
-struct PartnersFeeConfigBuildParams {
-  bool[] feeModes;
-  uint24[] partnerFees;
-  address[] partnerRecipients;
-}
-
 using FeeInfoLibrary for FeeInfo global;
 using FeeInfoLibrary for FeeConfig global;
-using FeeInfoLibrary for PartnersFeeConfigBuildParams global;
 
 library FeeInfoLibrary {
   uint256 internal constant PROTOCOL_BPS_OFFSET = 160;
@@ -38,8 +31,6 @@ library FeeInfoLibrary {
 
   bytes32 constant FEE_INFO_TYPE_HASH =
     keccak256(abi.encodePacked('FeeInfo(address protocolRecipient,uint256[][] partnerFeeConfigs)'));
-  bytes32 constant PARTNERS_FEE_INFO_TYPE_HASH =
-    keccak256(abi.encodePacked('PartnersFeeInfo(bool feeMode,uint256[] feeConfigs)'));
 
   function feeMode(FeeConfig self) internal pure returns (bool _feeMode) {
     assembly ("memory-safe") {
@@ -66,7 +57,7 @@ library FeeInfoLibrary {
   {
     unchecked {
       partnersFeeAmounts = new uint256[](self.length);
-      uint256 _totalPartnerFee;
+      uint256 _totalPartnerFeePrecision;
       uint256 _totalPartnerFeeAmount;
       uint256 _feeAmount;
       uint24 _partnerFee;
@@ -76,36 +67,12 @@ library FeeInfoLibrary {
         _feeAmount = (totalAmount * _partnerFee) / FEE_DENOMINATOR;
         partnersFeeAmounts[i] = _feeAmount;
 
-        _totalPartnerFee += _partnerFee;
+        _totalPartnerFeePrecision += _partnerFee;
         _totalPartnerFeeAmount += _feeAmount;
       }
       protocolFeeAmount = totalAmount - _totalPartnerFeeAmount;
 
-      require(_totalPartnerFee <= FEE_DENOMINATOR, IKSSmartIntentRouter.InvalidFeeConfig());
-    }
-  }
-
-  function buildPartnersConfigs(PartnersFeeConfigBuildParams memory params)
-    internal
-    pure
-    returns (FeeConfig[] memory feeConfigs)
-  {
-    feeConfigs = new FeeConfig[](params.partnerFees.length);
-    for (uint256 i = 0; i < params.partnerFees.length; i++) {
-      feeConfigs[i] =
-        buildFeeConfig(params.partnerFees[i], params.partnerRecipients[i], params.feeModes[i]);
-    }
-  }
-
-  function buildFeeConfig(uint24 _partnerFee, address _partnerRecipient, bool _feeMode)
-    internal
-    pure
-    returns (FeeConfig feeConfig)
-  {
-    assembly ("memory-safe") {
-      feeConfig := or(feeConfig, shl(FEE_MODE_OFFSET, _feeMode))
-      feeConfig := or(feeConfig, shl(PROTOCOL_BPS_OFFSET, _partnerFee))
-      feeConfig := or(feeConfig, _partnerRecipient)
+      require(_totalPartnerFeePrecision <= FEE_DENOMINATOR, IKSSmartIntentRouter.InvalidFeeConfig());
     }
   }
 

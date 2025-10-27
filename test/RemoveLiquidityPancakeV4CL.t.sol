@@ -233,11 +233,13 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     {
       feeInfo.protocolRecipient = protocolRecipient;
       feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
-      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
-        feeModes: [false].toMemoryArray(),
-        partnerFees: [uint24(1e6)].toMemoryArray(),
-        partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersConfigs();
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
 
       feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
     }
@@ -510,11 +512,13 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     {
       feeInfo.protocolRecipient = protocolRecipient;
       feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
-      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
-        feeModes: [false].toMemoryArray(),
-        partnerFees: [uint24(1e6)].toMemoryArray(),
-        partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersConfigs();
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
 
       feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
     }

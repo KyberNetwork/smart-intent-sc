@@ -402,11 +402,13 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
 
-    FeeConfig[] memory feeConfigs = PartnersFeeConfigBuildParams({
-      feeModes: [seed % 2 == 0].toMemoryArray(),
-      partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
-      partnerRecipients: [partnerRecipient].toMemoryArray()
-    }).buildPartnersConfigs();
+    FeeConfig[] memory feeConfigs = _buildPartnersConfigs(
+      PartnersFeeConfigBuildParams({
+        feeModes: [seed % 2 == 0].toMemoryArray(),
+        partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      })
+    );
 
     (uint256 protocolFeeBefore, uint256[] memory partnersFeeAmountsBefore) =
       this.computeFees(feeConfigs, feesBefore[0]);
@@ -532,11 +534,13 @@ contract MockActionTest is BaseTest {
     {
       feeInfo.protocolRecipient = protocolRecipient;
       feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
-      feeInfo.partnerFeeConfigs[0] = PartnersFeeConfigBuildParams({
-        feeModes: [seed % 2 == 0].toMemoryArray(),
-        partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
-        partnerRecipients: [partnerRecipient].toMemoryArray()
-      }).buildPartnersConfigs();
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [seed % 2 == 0].toMemoryArray(),
+          partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
     }
 
     actionData = ActionData({
