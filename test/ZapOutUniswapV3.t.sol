@@ -126,16 +126,26 @@ contract ZapOutUniswapV3Test is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
+    }
+
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      feeInfo: feeInfo,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,

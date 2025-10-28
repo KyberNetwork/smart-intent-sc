@@ -189,7 +189,6 @@ contract KSSmartIntentRouter is
     );
 
     emit ExecuteIntent(intentHash, actionData, actionResult);
-    emit ExtraData(intentHash, actionData.extraData);
   }
 
   function _needForwarder(bytes4 selector) internal view returns (IKSGenericForwarder) {

@@ -96,7 +96,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256[2] memory mainAddressBefore =
       [tokenIn.balanceOf(mainAddress), tokenOut.balanceOf(mainAddress)];
     uint256[2] memory feeReceiversBefore =
-      [tokenIn.balanceOf(protocolRecipient), tokenOut.balanceOf(protocolRecipient)];
+      [tokenIn.balanceOf(partnerRecipient), tokenOut.balanceOf(partnerRecipient)];
 
     vm.startPrank(caller);
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -105,8 +105,8 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(tokenOut.balanceOf(address(router)), routerBefore[1]);
     assertEq(tokenIn.balanceOf(mainAddress), mainAddressBefore[0] - amountIn);
     assertEq(tokenOut.balanceOf(mainAddress), mainAddressBefore[1] + returnAmount);
-    assertEq(tokenIn.balanceOf(protocolRecipient), feeReceiversBefore[0] + beforeSwapFee);
-    assertEq(tokenOut.balanceOf(protocolRecipient), feeReceiversBefore[1] + afterSwapFee);
+    assertEq(tokenIn.balanceOf(partnerRecipient), feeReceiversBefore[0] + beforeSwapFee);
+    assertEq(tokenOut.balanceOf(partnerRecipient), feeReceiversBefore[1] + afterSwapFee);
   }
 
   function testConditionalSwapSuccess(uint256 mode) public {
@@ -217,7 +217,7 @@ contract ConditionalSwapTest is BaseTest {
         timeLimits: (0 << 128) | type(uint128).max,
         amountInLimits: (swapAmount << 128) | swapAmount,
         maxFees: (0 << 128) | type(uint128).max,
-        priceLimits: (1_000_000_000_000 - 100 << 128) | (1_000_000_000_000 + 100)
+        priceLimits: ((1_000_000_000_000 - 100) << 128) | (1_000_000_000_000 + 100)
       });
     }
 
@@ -295,7 +295,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (vm.getBlockTimestamp() + 100 << 128) | (vm.getBlockTimestamp() + 1000),
+      timeLimits: ((vm.getBlockTimestamp() + 100) << 128) | (vm.getBlockTimestamp() + 1000),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (0 << 128) | type(uint128).max
@@ -323,7 +323,7 @@ contract ConditionalSwapTest is BaseTest {
 
     condition[0] = KSConditionalSwapHook.SwapCondition({
       swapLimit: 1,
-      timeLimits: (vm.getBlockTimestamp() - 100 << 128) | (vm.getBlockTimestamp() + 100),
+      timeLimits: ((vm.getBlockTimestamp() - 100) << 128) | (vm.getBlockTimestamp() + 100),
       amountInLimits: (0 << 128) | type(uint128).max,
       maxFees: (0 << 128) | type(uint128).max,
       priceLimits: (uint256(type(uint128).max) << 128) | type(uint128).max
@@ -458,16 +458,24 @@ contract ConditionalSwapTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+    }
+
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      feeInfo: feeInfo,
       approvalFlags: approvalFlags,
       actionSelectorId: swapViaMock ? 0 : 1,
       actionCalldata: swapViaMock
@@ -557,16 +565,24 @@ contract ConditionalSwapTest is BaseTest {
   {
     uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+    }
+
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
-      feeInfo: FeeInfoBuildParams({
-        feeMode: false,
-        protocolFee: 1e6,
-        protocolRecipient: protocolRecipient
-      }).build(),
-      partnerRecipient: partnerRecipient,
+      feeInfo: feeInfo,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

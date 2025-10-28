@@ -402,41 +402,46 @@ contract MockActionTest is BaseTest {
 
     vm.startPrank(caller);
 
-    FeeInfo feeInfo = FeeInfoBuildParams({
-      feeMode: seed % 2 == 0,
-      protocolFee: uint24(bound(seed, 0, 1e6)),
-      protocolRecipient: protocolRecipient
-    }).build();
-
-    (uint256 protocolFeeBefore, uint256 partnerFeeBefore) = feeInfo.computeFees(feesBefore[0]);
-    vm.expectEmit(true, true, true, true);
-    emit IKSSmartIntentRouter.RecordVolumeAndFees(
-      address(erc20Mock),
-      protocolRecipient,
-      partnerRecipient,
-      true,
-      actionData.erc20Amounts[0],
-      protocolFeeBefore,
-      partnerFeeBefore
+    FeeConfig[] memory feeConfigs = _buildPartnersConfigs(
+      PartnersFeeConfigBuildParams({
+        feeModes: [seed % 2 == 0].toMemoryArray(),
+        partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      })
     );
 
-    (uint256 protocolFeeAfter, uint256 partnerFeeAfter) = feeInfo.computeFees(feesAfter[0]);
+    (uint256 protocolFeeBefore, uint256[] memory partnersFeeAmountsBefore) =
+      this.computeFees(feeConfigs, feesBefore[0]);
+
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.RecordVolumeAndFees(
       address(erc20Mock),
       protocolRecipient,
-      partnerRecipient,
-      false,
-      amounts[0] + feesAfter[0],
+      feeConfigs,
+      protocolFeeBefore,
+      partnersFeeAmountsBefore,
+      true,
+      actionData.erc20Amounts[0]
+    );
+
+    (uint256 protocolFeeAfter, uint256[] memory partnersFeeAmountsAfter) =
+      this.computeFees(feeConfigs, feesAfter[0]);
+    vm.expectEmit(true, true, true, true);
+    emit IKSSmartIntentRouter.RecordVolumeAndFees(
+      address(erc20Mock),
+      protocolRecipient,
+      feeConfigs,
       protocolFeeAfter,
-      partnerFeeAfter
+      partnersFeeAmountsAfter,
+      false,
+      amounts[0] + feesAfter[0]
     );
 
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     assertEq(erc20Mock.balanceOf(address(this)), amounts[0]);
-    if (feeInfo.feeMode()) {
+    if (feeConfigs[0].feeMode()) {
       assertEq(
         erc20Mock.balanceOf(protocolRecipient),
         feesBefore[0] + feesAfter[0],
@@ -450,10 +455,22 @@ contract MockActionTest is BaseTest {
       );
       assertEq(
         erc20Mock.balanceOf(partnerRecipient),
-        partnerFeeBefore + partnerFeeAfter,
+        partnersFeeAmountsBefore[0] + partnersFeeAmountsAfter[0],
         'Partner recipient did not receive expected fees'
       );
     }
+  }
+
+  function computeFees(FeeConfig[] calldata self, uint256 totalAmount)
+    external
+    view
+    returns (uint256 protocolFeeAmount, uint256[] memory partnersFeeAmounts)
+  {
+    return FeeInfoLibrary.computeFees(self, totalAmount);
+  }
+
+  function hash(ActionData calldata self) external pure returns (bytes32) {
+    return self.hash();
   }
 
   function _getNewTokenData(TokenData memory tokenData, uint256 seed)
@@ -513,18 +530,24 @@ contract MockActionTest is BaseTest {
       erc20Amounts[i] = tokenData.erc20Data[i].amount;
     }
 
-    FeeInfo feeInfo = FeeInfoBuildParams({
-      feeMode: seed % 2 == 0,
-      protocolFee: uint24(bound(seed, 0, 1e6)),
-      protocolRecipient: protocolRecipient
-    }).build();
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [seed % 2 == 0].toMemoryArray(),
+          partnerFees: [uint24(bound(seed, 0, 1e6))].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+    }
 
     actionData = ActionData({
       erc20Ids: _consecutiveArray(0, tokenData.erc20Data.length),
       erc20Amounts: erc20Amounts,
       erc721Ids: _consecutiveArray(0, tokenData.erc721Data.length),
       feeInfo: feeInfo,
-      partnerRecipient: partnerRecipient,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,

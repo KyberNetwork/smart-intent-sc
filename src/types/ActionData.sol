@@ -13,7 +13,6 @@ import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol
  * @param erc20Amounts The amounts of the ERC20 tokens
  * @param erc721Ids The IDs of the ERC721 tokens in the intent data
  * @param feeInfo The fee info for the action
- * @param partnerRecipient The partner recipient for the action
  * @param approvalFlags The approval flags for the tokens
  * @param actionSelectorId The ID of the action selector
  * @param actionCalldata The calldata for the action
@@ -27,7 +26,6 @@ struct ActionData {
   uint256[] erc20Amounts;
   uint256[] erc721Ids;
   FeeInfo feeInfo;
-  address partnerRecipient;
   uint256 approvalFlags;
   uint256 actionSelectorId;
   bytes actionCalldata;
@@ -42,7 +40,7 @@ using ActionDataLibrary for ActionData global;
 library ActionDataLibrary {
   bytes32 constant ACTION_DATA_TYPE_HASH = keccak256(
     abi.encodePacked(
-      'ActionData(uint256[] erc20Ids,uint256[] erc20Amounts,uint256[] erc721Ids,uint256 feeInfo,address partnerRecipient,uint256 approvalFlags,uint256 actionSelectorId,bytes actionCalldata,bytes hookActionData,bytes extraData,uint256 deadline,uint256 nonce)'
+      'ActionData(uint256[] erc20Ids,uint256[] erc20Amounts,uint256[] erc721Ids,FeeInfo feeInfo,uint256 approvalFlags,uint256 actionSelectorId,bytes actionCalldata,bytes hookActionData,bytes extraData,uint256 deadline,uint256 nonce)FeeInfo(address protocolRecipient,uint256[][] partnerFeeConfigs)'
     )
   );
 
@@ -53,8 +51,7 @@ library ActionDataLibrary {
         keccak256(abi.encodePacked(self.erc20Ids)),
         keccak256(abi.encodePacked(self.erc20Amounts)),
         keccak256(abi.encodePacked(self.erc721Ids)),
-        self.feeInfo,
-        self.partnerRecipient,
+        self.feeInfo.hash(),
         self.approvalFlags,
         self.actionSelectorId,
         keccak256(self.actionCalldata),
