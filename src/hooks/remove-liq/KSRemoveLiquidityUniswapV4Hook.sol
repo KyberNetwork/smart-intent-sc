@@ -83,10 +83,12 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseTickBasedRemoveLiquidityHook {
       uniswapV4.removeLiqParams.positionInfo.amounts[1],
       uniswapV4.removeLiqParams.positionInfo.unclaimedFees[0],
       uniswapV4.removeLiqParams.positionInfo.unclaimedFees[1]
-    ) = uniswapV4.poolManager.computePositionValues(
-      IPositionManager(uniswapV4.removeLiqParams.positionInfo.nftAddress),
-      uniswapV4.removeLiqParams.positionInfo.nftId,
-      uniswapV4.removeLiqParams.liquidityToRemove
-    );
+    ) =
+      uniswapV4.poolManager
+        .computePositionValues(
+          IPositionManager(uniswapV4.removeLiqParams.positionInfo.nftAddress),
+          uniswapV4.removeLiqParams.positionInfo.nftId,
+          uniswapV4.removeLiqParams.liquidityToRemove
+        );
   }
 }

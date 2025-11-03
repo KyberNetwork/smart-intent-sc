@@ -499,7 +499,11 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     vm.stopPrank();
   }
 
-  function _getIntentData(Node[] memory nodes) internal view returns (IntentData memory intentData) {
+  function _getIntentData(Node[] memory nodes)
+    internal
+    view
+    returns (IntentData memory intentData)
+  {
     KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityHookData memory hookData;
     hookData.nftAddresses = new address[](1);
     hookData.nftAddresses[0] = address(pm);
@@ -704,7 +708,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
   function _computePositionValues() internal {
     _cacheInfo();
     KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityParams storage removeLiqParams =
-      uniswapV3.removeLiqParams;
+    uniswapV3.removeLiqParams;
     KSRemoveLiquidityUniswapV3Hook.PositionInfo storage positionInfo = removeLiqParams.positionInfo;
 
     int24 lower = positionInfo.ticks[0];
@@ -726,10 +730,14 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       _getFeeGrowthInside(IUniswapV3Pool(uniswapV3.pool), lower, current, upper);
 
     unchecked {
-      positionInfo.unclaimedFees[0] += Math.mulDiv(
+      positionInfo.unclaimedFees[
+        0
+      ] += Math.mulDiv(
         feeGrowthInside0 - positionInfo.feesGrowthInsideLast[0], positionInfo.liquidity, Q128
       );
-      positionInfo.unclaimedFees[1] += Math.mulDiv(
+      positionInfo.unclaimedFees[
+        1
+      ] += Math.mulDiv(
         feeGrowthInside1 - positionInfo.feesGrowthInsideLast[1], positionInfo.liquidity, Q128
       );
     }
@@ -782,11 +790,9 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     }
     {
       (
-        ,
-        ,
+        ,,
         uniswapV3.outputParams.tokens[0],
-        uniswapV3.outputParams.tokens[1],
-        ,
+        uniswapV3.outputParams.tokens[1],,
         uniswapV3.removeLiqParams.positionInfo.ticks[0],
         uniswapV3.removeLiqParams.positionInfo.ticks[1],
         uniswapV3.removeLiqParams.positionInfo.liquidity,

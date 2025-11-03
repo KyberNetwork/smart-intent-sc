@@ -33,19 +33,19 @@ library FeeInfoLibrary {
     keccak256(abi.encodePacked('FeeInfo(address protocolRecipient,uint256[][] partnerFeeConfigs)'));
 
   function feeMode(FeeConfig self) internal pure returns (bool _feeMode) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       _feeMode := and(shr(FEE_MODE_OFFSET, self), MASK_1_BIT)
     }
   }
 
   function partnerFee(FeeConfig self) internal pure returns (uint24 _partnerFee) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       _partnerFee := and(shr(PROTOCOL_BPS_OFFSET, self), MASK_24_BITS)
     }
   }
 
   function partnerRecipient(FeeConfig self) internal pure returns (address _partnerRecipient) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       _partnerRecipient := and(self, MASK_160_BITS)
     }
   }

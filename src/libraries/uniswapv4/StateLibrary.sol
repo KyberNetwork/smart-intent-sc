@@ -257,7 +257,11 @@ library StateLibrary {
     }
   }
 
-  function _getPositionInfoSlot(bytes32 poolId, bytes32 positionId) internal pure returns (bytes32) {
+  function _getPositionInfoSlot(bytes32 poolId, bytes32 positionId)
+    internal
+    pure
+    returns (bytes32)
+  {
     // slot key of Pool.State value: `pools[poolId]`
     bytes32 stateSlot = _getPoolStateSlot(poolId);
 
@@ -283,7 +287,11 @@ library StateLibrary {
     return keccak256(abi.encodePacked(poolId, POOLS_SLOT));
   }
 
-  function getTickRange(uint256 posInfo) internal pure returns (int24 _tickLower, int24 _tickUpper) {
+  function getTickRange(uint256 posInfo)
+    internal
+    pure
+    returns (int24 _tickLower, int24 _tickUpper)
+  {
     assembly {
       _tickLower := signextend(2, shr(8, posInfo))
       _tickUpper := signextend(2, shr(32, posInfo))

@@ -114,7 +114,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
         amountIn: amountIn,
         srcFeePercent: intentSrcFee,
         dstFeePercent: intentDstFee,
-        recipientBalanceBefore: _getRecipientBalance(tokenOut, swapHookData.recipient, intentDstFee), // if dstFee is 0, transfer directly to the recipient
+        recipientBalanceBefore: _getRecipientBalance(
+          tokenOut, swapHookData.recipient, intentDstFee
+        ), // if dstFee is 0, transfer directly to the recipient
         swapperBalanceBefore: tokenIn.balanceOf(intentData.coreData.mainAddress),
         recipient: swapHookData.recipient
       })
@@ -149,9 +151,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       validationData.swapperBalanceBefore - tokenIn.balanceOf(intentData.coreData.mainAddress);
     require(swappedAmount <= amountIn, AmountInMismatch(amountIn, swappedAmount));
 
-    uint256 amountOut = _getRecipientBalance(
-      tokenOut, validationData.recipient, validationData.dstFeePercent
-    ) - validationData.recipientBalanceBefore;
+    uint256 amountOut =
+      _getRecipientBalance(tokenOut, validationData.recipient, validationData.dstFeePercent)
+        - validationData.recipientBalanceBefore;
 
     uint256 price = (amountOut * DENOMINATOR) / amountIn;
 
@@ -287,7 +289,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     pure
     returns (SwapCondition calldata swapCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       swapCondition := data.offset
     }
   }
@@ -298,19 +300,18 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     pure
     returns (SwapHookData calldata hookData)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       hookData := add(data.offset, calldataload(data.offset))
     }
   }
 
   // @dev: equivalent to abi.decode(data, (uint256, uint256, uint256, uint256))
-  function _decodeAndValidateHookActionData(bytes calldata data, SwapHookData calldata swapHookData)
-    internal
-    view
-    returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee)
-  {
+  function _decodeAndValidateHookActionData(
+    bytes calldata data,
+    SwapHookData calldata swapHookData
+  ) internal view returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee) {
     uint256 packedFees;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       index := calldataload(data.offset)
       packedFees := calldataload(add(data.offset, 0x20))
     }
@@ -325,7 +326,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     pure
     returns (SwapValidationData calldata validationData)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       validationData := add(data.offset, calldataload(data.offset))
     }
   }

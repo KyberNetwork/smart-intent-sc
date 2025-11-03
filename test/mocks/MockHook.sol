@@ -37,8 +37,9 @@ contract MockHook is BaseHook {
     )
   {
     if (beforeExecutionData.length > 0) {
-      (tokens, fees, amounts, recipient) =
-        abi.decode(beforeExecutionData, (address[], uint256[], uint256[], address));
+      (tokens, fees, amounts, recipient) = abi.decode(
+        beforeExecutionData, (address[], uint256[], uint256[], address)
+      );
     }
   }
 }

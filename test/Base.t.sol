@@ -140,7 +140,7 @@ contract BaseTest is Test {
     pure
     returns (FeeConfig feeConfig)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       feeConfig := or(feeConfig, shl(FEE_MODE_OFFSET, _feeMode))
       feeConfig := or(feeConfig, shl(PROTOCOL_BPS_OFFSET, _partnerFee))
       feeConfig := or(feeConfig, _partnerRecipient)
