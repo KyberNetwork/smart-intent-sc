@@ -46,7 +46,6 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when the forwarder is updated
   event UpdateForwarder(address newForwarder);
 
-
   /// @notice Emitted when an intent is delegated
   event DelegateIntent(
     address indexed mainAddress, address indexed delegatedAddress, IntentData intentData

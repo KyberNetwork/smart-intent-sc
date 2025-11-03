@@ -92,10 +92,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     _boundStruct(fuzzStruct);
     wrapOrUnwrap = bound(fuzzStruct.seed, 0, 1) == 1;
 
-    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, fuzzStruct.liquidityToRemove
-    );
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
+        pm
+      ).poolManager()
+      .computePositionValues(IPositionManager(pm), uniV4TokenId, fuzzStruct.liquidityToRemove);
 
     fee0 = unclaimedFee0;
     fee1 = unclaimedFee1;
@@ -170,10 +170,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     intentFeesPercent0 = bound(fuzz.seed, 0, 1_000_000);
     intentFeesPercent1 = bound(fuzz.seed, 0, 1_000_000);
 
-    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, fuzz.liquidityToRemove
-    );
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
+        pm
+      ).poolManager()
+      .computePositionValues(IPositionManager(pm), uniV4TokenId, fuzz.liquidityToRemove);
 
     fee0 = unclaimedFee0;
     fee1 = unclaimedFee1;
@@ -262,10 +262,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   function test_multiCallToUniV4PositionManager(uint256 seed) public {
     bool unwrap = seed % 2 == 1;
     uint256 liquidityToRemove = bound(seed, 0, liquidity);
-    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, liquidityToRemove
-    );
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
+        pm
+      ).poolManager().computePositionValues(IPositionManager(pm), uniV4TokenId, liquidityToRemove);
 
     bytes[] memory multiCalldata;
     if (!unwrap) {
@@ -753,8 +752,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   }
 
   function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
-    MockActionContract.RemoveUniswapV4Params memory params = MockActionContract
-      .RemoveUniswapV4Params({
+    MockActionContract.RemoveUniswapV4Params memory params = MockActionContract.RemoveUniswapV4Params({
       posManager: IPositionManager(pm),
       tokenId: uniV4TokenId,
       admin: address(router),

@@ -105,9 +105,9 @@ contract KSSmartIntentRouter is
     ActionData calldata actionData
   ) public {
     bytes32 intentHash = hashTypedIntentData(intentData);
-    if (
-      !SignatureChecker.isValidSignatureNow(intentData.coreData.mainAddress, intentHash, maSignature)
-    ) {
+    if (!SignatureChecker.isValidSignatureNow(
+        intentData.coreData.mainAddress, intentHash, maSignature
+      )) {
       revert InvalidMainAddressSignature();
     }
 
@@ -118,8 +118,7 @@ contract KSSmartIntentRouter is
   function _delegate(IntentData calldata intentData, bytes32 intentHash)
     internal
     checkLengths(
-      intentData.coreData.actionContracts.length,
-      intentData.coreData.actionSelectors.length
+      intentData.coreData.actionContracts.length, intentData.coreData.actionSelectors.length
     )
   {
     IntentCoreData calldata coreData = intentData.coreData;

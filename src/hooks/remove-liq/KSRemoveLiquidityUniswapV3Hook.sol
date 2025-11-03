@@ -71,11 +71,9 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
 
     uniswapV3.pool = validationData.additionalData.decodeAddressArray(0)[removeLiqParams.index];
     (
-      ,
-      ,
+      ,,
       outputParams.tokens[0],
-      outputParams.tokens[1],
-      ,
+      outputParams.tokens[1],,
       removeLiqParams.positionInfo.ticks[0],
       removeLiqParams.positionInfo.ticks[1],
       removeLiqParams.positionInfo.liquidity,
@@ -83,9 +81,9 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
       removeLiqParams.positionInfo.feesGrowthInsideLast[1],
       removeLiqParams.positionInfo.unclaimedFees[0],
       removeLiqParams.positionInfo.unclaimedFees[1]
-    ) = IUniswapV3PM(removeLiqParams.positionInfo.nftAddress).positions(
-      removeLiqParams.positionInfo.nftId
-    );
+    ) =
+      IUniswapV3PM(removeLiqParams.positionInfo.nftAddress)
+        .positions(removeLiqParams.positionInfo.nftId);
 
     (removeLiqParams.sqrtPriceX96, removeLiqParams.currentTick,,,,,) =
       IUniswapV3Pool(uniswapV3.pool).slot0();
@@ -123,10 +121,14 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
       _getFeeGrowthInside(IUniswapV3Pool(uniswapV3.pool), tickLower, tickCurrent, tickUpper);
 
     unchecked {
-      positionInfo.unclaimedFees[0] += Math.mulDiv(
+      positionInfo.unclaimedFees[
+        0
+      ] += Math.mulDiv(
         feeGrowthInside0 - positionInfo.feesGrowthInsideLast[0], positionInfo.liquidity, Q128
       );
-      positionInfo.unclaimedFees[1] += Math.mulDiv(
+      positionInfo.unclaimedFees[
+        1
+      ] += Math.mulDiv(
         feeGrowthInside1 - positionInfo.feesGrowthInsideLast[1], positionInfo.liquidity, Q128
       );
     }

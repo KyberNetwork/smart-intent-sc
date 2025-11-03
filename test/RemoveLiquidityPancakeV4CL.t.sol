@@ -491,22 +491,22 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   }
 
   function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
-    MockActionContract.RemovePancakeV4CLParams memory params = MockActionContract
-      .RemovePancakeV4CLParams({
-      pm: ICLPositionManager(positionManager),
-      tokenId: tokenId,
-      router: address(router),
-      owner: tokenOwner,
-      token0: token0,
-      token1: token1,
-      liquidity: _liquidity,
-      transferPercent: transferPercent,
-      wrapOrUnwrap: wrapOrUnwrap,
-      weth: wbnb,
-      takeFees: takeUnclaimedFees,
-      amounts: amounts,
-      fees: fees
-    });
+    MockActionContract.RemovePancakeV4CLParams memory params =
+      MockActionContract.RemovePancakeV4CLParams({
+        pm: ICLPositionManager(positionManager),
+        tokenId: tokenId,
+        router: address(router),
+        owner: tokenOwner,
+        token0: token0,
+        token1: token1,
+        liquidity: _liquidity,
+        transferPercent: transferPercent,
+        wrapOrUnwrap: wrapOrUnwrap,
+        weth: wbnb,
+        takeFees: takeUnclaimedFees,
+        amounts: amounts,
+        fees: fees
+      });
 
     FeeInfo memory feeInfo;
     {
@@ -738,12 +738,13 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       (
         pancakeCL.removeLiqParams.positionInfo.amounts[0],
         pancakeCL.removeLiqParams.positionInfo.amounts[1]
-      ) = LiquidityAmounts.getAmountsForLiquidity(
-        pancakeCL.removeLiqParams.sqrtPriceX96,
-        sqrtPriceLower,
-        sqrtPriceUpper,
-        uint128(pancakeCL.removeLiqParams.liquidityToRemove)
-      );
+      ) =
+        LiquidityAmounts.getAmountsForLiquidity(
+          pancakeCL.removeLiqParams.sqrtPriceX96,
+          sqrtPriceLower,
+          sqrtPriceUpper,
+          uint128(pancakeCL.removeLiqParams.liquidityToRemove)
+        );
     }
 
     (uint256 feeGrowthInside0, uint256 feeGrowthInside1) = _getFeeGrowthInside();
@@ -804,7 +805,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   }
 
   function _toId(PKey memory poolKey) internal pure returns (PoolId poolId) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       poolId := keccak256(poolKey, 0xc0)
     }
   }

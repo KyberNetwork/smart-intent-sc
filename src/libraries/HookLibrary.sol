@@ -19,9 +19,8 @@ library HookLibrary {
     IntentData calldata intentData,
     ActionData calldata actionData
   ) internal returns (uint256[] memory fees, bytes memory beforeExecutionData) {
-    (fees, beforeExecutionData) = IKSSmartIntentHook(intentData.coreData.hook).beforeExecution(
-      intentHash, intentData, actionData
-    );
+    (fees, beforeExecutionData) = IKSSmartIntentHook(intentData.coreData.hook)
+      .beforeExecution(intentHash, intentData, actionData);
 
     if (actionData.erc20Ids.length != fees.length) {
       revert ICommon.MismatchedArrayLengths();
@@ -35,10 +34,9 @@ library HookLibrary {
     bytes memory beforeExecutionData,
     bytes memory actionResult
   ) internal {
-    (address[] memory tokens, uint256[] memory fees, uint256[] memory amounts, address recipient) =
-    IKSSmartIntentHook(intentData.coreData.hook).afterExecution(
-      intentHash, intentData, beforeExecutionData, actionResult
-    );
+    (address[] memory tokens, uint256[] memory fees, uint256[] memory amounts, address recipient) = IKSSmartIntentHook(
+        intentData.coreData.hook
+      ).afterExecution(intentHash, intentData, beforeExecutionData, actionResult);
 
     if (tokens.length != fees.length) {
       revert ICommon.MismatchedArrayLengths();
@@ -58,7 +56,8 @@ library HookLibrary {
     for (uint256 i = 0; i < tokens.length; i++) {
       tokens[i].safeTransfer(recipient, amounts[i]);
 
-      tokens[i].collectFeeAfterExecution(
+      tokens[i]
+      .collectFeeAfterExecution(
         amounts[i] + fees[i],
         fees[i],
         actionData.feeInfo.partnerFeeConfigs[i],

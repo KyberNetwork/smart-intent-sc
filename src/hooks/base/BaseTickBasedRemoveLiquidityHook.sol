@@ -336,7 +336,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     pure
     returns (RemoveLiquidityHookData calldata validationData)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       validationData := add(data.offset, calldataload(data.offset))
     }
   }
@@ -356,7 +356,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     )
   {
     uint256 packedFees;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       index := calldataload(data.offset)
       fee0Generated := calldataload(add(data.offset, 0x20))
       fee1Generated := calldataload(add(data.offset, 0x40))
@@ -378,7 +378,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       OutputValidationParams calldata outputParams
     )
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       removeLiqParams := data.offset
       outputParams := add(data.offset, 0x260) // (outputParams starts at slot 19 (608th byte))
     }

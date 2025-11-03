@@ -66,8 +66,7 @@ contract MockActionContract {
   }
 
   function removeUniswapV4(RemoveUniswapV4Params memory params) external {
-    (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = params
-      .posManager
+    (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = params.posManager
       .poolManager().computePositionValues(params.posManager, params.tokenId, params.liquidity);
 
     (PoolKey memory poolKey,) = params.posManager.getPoolAndPositionInfo(params.tokenId);

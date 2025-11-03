@@ -104,7 +104,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
   }
 
   function _checkFlag(uint256 flag, uint256 index) internal pure returns (bool result) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       result := and(shr(index, flag), 1)
     }
   }

@@ -159,7 +159,7 @@ contract KSRemoveLiquidityPancakeV4CLHook is BaseTickBasedRemoveLiquidityHook {
   }
 
   function _toId(PoolKey memory poolKey) internal pure returns (PoolId poolId) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       poolId := keccak256(poolKey, 0xc0)
     }
   }

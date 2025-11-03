@@ -122,10 +122,11 @@ contract KSZapOutUniswapV4Hook is BaseHook {
         tokenBalanceBefore,
         minRate,
         recipient
-      ) = abi.decode(
-        beforeExecutionData,
-        (IPositionManager, uint256, address, uint256, uint256, uint256, address)
-      );
+      ) =
+        abi.decode(
+          beforeExecutionData,
+          (IPositionManager, uint256, address, uint256, uint256, uint256, address)
+        );
 
       uint256 liquidityAfter = positionManager.getPositionLiquidity(tokenId);
       require(

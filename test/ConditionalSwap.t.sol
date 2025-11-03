@@ -451,12 +451,13 @@ contract ConditionalSwapTest is BaseTest {
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function _getActionData(TokenData memory tokenData, bytes memory actionCalldata, bool swapViaMock)
-    internal
-    view
-    returns (ActionData memory actionData)
-  {
-    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+  function _getActionData(
+    TokenData memory tokenData,
+    bytes memory actionCalldata,
+    bool swapViaMock
+  ) internal view returns (ActionData memory actionData) {
+    uint256 approvalFlags =
+      (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     FeeInfo memory feeInfo;
     {
@@ -479,8 +480,7 @@ contract ConditionalSwapTest is BaseTest {
       approvalFlags: approvalFlags,
       actionSelectorId: swapViaMock ? 0 : 1,
       actionCalldata: swapViaMock
-        ? (
-          actionCalldata.length == 0
+        ? (actionCalldata.length == 0
             ? abi.encode(
               tokenIn,
               tokenOut,
@@ -489,8 +489,7 @@ contract ConditionalSwapTest is BaseTest {
               feeAfter == 0 ? mainAddress : address(router),
               mainAddress
             )
-            : actionCalldata
-        )
+            : actionCalldata)
         : actionCalldata,
       hookActionData: abi.encode(0, (feeBefore << 128) | feeAfter),
       extraData: '',
@@ -537,7 +536,7 @@ contract ConditionalSwapTest is BaseTest {
         delegatedAddress: delegatedAddress,
         actionContracts: [address(mockActionContract), address(swapRouter)].toMemoryArray(),
         actionSelectors: [MockActionContract.swap.selector, IKSSwapRouterV2.swap.selector]
-          .toMemoryArray(),
+        .toMemoryArray(),
         hook: address(conditionalSwapHook),
         hookIntentData: abi.encode(hookData)
       });
@@ -563,7 +562,8 @@ contract ConditionalSwapTest is BaseTest {
     view
     returns (ActionData memory actionData)
   {
-    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+    uint256 approvalFlags =
+      (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
 
     FeeInfo memory feeInfo;
     {

@@ -215,8 +215,9 @@ contract ConditionTreeTest is Test {
 
     Node[] memory nodes = new Node[](1);
     uint256[] memory emptyChildren = new uint256[](0);
-    nodes[0] =
-      Node({operationType: OperationType.AND, condition: condition, childrenIndexes: emptyChildren});
+    nodes[0] = Node({
+      operationType: OperationType.AND, condition: condition, childrenIndexes: emptyChildren
+    });
 
     _hook.validateConditionTree(_buildTree(nodes), 0);
   }

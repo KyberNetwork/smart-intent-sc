@@ -104,7 +104,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     PriceCondition calldata priceCondition = _decodePriceCondition(condition.data);
 
     uint256 currentPrice;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       currentPrice := calldataload(additionalData.offset)
     }
 
@@ -128,7 +128,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     uint256 fee1;
     uint256 poolPrice;
 
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       fee0 := calldataload(additionalData.offset)
       fee1 := calldataload(add(additionalData.offset, 0x20))
       poolPrice := calldataload(add(additionalData.offset, 0x40))
@@ -169,7 +169,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     pure
     returns (PriceCondition calldata priceCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       priceCondition := data.offset
     }
   }
@@ -179,7 +179,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     pure
     returns (TimeCondition calldata timeCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       timeCondition := data.offset
     }
   }
@@ -189,7 +189,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     pure
     returns (YieldCondition calldata yieldCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       yieldCondition := data.offset
     }
   }
