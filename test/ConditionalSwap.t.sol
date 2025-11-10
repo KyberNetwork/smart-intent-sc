@@ -55,7 +55,7 @@ contract ConditionalSwapTest is BaseTest {
     returnAmount = bound(returnAmount, 100, 1_000_000e8);
 
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     intentData.tokenData.erc20Data[0].amount = amountIn;
     _setUpMainAddress(intentData, false);
 
@@ -112,7 +112,7 @@ contract ConditionalSwapTest is BaseTest {
   function testConditionalSwapSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
 
     _setUpMainAddress(intentData, false);
 
@@ -162,7 +162,7 @@ contract ConditionalSwapTest is BaseTest {
     {
       uint256 tmpSwapAmount = swapAmount;
       swapAmount = type(uint256).max;
-      intentData = _getIntentData(0, type(uint128).max, 1, condition);
+      intentData = _getIntentData(0, type(uint128).max, condition);
       _setUpMainAddress(intentData, false);
       swapAmount = tmpSwapAmount;
     }
@@ -225,7 +225,7 @@ contract ConditionalSwapTest is BaseTest {
     {
       uint256 tmpSwapAmount = swapAmount;
       swapAmount = type(uint256).max;
-      intentData = _getIntentData(0, type(uint128).max, 1, condition);
+      intentData = _getIntentData(0, type(uint128).max, condition);
       _setUpMainAddress(intentData, false);
       swapAmount = tmpSwapAmount;
     }
@@ -301,7 +301,7 @@ contract ConditionalSwapTest is BaseTest {
       priceLimits: (0 << 128) | type(uint128).max
     });
 
-    IntentData memory intentData = _getIntentData(0, type(uint128).max, 1, condition);
+    IntentData memory intentData = _getIntentData(0, type(uint128).max, condition);
     _setUpMainAddress(intentData, false);
 
     ActionData memory actionData = _getActionData(
@@ -329,7 +329,7 @@ contract ConditionalSwapTest is BaseTest {
       priceLimits: (uint256(type(uint128).max) << 128) | type(uint128).max
     });
 
-    IntentData memory intentData = _getIntentData(0, type(uint128).max, 1, condition);
+    IntentData memory intentData = _getIntentData(0, type(uint128).max, condition);
 
     _setUpMainAddress(intentData, false);
 
@@ -350,7 +350,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 tmpSwapAmount = swapAmount;
     swapAmount = type(uint256).max;
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
     swapAmount = tmpSwapAmount;
     ActionData memory actionData;
@@ -384,7 +384,7 @@ contract ConditionalSwapTest is BaseTest {
   function testRevert_InvalidTokenIn(uint256 mode) public {
     mode = bound(mode, 0, 2);
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
     intentData.tokenData.erc20Data[0].token = makeAddr('dummy');
     _setUpMainAddress(intentData, false);
@@ -411,7 +411,7 @@ contract ConditionalSwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     vm.assume(min < max && (min > swapAmount || max < swapAmount));
     IntentData memory intentData =
-      _getIntentData(min, max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(min, max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
 
     ActionData memory actionData = _getActionData(
@@ -432,7 +432,7 @@ contract ConditionalSwapTest is BaseTest {
 
     mode = bound(mode, 0, 2);
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
 
     uint256 beforeSwapFee = (swapAmount * feeBefore) / 1_000_000;
@@ -501,7 +501,6 @@ contract ConditionalSwapTest is BaseTest {
   function _getIntentData(
     uint256 min,
     uint256 max,
-    uint256 swapLimit,
     KSConditionalSwapHook.SwapCondition[] memory swapConditions
   ) internal view returns (IntentData memory intentData) {
     KSConditionalSwapHook.SwapHookData memory hookData;

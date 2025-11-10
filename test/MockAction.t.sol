@@ -18,6 +18,7 @@ contract MockActionTest is BaseTest {
     super.setUp();
 
     mockHook = new MockHook();
+    vm.makePersistent(address(mockHook));
   }
 
   function testUpdateForwarder() public {
@@ -38,6 +39,35 @@ contract MockActionTest is BaseTest {
   }
 
   function testMockActionExecuteSuccess(uint256 seed) public {
+    uint256 mode = bound(seed, 0, 2);
+    IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, actionData);
+
+    vm.startPrank(caller);
+    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
+  }
+
+  function testMockActionExecuteSuccessP256(uint256 seed, bool testOnSepolia) public {
+    if (testOnSepolia) {
+      vm.createSelectFork(vm.envString('SEPOLIA_NODE_URL'), 9_598_379);
+    } else {
+      vm.createSelectFork(vm.envString('OP_NODE_URL'), 143_581_448);
+    }
+
+    _setupP256();
+
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
     bytes32 intentHash = router.hashTypedIntentData(intentData);
@@ -225,7 +255,7 @@ contract MockActionTest is BaseTest {
     router.execute(intentData, daSignature, guardian, gdSignature, actionData);
   }
 
-  function testMockActionExecuteNOT_DELEGATEDIntentShouldRevert(uint256 seed) public {
+  function testMockActionExecuteNotDelegatedIntentShouldRevert(uint256 seed) public {
     uint256 mode = bound(seed, 0, 2);
     IntentData memory intentData = _getIntentData(seed);
 
@@ -463,7 +493,7 @@ contract MockActionTest is BaseTest {
 
   function computeFees(FeeConfig[] calldata self, uint256 totalAmount)
     external
-    view
+    pure
     returns (uint256 protocolFeeAmount, uint256[] memory partnersFeeAmounts)
   {
     return FeeInfoLibrary.computeFees(self, totalAmount);

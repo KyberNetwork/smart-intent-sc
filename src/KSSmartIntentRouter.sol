@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import './KSSmartIntentRouterAccounting.sol';
 import './KSSmartIntentRouterNonces.sol';
 
+import './interfaces/ISignatureVerifier.sol';
 import './interfaces/actions/IKSSwapRouterV2.sol';
 import './interfaces/actions/IKSSwapRouterV3.sol';
 import './interfaces/actions/IKSZapRouter.sol';
@@ -14,7 +15,6 @@ import 'openzeppelin-contracts/contracts/utils/Address.sol';
 import 'openzeppelin-contracts/contracts/utils/ReentrancyGuardTransient.sol';
 
 import 'openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol';
-import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
 contract KSSmartIntentRouter is
   KSSmartIntentRouterAccounting,
@@ -25,18 +25,22 @@ contract KSSmartIntentRouter is
   using Address for address;
   using TokenHelper for address;
 
+  ISignatureVerifier internal immutable signatureVerifier;
+
   constructor(
     address initialAdmin,
     address[] memory initialGuardians,
     address[] memory initialRescuers,
     address[] memory initialActionContracts,
-    address _forwarder
+    address _forwarder,
+    address _signatureVerifier
   ) ManagementBase(0, initialAdmin) {
     _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
     _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
     _batchGrantRole(ACTION_CONTRACT_ROLE, initialActionContracts);
 
     _updateForwarder(_forwarder);
+    signatureVerifier = ISignatureVerifier(_signatureVerifier);
   }
 
   receive() external payable {}
@@ -86,9 +90,9 @@ contract KSSmartIntentRouter is
   /// @inheritdoc IKSSmartIntentRouter
   function execute(
     IntentData calldata intentData,
-    bytes memory daSignature,
+    bytes calldata daSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) public {
     bytes32 intentHash = hashTypedIntentData(intentData);
@@ -98,16 +102,14 @@ contract KSSmartIntentRouter is
   /// @inheritdoc IKSSmartIntentRouter
   function executeWithSignedIntent(
     IntentData calldata intentData,
-    bytes memory maSignature,
-    bytes memory daSignature,
+    bytes calldata maSignature,
+    bytes calldata daSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) public {
     bytes32 intentHash = hashTypedIntentData(intentData);
-    if (!SignatureChecker.isValidSignatureNow(
-        intentData.coreData.mainAddress, intentHash, maSignature
-      )) {
+    if (!signatureVerifier.verify(intentData.coreData.mainAddress, intentHash, maSignature)) {
       revert InvalidMainAddressSignature();
     }
 
@@ -134,9 +136,9 @@ contract KSSmartIntentRouter is
   function _execute(
     bytes32 intentHash,
     IntentData calldata intentData,
-    bytes memory daSignature,
+    bytes calldata daSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) internal nonReentrant {
     _checkIntentStatus(intentHash, IntentStatus.DELEGATED);
@@ -203,19 +205,18 @@ contract KSSmartIntentRouter is
 
   function _validateActionData(
     IntentCoreData calldata coreData,
-    bytes memory daSignature,
+    bytes calldata daSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     bytes32 actionHash
   ) internal view {
     if (msg.sender != coreData.delegatedAddress) {
-      if (!SignatureChecker.isValidSignatureNow(coreData.delegatedAddress, actionHash, daSignature))
-      {
+      if (!signatureVerifier.verify(coreData.delegatedAddress, actionHash, daSignature)) {
         revert InvalidDelegatedAddressSignature();
       }
     }
     if (msg.sender != guardian) {
-      if (!SignatureChecker.isValidSignatureNow(guardian, actionHash, gdSignature)) {
+      if (!signatureVerifier.verify(guardian, actionHash, gdSignature)) {
         revert InvalidGuardianSignature();
       }
     }

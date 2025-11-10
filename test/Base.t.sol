@@ -12,6 +12,7 @@ import 'openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol';
 
 import 'ks-common-sc/src/KSGenericForwarder.sol';
 import 'src/KSSmartIntentRouter.sol';
+import 'src/SignatureVerifier.sol';
 import 'src/interfaces/actions/IKSSwapRouterV2.sol';
 
 struct PartnersFeeConfigBuildParams {
@@ -53,12 +54,14 @@ contract BaseTest is Test {
 
   KSSmartIntentRouter router;
   KSGenericForwarder forwarder;
-
+  SignatureVerifier signatureVerifier;
   MockActionContract mockActionContract;
   MockDex mockDex;
 
   ERC20Mock erc20Mock;
   ERC721Mock erc721Mock;
+
+  bool useP256;
 
   function setUp() public virtual {
     _selectFork();
@@ -73,22 +76,43 @@ contract BaseTest is Test {
     vm.startPrank(admin);
 
     forwarder = new KSGenericForwarder();
+    signatureVerifier = new SignatureVerifier();
     router = new KSSmartIntentRouter(
       admin,
       [guardian].toMemoryArray(),
       [rescuer].toMemoryArray(),
       [address(mockActionContract), address(swapRouter), address(mockDex)].toMemoryArray(),
-      address(forwarder)
+      address(forwarder),
+      address(signatureVerifier)
     );
 
     vm.stopPrank();
 
     erc20Mock = new ERC20Mock();
     erc721Mock = new ERC721Mock();
+
+    vm.makePersistent(address(mockActionContract));
+    vm.makePersistent(address(mockDex));
+    vm.makePersistent(address(forwarder));
+    vm.makePersistent(address(signatureVerifier));
+    vm.makePersistent(address(router));
+    vm.makePersistent(address(erc20Mock));
+    vm.makePersistent(address(erc721Mock));
   }
 
   function _selectFork() public virtual {
     vm.createSelectFork('mainnet', FORK_BLOCK);
+  }
+
+  function _getSignature(uint256 privateKey, bytes32 hash) internal view returns (bytes memory) {
+    if (!useP256) {
+      (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
+      return abi.encodePacked(r, s, v);
+    } else {
+      (bytes32 r, bytes32 s) = vm.signP256(privateKey, hash);
+      (uint256 qx, uint256 qy) = vm.publicKeyP256(privateKey);
+      return abi.encodePacked(r, s, qx, qy);
+    }
   }
 
   function _getMASignature(IntentData memory intentData) internal view returns (bytes memory) {
@@ -99,14 +123,12 @@ contract BaseTest is Test {
 
   function _getGDSignature(ActionData memory actionData) internal view returns (bytes memory) {
     bytes32 actionHash = router.hashTypedActionData(actionData);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(guardianKey, actionHash);
-    return abi.encodePacked(r, s, v);
+    return _getSignature(guardianKey, actionHash);
   }
 
   function _getDASignature(ActionData memory actionData) internal view returns (bytes memory) {
     bytes32 actionHash = router.hashTypedActionData(actionData);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(delegatedAddressKey, actionHash);
-    return abi.encodePacked(r, s, v);
+    return _getSignature(delegatedAddressKey, actionHash);
   }
 
   function _getCallerAndSignatures(uint256 mode, ActionData memory actionData)
@@ -145,5 +167,18 @@ contract BaseTest is Test {
       feeConfig := or(feeConfig, shl(PROTOCOL_BPS_OFFSET, _partnerFee))
       feeConfig := or(feeConfig, _partnerRecipient)
     }
+  }
+
+  function _setupP256() internal virtual {
+    useP256 = true;
+
+    (uint256 qx, uint256 qy) = vm.publicKeyP256(guardianKey);
+    guardian = address(uint160(uint256(keccak256(abi.encodePacked(qx, qy)))));
+
+    (qx, qy) = vm.publicKeyP256(delegatedAddressKey);
+    delegatedAddress = address(uint160(uint256(keccak256(abi.encodePacked(qx, qy)))));
+
+    vm.prank(admin);
+    router.grantRole(KSRoles.GUARDIAN_ROLE, guardian);
   }
 }

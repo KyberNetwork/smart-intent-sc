@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import '../types/ActionData.sol';
 import '../types/IntentData.sol';
+import './ISignatureVerifier.sol';
 
 interface IKSSmartIntentRouter {
   /// @notice Thrown when total partner fee is greater than 100%
@@ -87,7 +88,7 @@ interface IKSSmartIntentRouter {
    * @notice Revoke the delegated intent
    * @param intentData The intent data to revoke
    */
-  function revoke(IntentData memory intentData) external;
+  function revoke(IntentData calldata intentData) external;
 
   /**
    * @notice Execute the intent
@@ -99,9 +100,9 @@ interface IKSSmartIntentRouter {
    */
   function execute(
     IntentData calldata intentData,
-    bytes memory daSignature,
+    bytes calldata daSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) external;
 
@@ -116,10 +117,10 @@ interface IKSSmartIntentRouter {
    */
   function executeWithSignedIntent(
     IntentData calldata intentData,
-    bytes memory maSignature,
-    bytes memory daSignature,
+    bytes calldata maSignature,
+    bytes calldata daSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) external;
 

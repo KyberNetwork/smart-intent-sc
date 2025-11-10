@@ -33,5 +33,8 @@ jobs:
         id: build
 
       - name: Run tests
-        run: forge test -vvv
+        run: forge test --nmt testMockActionExecuteSuccessP256 --isolate
         id: test
+      
+      - name: Run tests P256
+        run: forge test --mt testMockActionExecuteSuccessP256 --evm-version osaka --isolate
