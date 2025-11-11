@@ -10,8 +10,6 @@ import {
 
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
 
-import 'forge-std/console.sol';
-
 contract SignatureVerifier is ISignatureVerifier {
   using CalldataDecoder for bytes;
 
@@ -33,19 +31,13 @@ contract SignatureVerifier is ISignatureVerifier {
         pubKeyHash := keccak256(0x00, 0x40)
       }
 
-      if (uint160(signer) != uint160(pubKeyHash)) {
-        return false;
-      }
-
-      if (!P256.verify(hash, r, s, qx, qy)) {
-        return false;
-      }
-    } else {
-      if (!SignatureChecker.isValidSignatureNow(signer, hash, signature)) {
-        return false;
+      if (uint160(signer) == uint160(pubKeyHash) && P256.verify(hash, r, s, qx, qy)) {
+        return true;
       }
     }
 
-    return true;
+    if (SignatureChecker.isValidSignatureNow(signer, hash, signature)) {
+      return true;
+    }
   }
 }
