@@ -27,7 +27,7 @@ interface IKSSmartIntentRouter {
   /// @notice Thrown when the signature is not from the main address
   error InvalidMainAddressSignature();
 
-  /// @notice Thrown when the signature is not from the session wallet
+  /// @notice Thrown when the signature is not from the delegated key
   error InvalidDelegatedKeySignature();
 
   /// @notice Thrown when the signature is not from the guardian
@@ -77,7 +77,7 @@ interface IKSSmartIntentRouter {
   }
 
   /**
-   * @notice Delegate the intent to the delegated address
+   * @notice Delegate the intent to the delegated key
    * @param intentData The data for the intent
    */
   function delegate(IntentData calldata intentData) external;
@@ -91,7 +91,7 @@ interface IKSSmartIntentRouter {
   /**
    * @notice Execute the intent
    * @param intentData The data for the intent
-   * @param dkSignature The signature of the delegated address
+   * @param dkSignature The signature of the delegated key
    * @param guardian The address of the guardian
    * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
@@ -108,7 +108,7 @@ interface IKSSmartIntentRouter {
    * @notice Execute the intent with the signed data and main address signature
    * @param intentData The data for the intent
    * @param maSignature The signature of the main address
-   * @param dkSignature The signature of the delegated address
+   * @param dkSignature The signature of the delegated key
    * @param guardian The address of the guardian
    * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
