@@ -10,6 +10,8 @@ on:
 env:
   ETH_NODE_URL: ${{ secrets.ETH_NODE_URL }}
   BSC_NODE_URL: ${{ secrets.BSC_NODE_URL }}
+  SEPOLIA_NODE_URL: ${{ secrets.SEPOLIA_NODE_URL }}
+  OP_NODE_URL: ${{ secrets.OP_NODE_URL }}
 
 jobs:
   test:
@@ -24,14 +26,22 @@ jobs:
       - name: Install Foundry
         uses: KyberNetwork/foundry-toolchain@master
         with:
-          version: v1.4.2
+          version: v1.4.4
 
       - name: Build
         run: |
           forge --version
-          forge build --sizes --skip Mock Utils test
+          forge build src --sizes
         id: build
 
       - name: Run tests
-        run: forge test -vvv
+        run: forge test --nmt "testMockActionExecuteSuccessP256|testMockActionExecuteSuccessWebAuthn"
         id: test
+
+      - name: Run tests P256
+        run: forge test --mt testMockActionExecuteSuccessP256 --evm-version osaka
+        id: test-p256
+
+      - name: Run tests WebAuthn
+        run: forge test --mt testMockActionExecuteSuccessWebAuthn --evm-version osaka
+        id: test-webauthn

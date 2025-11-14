@@ -48,11 +48,11 @@ contract ZapOutUniswapV3Test is BaseTest {
 
     ActionData memory actionData = _getActionData(intentData.tokenData);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testZapOutUniswapV3WithSignedIntentSuccess(uint256 mode) public {
@@ -63,13 +63,13 @@ contract ZapOutUniswapV3Test is BaseTest {
 
     ActionData memory actionData = _getActionData(intentData.tokenData);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
     router.executeWithSignedIntent(
-      intentData, maSignature, daSignature, guardian, gdSignature, actionData
+      intentData, maSignature, dkSignature, guardian, gdSignature, actionData
     );
   }
 
@@ -96,7 +96,8 @@ contract ZapOutUniswapV3Test is BaseTest {
 
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
       actionContracts: [address(zapRouter)].toMemoryArray(),
       actionSelectors: [IKSZapRouter.zap.selector].toMemoryArray(),
       hook: address(zapOutHook),

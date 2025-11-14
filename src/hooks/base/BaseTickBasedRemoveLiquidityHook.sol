@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../../hooks/base/BaseConditionalHook.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {BaseConditionalHook} from '../../hooks/base/BaseConditionalHook.sol';
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
+
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 import {IPositionManager} from '../../interfaces/uniswapv4/IPositionManager.sol';
-import 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
+import {IERC721} from 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {ConditionTree, Node} from '../../types/ConditionTree.sol';
+import {IntentData} from '../../types/IntentData.sol';
 
 abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   using TokenHelper for address;

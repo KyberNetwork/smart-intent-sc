@@ -6,8 +6,10 @@ import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import 'src/interfaces/IWETH.sol';
 
 import {ICLPositionManager} from 'src/interfaces/pancakev4/ICLPositionManager.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IPoolManager} from 'src/interfaces/uniswapv4/IPoolManager.sol';
+import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {PoolKey} from 'src/interfaces/uniswapv4/Types.sol';
 import {StateLibrary} from 'src/libraries/uniswapv4/StateLibrary.sol';
 
 struct UniswapV4Data {

@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
+import {BaseHook} from '../base/BaseHook.sol';
 
-import '../../interfaces/uniswapv4/IPositionManager.sol';
-import '../base/BaseHook.sol';
+import {ActionData} from '../../types/ActionData.sol';
+import {ERC721Data} from '../../types/ERC721Data.sol';
+import {IntentData} from '../../types/IntentData.sol';
 
-import '../../libraries/uniswapv4/StateLibrary.sol';
+import {IPoolManager} from '../../interfaces/uniswapv4/IPoolManager.sol';
+import {IPositionManager} from '../../interfaces/uniswapv4/IPositionManager.sol';
+import {PoolKey} from '../../interfaces/uniswapv4/Types.sol';
+import {StateLibrary} from '../../libraries/uniswapv4/StateLibrary.sol';
+
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 contract KSZapOutUniswapV4Hook is BaseHook {
   using StateLibrary for IPoolManager;
