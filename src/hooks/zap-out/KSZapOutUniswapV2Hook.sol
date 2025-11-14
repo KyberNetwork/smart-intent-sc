@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../../interfaces/uniswapv2/IUniswapV2Pair.sol';
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
+import {IUniswapV2Pair} from '../../interfaces/uniswapv2/IUniswapV2Pair.sol';
+import {BaseHook} from '../base/BaseHook.sol';
 
-import '../base/BaseHook.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {ActionData} from '../../types/ActionData.sol';
+import {ERC20Data} from '../../types/ERC20Data.sol';
+import {IntentData} from '../../types/IntentData.sol';
+
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 contract KSZapOutUniswapV2Hook is BaseHook {
   using TokenHelper for address;

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
-import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {IKSGenericForwarder} from 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
+import {PermitHelper} from 'ks-common-sc/src/libraries/token/PermitHelper.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
-import '../interfaces/IKSSmartIntentRouter.sol';
-import './FeeInfo.sol';
+import {IKSSmartIntentRouter} from '../interfaces/IKSSmartIntentRouter.sol';
+import {FeeConfig, FeeInfo, FeeInfoLibrary} from './FeeInfo.sol';
 
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
 /**
  * @notice Data structure for ERC20 token

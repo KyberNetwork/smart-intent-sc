@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './FeeInfo.sol';
-import './IntentCoreData.sol';
-import './TokenData.sol';
-
-import 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
+import {FeeInfo} from './FeeInfo.sol';
+import {IntentCoreData} from './IntentCoreData.sol';
+import {TokenData} from './TokenData.sol';
 
 /**
  * @notice Data structure for action

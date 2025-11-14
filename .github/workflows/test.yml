@@ -26,17 +26,22 @@ jobs:
       - name: Install Foundry
         uses: KyberNetwork/foundry-toolchain@master
         with:
-          version: v1.4.2
+          version: v1.4.4
 
       - name: Build
         run: |
           forge --version
-          forge build --sizes --skip Mock Utils test
+          forge build src --sizes
         id: build
 
       - name: Run tests
-        run: forge test --nmt testMockActionExecuteSuccessP256 --isolate
+        run: forge test --nmt "testMockActionExecuteSuccessP256|testMockActionExecuteSuccessWebAuthn"
         id: test
-      
+
       - name: Run tests P256
-        run: forge test --mt testMockActionExecuteSuccessP256 --evm-version osaka --isolate
+        run: forge test --mt testMockActionExecuteSuccessP256 --evm-version osaka
+        id: test-p256
+
+      - name: Run tests WebAuthn
+        run: forge test --mt testMockActionExecuteSuccessWebAuthn --evm-version osaka
+        id: test-webauthn

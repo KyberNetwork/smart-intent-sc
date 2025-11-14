@@ -4,24 +4,21 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'src/hooks/base/BaseConditionalHook.sol';
-import {Actions} from 'src/interfaces/pancakev4/Types.sol';
 
+import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
 import {
-  ActionData,
   BaseTickBasedRemoveLiquidityHook,
-  CLPositionInfo,
   ICLPositionManager,
-  IntentCoreData,
-  KSRemoveLiquidityPancakeV4CLHook,
-  PoolId,
-  PoolKey as PKey,
-  TickInfo,
-  TokenData
+  KSRemoveLiquidityPancakeV4CLHook
 } from 'src/hooks/remove-liq/KSRemoveLiquidityPancakeV4CLHook.sol';
-import {ICLPoolManager} from 'src/interfaces/pancakev4/ICLPositionManager.sol';
-import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import 'src/libraries/uniswapv4/TickMath.sol';
+import {ICLPoolManager} from 'src/interfaces/pancakev4/ICLPoolManager.sol';
+import {Actions, PoolId, PoolKey, TickInfo} from 'src/interfaces/pancakev4/Types.sol';
+import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import {LiquidityAmounts} from 'src/libraries/uniswapv4/LiquidityAmounts.sol';
+import {TickMath} from 'src/libraries/uniswapv4/TickMath.sol';
 import 'test/common/Permit.sol';
+
+import 'src/types/ConditionTree.sol';
 
 contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   using SafeERC20 for IERC20;
@@ -82,7 +79,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     rmLqValidator = new KSRemoveLiquidityPancakeV4CLHook(wbnb);
     address[] memory validators = new address[](1);
     validators[0] = address(rmLqValidator);
-    PKey memory poolKey;
+    PoolKey memory poolKey;
     (
       poolKey,
       tickLower,
@@ -139,7 +136,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     uint256 balance0Before = token0.balanceOf(mainAddress);
@@ -147,10 +144,10 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     vm.startPrank(caller);
     if (conditionPass) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     } else {
       vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     }
 
     if (conditionPass) {
@@ -274,13 +271,13 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
-    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
+    (, bytes memory dkSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
       address(positionManager), tokenId, pancakeCL.removeLiqParams.liquidityToRemove
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 intentFee0 =
       (pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0) / 1e6;
@@ -329,12 +326,12 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     // always success when dont charge fees on the user's unclaimed fees
     if (pancakeCL.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -354,7 +351,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     if (actualReceived0 < fees[0] || actualReceived1 < fees[1]) {
       vm.startPrank(caller);
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -377,11 +374,11 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     vm.startPrank(caller);
     if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 balance0After = token0.balanceOf(mainAddress);
     uint256 balance1After = token1.balanceOf(mainAddress);
@@ -458,7 +455,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
       actionContracts: actionContracts,
       actionSelectors: actionSelectors,
       hook: address(rmLqValidator),
@@ -804,7 +802,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     }
   }
 
-  function _toId(PKey memory poolKey) internal pure returns (PoolId poolId) {
+  function _toId(PoolKey memory poolKey) internal pure returns (PoolId poolId) {
     assembly ('memory-safe') {
       poolId := keccak256(poolKey, 0xc0)
     }
@@ -816,7 +814,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     vm.prank(posOwner);
     positionManager.safeTransferFrom(posOwner, mainAddress, tokenId);
 
-    (PKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
 
     (
       poolKey,

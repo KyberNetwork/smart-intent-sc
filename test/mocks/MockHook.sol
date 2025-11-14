@@ -3,6 +3,9 @@ pragma solidity ^0.8.0;
 
 import 'src/hooks/base/BaseHook.sol';
 
+import {ActionData} from '../../src/types/ActionData.sol';
+import {IntentData} from '../../src/types/IntentData.sol';
+
 contract MockHook is BaseHook {
   modifier checkTokenLengths(ActionData calldata actionData) override {
     _;

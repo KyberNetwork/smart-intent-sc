@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import '../interfaces/IKSSmartIntentRouter.sol';
+import {IKSSmartIntentRouter} from '../interfaces/IKSSmartIntentRouter.sol';
+
 import '../libraries/BitMask.sol';
 /**
  * @notice FeeConfig is packed version of solidity structure.

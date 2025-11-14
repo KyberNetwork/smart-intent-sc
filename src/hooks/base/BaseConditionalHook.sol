@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './BaseHook.sol';
+import {BaseHook} from './BaseHook.sol';
 
-import '../../interfaces/hooks/IKSConditionalHook.sol';
-import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
+import {IKSConditionalHook} from '../../interfaces/hooks/IKSConditionalHook.sol';
+import 'src/hooks/base/BaseHook.sol';
+
+import {
+  Condition,
+  ConditionTree,
+  ConditionTreeLibrary,
+  ConditionType
+} from '../../types/ConditionTree.sol';
+
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 /**
  * @param startTimestamp the start timestamp of the condition

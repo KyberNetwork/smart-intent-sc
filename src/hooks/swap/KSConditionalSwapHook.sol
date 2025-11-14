@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../base/BaseStatefulHook.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
+import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {IntentData} from '../../types/IntentData.sol';
 
 contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;
@@ -151,9 +155,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       validationData.swapperBalanceBefore - tokenIn.balanceOf(intentData.coreData.mainAddress);
     require(swappedAmount <= amountIn, AmountInMismatch(amountIn, swappedAmount));
 
-    uint256 amountOut =
-      _getRecipientBalance(tokenOut, validationData.recipient, validationData.dstFeePercent)
-        - validationData.recipientBalanceBefore;
+    uint256 amountOut = _getRecipientBalance(
+      tokenOut, validationData.recipient, validationData.dstFeePercent
+    ) - validationData.recipientBalanceBefore;
 
     uint256 price = (amountOut * DENOMINATOR) / amountIn;
 
@@ -306,10 +310,11 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   }
 
   // @dev: equivalent to abi.decode(data, (uint256, uint256, uint256, uint256))
-  function _decodeAndValidateHookActionData(
-    bytes calldata data,
-    SwapHookData calldata swapHookData
-  ) internal view returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee) {
+  function _decodeAndValidateHookActionData(bytes calldata data, SwapHookData calldata swapHookData)
+    internal
+    view
+    returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee)
+  {
     uint256 packedFees;
     assembly ('memory-safe') {
       index := calldataload(data.offset)

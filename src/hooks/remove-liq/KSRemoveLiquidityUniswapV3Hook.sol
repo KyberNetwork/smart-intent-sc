@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../base/BaseTickBasedRemoveLiquidityHook.sol';
+import {BaseTickBasedRemoveLiquidityHook} from '../base/BaseTickBasedRemoveLiquidityHook.sol';
 
-import '../../interfaces/uniswapv3/IUniswapV3PM.sol';
-import '../../interfaces/uniswapv3/IUniswapV3Pool.sol';
-import '../../libraries/uniswapv4/LiquidityAmounts.sol';
-import '../../libraries/uniswapv4/TickMath.sol';
+import {IUniswapV3PM} from '../../interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IUniswapV3Pool} from '../../interfaces/uniswapv3/IUniswapV3Pool.sol';
+import {LiquidityAmounts} from '../../libraries/uniswapv4/LiquidityAmounts.sol';
+import {TickMath} from '../../libraries/uniswapv4/TickMath.sol';
 
-import 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {IntentData} from '../../types/IntentData.sol';
+
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
   using TokenHelper for address;

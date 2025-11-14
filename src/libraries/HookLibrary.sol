@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/interfaces/ICommon.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {ICommon} from 'ks-common-sc/src/interfaces/ICommon.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
-import '../interfaces/hooks/IKSSmartIntentHook.sol';
+import {IKSSmartIntentHook} from '../interfaces/hooks/IKSSmartIntentHook.sol';
 
-import '../types/ActionData.sol';
-import '../types/ERC20Data.sol';
-import '../types/IntentCoreData.sol';
+import {ActionData} from '../types/ActionData.sol';
+import {ERC20Data, ERC20DataLibrary} from '../types/ERC20Data.sol';
+import {IntentData} from '../types/IntentData.sol';
 
 library HookLibrary {
   using TokenHelper for address;
@@ -56,8 +56,7 @@ library HookLibrary {
     for (uint256 i = 0; i < tokens.length; i++) {
       tokens[i].safeTransfer(recipient, amounts[i]);
 
-      tokens[i]
-      .collectFeeAfterExecution(
+      tokens[i].collectFeeAfterExecution(
         amounts[i] + fees[i],
         fees[i],
         actionData.feeInfo.partnerFeeConfigs[i],

@@ -6,6 +6,9 @@ import './Base.t.sol';
 import './mocks/MockHook.sol';
 
 import 'openzeppelin-contracts/contracts/access/IAccessControl.sol';
+import 'openzeppelin-contracts/contracts/utils/Base64.sol';
+import 'openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol';
+import 'openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913WebAuthnVerifier.sol';
 
 contract MockActionTest is BaseTest {
   using ArraysHelper for *;
@@ -14,10 +17,13 @@ contract MockActionTest is BaseTest {
   uint256 nonce = 0;
   MockHook mockHook;
 
+  address verifier;
+
   function setUp() public override {
     super.setUp();
 
     mockHook = new MockHook();
+
     vm.makePersistent(address(mockHook));
   }
 
@@ -51,11 +57,11 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
   }
 
@@ -68,7 +74,9 @@ contract MockActionTest is BaseTest {
 
     _setupP256();
 
-    uint256 mode = bound(seed, 0, 2);
+    verifier = address(new ERC7913P256Verifier());
+
+    uint256 mode = bound(seed, 0, 1);
     IntentData memory intentData = _getIntentData(seed);
     bytes32 intentHash = router.hashTypedIntentData(intentData);
 
@@ -80,11 +88,43 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+    _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
+  }
+
+  function testMockActionExecuteSuccessWebAuthn(uint256 seed, bool testOnSepolia) public {
+    if (testOnSepolia) {
+      vm.createSelectFork(vm.envString('SEPOLIA_NODE_URL'), 9_598_379);
+    } else {
+      vm.createSelectFork(vm.envString('OP_NODE_URL'), 143_581_448);
+    }
+
+    _setupP256();
+
+    verifier = address(new ERC7913WebAuthnVerifier());
+
+    uint256 mode = bound(seed, 0, 1);
+    IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
+
+    vm.warp(block.timestamp + 100);
+    (address caller,, bytes memory gdSignature) = _getCallerAndSignatures(mode, actionData);
+
+    bytes memory dkSignature = _getWebAuthnSignature(router.hashTypedActionData(actionData));
+
+    vm.startPrank(caller);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
   }
 
@@ -97,13 +137,13 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
     router.executeWithSignedIntent(
-      intentData, maSignature, daSignature, guardian, gdSignature, actionData
+      intentData, maSignature, dkSignature, guardian, gdSignature, actionData
     );
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
   }
@@ -122,7 +162,7 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -135,7 +175,7 @@ contract MockActionTest is BaseTest {
         newTokenData.erc20Data[0].amount
       )
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionDelegateWithRandomCallerShouldRevert(uint256 seed) public {
@@ -157,7 +197,7 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
@@ -170,7 +210,7 @@ contract MockActionTest is BaseTest {
       )
     );
     router.executeWithSignedIntent(
-      intentData, maSignature, daSignature, guardian, gdSignature, actionData
+      intentData, maSignature, dkSignature, guardian, gdSignature, actionData
     );
   }
 
@@ -190,7 +230,7 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -201,7 +241,7 @@ contract MockActionTest is BaseTest {
         ACTION_CONTRACT_ROLE
       )
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteRevokedIntentShouldRevert(uint256 seed) public {
@@ -217,12 +257,12 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSmartIntentRouter.IntentRevoked.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionDelegateRevokedIntentWithIntentDataShouldRevert(uint256 seed) public {
@@ -247,12 +287,12 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSmartIntentRouter.IntentRevoked.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteNotDelegatedIntentShouldRevert(uint256 seed) public {
@@ -263,12 +303,12 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert();
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionDelegateExistedIntentShouldRevert(uint256 seed) public {
@@ -297,14 +337,14 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
       abi.encodeWithSelector(IKSSmartIntentRouter.InvalidActionSelectorId.selector, 0)
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteActionNotInListActionsShouldRevert(uint256 seed) public {
@@ -321,14 +361,14 @@ contract MockActionTest is BaseTest {
     actionData.actionSelectorId = 1; // set to 1 to make sure the action is not in the list
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
       abi.encodeWithSelector(IKSSmartIntentRouter.InvalidActionSelectorId.selector, 1)
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteSuccessShouldEmitExtraData(uint256 seed) public {
@@ -345,12 +385,12 @@ contract MockActionTest is BaseTest {
     actionData.extraData = hex'1234';
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.recordLogs();
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -382,11 +422,11 @@ contract MockActionTest is BaseTest {
     actionData.nonce = seed;
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     vm.expectRevert(
@@ -394,7 +434,7 @@ contract MockActionTest is BaseTest {
         IKSSmartIntentRouter.NonceAlreadyUsed.selector, intentHash, actionData.nonce
       )
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionCollectFees(uint256 seed) public {
@@ -427,7 +467,7 @@ contract MockActionTest is BaseTest {
     }
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -467,7 +507,7 @@ contract MockActionTest is BaseTest {
       amounts[0] + feesAfter[0]
     );
 
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
 
     assertEq(erc20Mock.balanceOf(address(this)), amounts[0]);
@@ -524,7 +564,8 @@ contract MockActionTest is BaseTest {
     vm.startPrank(mainAddress);
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: verifier,
+      delegatedKey: delegatedPublicKey,
       actionContracts: [address(mockActionContract)].toMemoryArray(),
       actionSelectors: [MockActionContract.execute.selector].toMemoryArray(),
       hook: address(mockHook),
@@ -623,5 +664,44 @@ contract MockActionTest is BaseTest {
       array[i - start] = i;
     }
     return array;
+  }
+
+  function _getWebAuthnSignature(bytes32 actionHash)
+    internal
+    view
+    returns (bytes memory signature)
+  {
+    bytes memory authenicatorData = _encodeAuthenticatorData(
+      WebAuthn.AUTH_DATA_FLAGS_UP | WebAuthn.AUTH_DATA_FLAGS_UV
+    );
+    string memory clientDataJSON = _encodeClientDataJSON(abi.encodePacked(actionHash));
+
+    bytes32 messageHash = sha256(abi.encodePacked(authenicatorData, sha256(bytes(clientDataJSON))));
+    (bytes32 r, bytes32 s) = vm.signP256(delegatedPrivateKey, messageHash);
+
+    WebAuthn.WebAuthnAuth memory webAuthnAuth = WebAuthn.WebAuthnAuth({
+      r: r,
+      s: s,
+      challengeIndex: 23,
+      typeIndex: 1,
+      authenticatorData: authenicatorData,
+      clientDataJSON: clientDataJSON
+    });
+
+    bytes memory encoded = abi.encode(webAuthnAuth);
+
+    signature = new bytes(encoded.length - 32);
+    assembly ('memory-safe') {
+      mcopy(add(signature, 32), add(encoded, 64), sub(mload(encoded), 32))
+    }
+  }
+
+  function _encodeAuthenticatorData(bytes1 flags) internal pure returns (bytes memory) {
+    return abi.encodePacked(bytes32(0), flags, bytes4(0));
+  }
+
+  function _encodeClientDataJSON(bytes memory challenge) internal pure returns (string memory) {
+    // solhint-disable-next-line quotes
+    return string.concat('{"type":"webauthn.get","challenge":"', Base64.encodeURL(challenge), '"}');
   }
 }

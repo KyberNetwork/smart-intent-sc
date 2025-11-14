@@ -2,10 +2,13 @@
 pragma solidity ^0.8.0;
 
 import './Base.t.sol';
+import 'src/hooks/base/BaseConditionalHook.sol';
 import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV3Hook.sol';
 
 import {IERC721} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import 'test/common/Permit.sol';
+
+import 'src/types/ConditionTree.sol';
 
 contract RemoveLiquidityUniswapV3Test is BaseTest {
   using ArraysHelper for *;
@@ -90,7 +93,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     uint256 balance0Before = uniswapV3.outputParams.tokens[0].balanceOf(mainAddress);
@@ -98,10 +101,10 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     vm.startPrank(caller);
     if (conditionPass) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     } else {
       vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     }
 
     if (conditionPass) {
@@ -140,12 +143,12 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     // always success when dont charge fees on the user's unclaimed fees
     if (uniswapV3.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -168,7 +171,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     if (actualReceived0 < fees[0] || actualReceived1 < fees[1]) {
       vm.startPrank(caller);
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -193,11 +196,11 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     vm.startPrank(caller);
     if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 balance0After = token0.balanceOf(mainAddress);
     uint256 balance1After = token1.balanceOf(mainAddress);
@@ -332,13 +335,13 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       uniswapV3.outputParams.tokens[1].balanceOf(mainAddress)
     ];
 
-    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
+    (, bytes memory dkSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
       address(pm), tokenId, uniswapV3.removeLiqParams.liquidityToRemove
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 intentFee0 =
       (uniswapV3.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0) / 1e6;
@@ -572,7 +575,8 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
 
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
       actionContracts: actionContracts,
       actionSelectors: actionSelectors,
       hook: address(rmLqValidator),
