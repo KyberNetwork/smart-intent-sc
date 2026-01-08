@@ -2,19 +2,28 @@
 pragma solidity ^0.8.0;
 
 import {ActionData} from './types/ActionData.sol';
-import {ActionWitness} from './types/ActionWitness.sol';
+import {ActionWitnessLibrary} from './types/ActionWitness.sol';
+import {IntentCoreData} from './types/IntentCoreData.sol';
 import {IntentData} from './types/IntentData.sol';
 
 contract KSSmartIntentHasher {
-  function hash(IntentData calldata intentData) public pure returns (bytes32) {
+  function hashIntentData(IntentData calldata intentData) public pure returns (bytes32) {
     return intentData.hash();
   }
 
-  function hash(ActionData calldata actionData) public pure returns (bytes32) {
+  function hashActionData(ActionData calldata actionData) public pure returns (bytes32) {
     return actionData.hash();
   }
 
-  function hash(ActionWitness calldata actionWitness) public pure returns (bytes32) {
-    return actionWitness.hash();
+  function hashActionWitness(IntentCoreData calldata coreData, ActionData calldata actionData)
+    public
+    pure
+    returns (bytes32)
+  {
+    bytes32 coreDataHash = coreData.hash();
+    bytes32 actionDataHash = actionData.hash();
+    return keccak256(
+      abi.encode(ActionWitnessLibrary.ACTION_WITNESS_TYPE_HASH, coreDataHash, actionDataHash)
+    );
   }
 }
