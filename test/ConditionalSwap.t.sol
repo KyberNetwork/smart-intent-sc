@@ -78,7 +78,7 @@ contract ConditionalSwapTest is BaseTest {
     returnAmount = returnAmount - afterSwapFee;
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     if (feeBefore > maxSrcFee || feeAfter > maxDstFee) {
       vm.expectRevert(
@@ -122,7 +122,7 @@ contract ConditionalSwapTest is BaseTest {
 
     vm.warp(vm.getBlockTimestamp() + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -274,7 +274,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 index
   ) internal {
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
     bytes32 hash = router.hashTypedIntentData(intentData);
 
     uint256 balanceBefore = tokenOut.balanceOf(mainAddress);
@@ -309,7 +309,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
@@ -338,7 +338,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
@@ -366,12 +366,13 @@ contract ConditionalSwapTest is BaseTest {
 
     {
       (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-        _getCallerAndSignatures(mode, actionData);
+        _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
       vm.startPrank(caller);
       router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       actionData.nonce += 1;
-      (caller, dkSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
+      (caller, dkSignature, gdSignature) =
+        _getCallerAndSignatures(mode, intentData.coreData, actionData);
       vm.startPrank(caller);
       vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
       router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -396,7 +397,7 @@ contract ConditionalSwapTest is BaseTest {
     actionData.erc20Ids[0] = 0;
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -419,7 +420,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
@@ -444,7 +445,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData.coreData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
