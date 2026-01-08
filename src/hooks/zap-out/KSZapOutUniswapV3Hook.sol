@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseHook.sol';
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
+import {BaseHook} from '../base/BaseHook.sol';
 
-import 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import {ActionData} from '../../types/ActionData.sol';
+import {ERC721Data} from '../../types/ERC721Data.sol';
+import {IntentData} from '../../types/IntentData.sol';
 
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
+import {IUniswapV3PM} from '../../interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IUniswapV3Pool} from '../../interfaces/uniswapv3/IUniswapV3Pool.sol';
+
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
+import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
 
 contract KSZapOutUniswapV3Hook is BaseHook {
   using TokenHelper for address;
@@ -121,14 +127,16 @@ contract KSZapOutUniswapV3Hook is BaseHook {
         liquidityOffset,
         minRate,
         recipient
-      ) = abi.decode(
-        beforeExecutionData,
-        (address, uint256, address, uint256, uint256, uint256, uint256, address)
-      );
+      ) =
+        abi.decode(
+          beforeExecutionData,
+          (address, uint256, address, uint256, uint256, uint256, uint256, address)
+        );
 
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
       require(
-        liquidityAfter == 0 || IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress,
+        liquidityAfter == 0
+          || IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress,
         InvalidOwner()
       );
       liquidity = liquidityBefore - liquidityAfter;

@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
-import 'src/hooks/base/BaseTickBasedRemoveLiquidityHook.sol';
-import 'src/libraries/uniswapv4/StateLibrary.sol';
+import {IPoolManager} from '../../interfaces/uniswapv4/IPoolManager.sol';
+import {IPositionManager} from '../../interfaces/uniswapv4/IPositionManager.sol';
+import {PoolKey} from '../../interfaces/uniswapv4/Types.sol';
+import {StateLibrary} from '../../libraries/uniswapv4/StateLibrary.sol';
+
+import {BaseTickBasedRemoveLiquidityHook} from '../base/BaseTickBasedRemoveLiquidityHook.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {IntentData} from '../../types/IntentData.sol';
+
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 contract KSRemoveLiquidityUniswapV4Hook is BaseTickBasedRemoveLiquidityHook {
   using StateLibrary for IPoolManager;
@@ -83,10 +92,12 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseTickBasedRemoveLiquidityHook {
       uniswapV4.removeLiqParams.positionInfo.amounts[1],
       uniswapV4.removeLiqParams.positionInfo.unclaimedFees[0],
       uniswapV4.removeLiqParams.positionInfo.unclaimedFees[1]
-    ) = uniswapV4.poolManager.computePositionValues(
-      IPositionManager(uniswapV4.removeLiqParams.positionInfo.nftAddress),
-      uniswapV4.removeLiqParams.positionInfo.nftId,
-      uniswapV4.removeLiqParams.liquidityToRemove
-    );
+    ) =
+      uniswapV4.poolManager
+        .computePositionValues(
+          IPositionManager(uniswapV4.removeLiqParams.positionInfo.nftAddress),
+          uniswapV4.removeLiqParams.positionInfo.nftId,
+          uniswapV4.removeLiqParams.liquidityToRemove
+        );
   }
 }

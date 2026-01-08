@@ -17,14 +17,14 @@ contract DeployRouter is BaseScript {
     address[] memory guardians = _readAddressArray('router-guardians');
     address[] memory rescuers = _readAddressArray('router-rescuers');
     address[] memory actionContracts = _readAddressArray('action-contracts');
-    address feeRecipient = _readAddress('fee-recipient');
     address forwarder = _readAddress('forwarder');
+    address signatureVerifier = _readAddress('signature-verifier');
 
     vm.startBroadcast();
 
     bytes memory creationCode = abi.encodePacked(
       type(KSSmartIntentRouter).creationCode,
-      abi.encode(admin, guardians, rescuers, actionContracts, feeRecipient, forwarder)
+      abi.encode(admin, guardians, rescuers, actionContracts, forwarder, signatureVerifier)
     );
     address router = _create3Deploy(keccak256(abi.encodePacked(salt)), creationCode);
 

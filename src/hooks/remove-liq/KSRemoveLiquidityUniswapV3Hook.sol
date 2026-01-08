@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseTickBasedRemoveLiquidityHook.sol';
+import {BaseTickBasedRemoveLiquidityHook} from '../base/BaseTickBasedRemoveLiquidityHook.sol';
 
-import 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
-import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import 'src/libraries/uniswapv4/TickMath.sol';
+import {IUniswapV3PM} from '../../interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IUniswapV3Pool} from '../../interfaces/uniswapv3/IUniswapV3Pool.sol';
+import {LiquidityAmounts} from '../../libraries/uniswapv4/LiquidityAmounts.sol';
+import {TickMath} from '../../libraries/uniswapv4/TickMath.sol';
+
+import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {IntentData} from '../../types/IntentData.sol';
+
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
   using TokenHelper for address;
@@ -70,11 +76,9 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
 
     uniswapV3.pool = validationData.additionalData.decodeAddressArray(0)[removeLiqParams.index];
     (
-      ,
-      ,
+      ,,
       outputParams.tokens[0],
-      outputParams.tokens[1],
-      ,
+      outputParams.tokens[1],,
       removeLiqParams.positionInfo.ticks[0],
       removeLiqParams.positionInfo.ticks[1],
       removeLiqParams.positionInfo.liquidity,
@@ -82,9 +86,9 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
       removeLiqParams.positionInfo.feesGrowthInsideLast[1],
       removeLiqParams.positionInfo.unclaimedFees[0],
       removeLiqParams.positionInfo.unclaimedFees[1]
-    ) = IUniswapV3PM(removeLiqParams.positionInfo.nftAddress).positions(
-      removeLiqParams.positionInfo.nftId
-    );
+    ) =
+      IUniswapV3PM(removeLiqParams.positionInfo.nftAddress)
+        .positions(removeLiqParams.positionInfo.nftId);
 
     (removeLiqParams.sqrtPriceX96, removeLiqParams.currentTick,,,,,) =
       IUniswapV3Pool(uniswapV3.pool).slot0();
@@ -122,10 +126,14 @@ contract KSRemoveLiquidityUniswapV3Hook is BaseTickBasedRemoveLiquidityHook {
       _getFeeGrowthInside(IUniswapV3Pool(uniswapV3.pool), tickLower, tickCurrent, tickUpper);
 
     unchecked {
-      positionInfo.unclaimedFees[0] += Math.mulDiv(
+      positionInfo.unclaimedFees[
+        0
+      ] += Math.mulDiv(
         feeGrowthInside0 - positionInfo.feesGrowthInsideLast[0], positionInfo.liquidity, Q128
       );
-      positionInfo.unclaimedFees[1] += Math.mulDiv(
+      positionInfo.unclaimedFees[
+        1
+      ] += Math.mulDiv(
         feeGrowthInside1 - positionInfo.feesGrowthInsideLast[1], positionInfo.liquidity, Q128
       );
     }

@@ -36,7 +36,10 @@ contract DeployHooks is BaseScript {
     vm.stopBroadcast();
   }
 
-  function _deployHook(string memory hookName, HookConfig memory config) internal returns (address) {
+  function _deployHook(string memory hookName, HookConfig memory config)
+    internal
+    returns (address)
+  {
     bytes memory constructorArgs = _getConstructorArgs(config.constructorParams);
     string memory hookSalt = string.concat(hookName, '_', salt);
 

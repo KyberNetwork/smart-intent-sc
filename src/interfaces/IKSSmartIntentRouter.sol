@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../libraries/types/ActionData.sol';
-import '../libraries/types/IntentData.sol';
+import {ActionData} from '../types/ActionData.sol';
+import {FeeConfig} from '../types/FeeInfo.sol';
+import {IntentData} from '../types/IntentData.sol';
 
 interface IKSSmartIntentRouter {
+  /// @notice Thrown when total partner fee is greater than 100%
+  error InvalidFeeConfig();
+
   /// @notice Thrown when the caller is not the main address
   error NotMainAddress();
 
@@ -23,8 +27,8 @@ interface IKSSmartIntentRouter {
   /// @notice Thrown when the signature is not from the main address
   error InvalidMainAddressSignature();
 
-  /// @notice Thrown when the signature is not from the session wallet
-  error InvalidDelegatedAddressSignature();
+  /// @notice Thrown when the signature is not from the delegated key
+  error InvalidDelegatedKeySignature();
 
   /// @notice Thrown when the signature is not from the guardian
   error InvalidGuardianSignature();
@@ -43,13 +47,8 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when the forwarder is updated
   event UpdateForwarder(address newForwarder);
 
-  // @notice Emitted when the fee recipient is updated
-  event UpdateFeeRecipient(address feeRecipient);
-
   /// @notice Emitted when an intent is delegated
-  event DelegateIntent(
-    address indexed mainAddress, address indexed delegatedAddress, IntentData intentData
-  );
+  event DelegateIntent(address indexed mainAddress, bytes delegatedKey, IntentData intentData);
 
   /// @notice Emitted when an intent is revoked
   event RevokeIntent(bytes32 indexed intentHash);
@@ -60,8 +59,16 @@ interface IKSSmartIntentRouter {
   /// @notice Emitted when a nonce is consumed
   event UseNonce(bytes32 indexed intentHash, uint256 nonce);
 
-  /// @notice Emitted when extra data is set
-  event ExtraData(bytes32 indexed intentHash, bytes extraData);
+  /// @notice Emitted when the fee is collected before execution
+  event RecordVolumeAndFees(
+    address indexed token,
+    address indexed protocolRecipient,
+    FeeConfig[] partnerFeeConfigs,
+    uint256 protocolFeeAmount,
+    uint256[] partnersFeeAmounts,
+    bool beforeExecution,
+    uint256 totalAmount
+  );
 
   enum IntentStatus {
     NOT_DELEGATED,
@@ -70,7 +77,7 @@ interface IKSSmartIntentRouter {
   }
 
   /**
-   * @notice Delegate the intent to the delegated address
+   * @notice Delegate the intent to the delegated key
    * @param intentData The data for the intent
    */
   function delegate(IntentData calldata intentData) external;
@@ -79,21 +86,21 @@ interface IKSSmartIntentRouter {
    * @notice Revoke the delegated intent
    * @param intentData The intent data to revoke
    */
-  function revoke(IntentData memory intentData) external;
+  function revoke(IntentData calldata intentData) external;
 
   /**
    * @notice Execute the intent
    * @param intentData The data for the intent
-   * @param daSignature The signature of the delegated address
+   * @param dkSignature The signature of the delegated key
    * @param guardian The address of the guardian
    * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
    */
   function execute(
     IntentData calldata intentData,
-    bytes memory daSignature,
+    bytes calldata dkSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) external;
 
@@ -101,17 +108,17 @@ interface IKSSmartIntentRouter {
    * @notice Execute the intent with the signed data and main address signature
    * @param intentData The data for the intent
    * @param maSignature The signature of the main address
-   * @param daSignature The signature of the delegated address
+   * @param dkSignature The signature of the delegated key
    * @param guardian The address of the guardian
    * @param gdSignature The signature of the guardian
    * @param actionData The data for the action
    */
   function executeWithSignedIntent(
     IntentData calldata intentData,
-    bytes memory maSignature,
-    bytes memory daSignature,
+    bytes calldata maSignature,
+    bytes calldata dkSignature,
     address guardian,
-    bytes memory gdSignature,
+    bytes calldata gdSignature,
     ActionData calldata actionData
   ) external;
 
@@ -132,27 +139,10 @@ interface IKSSmartIntentRouter {
    */
   function updateForwarder(address newForwarder) external;
 
-  /**
-   * @notice Update the intent fee recipient
-   * @param newFeeRecipient The new intent fee recipient
-   */
-  function updateFeeRecipient(address newFeeRecipient) external;
-
-  /**
-   * @notice Hash the intent data with EIP712
-   * @param intentData The intent data
-   * @return hash The hash of the intent data
-   */
-  function hashTypedIntentData(IntentData calldata intentData) external view returns (bytes32);
-
-  /**
-   * @notice Hash the action data with EIP712
-   * @param actionData The action data
-   * @return hash The hash of the action data
-   */
-  function hashTypedActionData(ActionData calldata actionData) external view returns (bytes32);
-
   /// @notice mapping of nonces consumed by each intent, where a nonce is a single bit on the 256-bit bitmap
   /// @dev word is at most type(uint248).max
   function nonces(bytes32 intentHash, uint256 word) external view returns (uint256 bitmap);
+
+  /// @notice Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+  function DOMAIN_SEPARATOR() external view returns (bytes32);
 }

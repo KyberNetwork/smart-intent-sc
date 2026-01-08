@@ -21,7 +21,7 @@ library Permit {
   {
     // equivalent to: keccak256(abi.encode(PERMIT_TYPEHASH, spender, tokenId, nonce, deadline));
     bytes32 permitTypeHash = 0x49ecf333e5b8c95c40fdafc95c1ad136e8914a8fb55e9dc8bb01eaa83a2df9ad;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       let fmp := mload(0x40)
       mstore(fmp, permitTypeHash)
       mstore(add(fmp, 0x20), and(spender, 0xffffffffffffffffffffffffffffffffffffffff))
@@ -46,7 +46,7 @@ library Permit {
   {
     // equal to keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), dataHash));
     bytes32 domainSeparator = IERC721Permit_v3(positionManager).DOMAIN_SEPARATOR();
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       let fmp := mload(0x40)
       mstore(fmp, hex'1901')
       mstore(add(fmp, 0x02), domainSeparator)

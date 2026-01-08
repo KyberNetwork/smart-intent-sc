@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
+import {IKSGenericForwarder} from 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
+import {PermitHelper} from 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 
-import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
-
-import 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
+import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
 
 /**
  * @notice Data structure for ERC721 token

@@ -4,7 +4,8 @@ pragma solidity ^0.8.0;
 /**
  * @notice Data structure for core components of intent
  * @param mainAddress The main address
- * @param delegatedAddress The delegated address
+ * @param signatureVerifier The address of the signature verifier
+ * @param delegatedKey The delegated key
  * @param actionContracts The addresses of the action contracts
  * @param actionSelectors The selectors of the action functions
  * @param hook The address of the hook
@@ -12,7 +13,8 @@ pragma solidity ^0.8.0;
  */
 struct IntentCoreData {
   address mainAddress;
-  address delegatedAddress;
+  address signatureVerifier;
+  bytes delegatedKey;
   address[] actionContracts;
   bytes4[] actionSelectors;
   address hook;
@@ -24,7 +26,7 @@ using IntentCoreDataLibrary for IntentCoreData global;
 library IntentCoreDataLibrary {
   bytes32 constant INTENT_CORE_DATA_TYPE_HASH = keccak256(
     abi.encodePacked(
-      'IntentCoreData(address mainAddress,address delegatedAddress,address[] actionContracts,bytes4[] actionSelectors,address hook,bytes hookIntentData)'
+      'IntentCoreData(address mainAddress,address signatureVerifier,bytes delegatedKey,address[] actionContracts,bytes4[] actionSelectors,address hook,bytes hookIntentData)'
     )
   );
 
@@ -33,7 +35,8 @@ library IntentCoreDataLibrary {
       abi.encode(
         INTENT_CORE_DATA_TYPE_HASH,
         self.mainAddress,
-        self.delegatedAddress,
+        self.signatureVerifier,
+        keccak256(self.delegatedKey),
         keccak256(abi.encodePacked(self.actionContracts)),
         keccak256(abi.encodePacked(self.actionSelectors)),
         self.hook,

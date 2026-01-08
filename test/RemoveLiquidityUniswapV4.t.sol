@@ -4,9 +4,14 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import 'src/hooks/base/BaseConditionalHook.sol';
 import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV4Hook.sol';
+import 'src/types/ConditionTree.sol';
 
-import {Actions} from 'src/interfaces/pancakev4/Types.sol';
+import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
+import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {Actions} from 'src/interfaces/uniswapv4/Types.sol';
 import 'test/common/Permit.sol';
 
 contract RemoveLiquidityUniswapV4Test is BaseTest {
@@ -92,10 +97,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     _boundStruct(fuzzStruct);
     wrapOrUnwrap = bound(fuzzStruct.seed, 0, 1) == 1;
 
-    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, fuzzStruct.liquidityToRemove
-    );
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
+        pm
+      ).poolManager()
+      .computePositionValues(IPositionManager(pm), uniV4TokenId, fuzzStruct.liquidityToRemove);
 
     fee0 = unclaimedFee0;
     fee1 = unclaimedFee1;
@@ -120,7 +125,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(fuzzStruct.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
@@ -139,10 +144,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     if (fuzzStruct.withSignedIntent) {
       router.executeWithSignedIntent(
-        intentData, maSignature, daSignature, guardian, gdSignature, actionData
+        intentData, maSignature, dkSignature, guardian, gdSignature, actionData
       );
     } else {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     }
 
     if (pass) {
@@ -170,10 +175,10 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     intentFeesPercent0 = bound(fuzz.seed, 0, 1_000_000);
     intentFeesPercent1 = bound(fuzz.seed, 0, 1_000_000);
 
-    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, fuzz.liquidityToRemove
-    );
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
+        pm
+      ).poolManager()
+      .computePositionValues(IPositionManager(pm), uniV4TokenId, fuzz.liquidityToRemove);
 
     fee0 = unclaimedFee0;
     fee1 = unclaimedFee1;
@@ -184,12 +189,12 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(fuzz.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     // always success when dont charge fees on the user's unclaimed fees
     if (fuzz.liquidityToRemove == 0 && !takeUnclaimedFees) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -207,15 +212,15 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     if (actualReceived0 < unclaimedFee0 || actualReceived1 < unclaimedFee1) {
       vm.startPrank(caller);
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
     uint256 amount0ReceivedForLiquidity = actualReceived0 - unclaimedFee0;
     uint256 amount1ReceivedForLiquidity = actualReceived1 - unclaimedFee1;
 
-    uint256 intentFee0 = amount0ReceivedForLiquidity * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 = amount1ReceivedForLiquidity * intentFeesPercent1 / 1e6;
+    uint256 intentFee0 = (amount0ReceivedForLiquidity * intentFeesPercent0) / 1e6;
+    uint256 intentFee1 = (amount1ReceivedForLiquidity * intentFeesPercent1) / 1e6;
 
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
@@ -230,11 +235,11 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     vm.startPrank(caller);
     if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 balance0After = token0.balanceOf(mainAddress);
     uint256 balance1After = token1.balanceOf(mainAddress);
@@ -250,37 +255,34 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(liquidity);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.warp(block.timestamp + 100);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function test_multiCallToUniV4PositionManager(uint256 seed) public {
     bool unwrap = seed % 2 == 1;
     uint256 liquidityToRemove = bound(seed, 0, liquidity);
-    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) =
-    IPositionManager(pm).poolManager().computePositionValues(
-      IPositionManager(pm), uniV4TokenId, liquidityToRemove
-    );
+    (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
+        pm
+      ).poolManager().computePositionValues(IPositionManager(pm), uniV4TokenId, liquidityToRemove);
 
     bytes[] memory multiCalldata;
     if (!unwrap) {
       bytes memory actions = new bytes(2);
       bytes[] memory params = new bytes[](2);
-      actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
+      actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
       params[0] = abi.encode(uniV4TokenId, liquidityToRemove, 0, 0, '');
       actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
       params[1] = abi.encode(address(0), token1, address(router));
 
       multiCalldata = new bytes[](2);
       multiCalldata[0] = abi.encodeWithSelector(
-        ICLPositionManager.modifyLiquidities.selector,
-        abi.encode(actions, params),
-        type(uint256).max
+        IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), type(uint256).max
       );
       multiCalldata[1] = abi.encodeWithSelector(
         IERC721.transferFrom.selector, address(forwarder), mainAddress, uniV4TokenId
@@ -288,7 +290,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     } else {
       bytes memory actions = new bytes(5);
       bytes[] memory params = new bytes[](5);
-      actions[0] = bytes1(uint8(Actions.CL_DECREASE_LIQUIDITY));
+      actions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
       params[0] = abi.encode(uniV4TokenId, liquidityToRemove, 0, 0, '');
       actions[1] = bytes1(uint8(Actions.TAKE_PAIR));
       params[1] = abi.encode(address(0), token1, address(pm));
@@ -303,9 +305,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
       multiCalldata = new bytes[](2);
       multiCalldata[0] = abi.encodeWithSelector(
-        ICLPositionManager.modifyLiquidities.selector,
-        abi.encode(actions, params),
-        type(uint256).max
+        IPositionManager.modifyLiquidities.selector, abi.encode(actions, params), type(uint256).max
       );
       multiCalldata[1] = abi.encodeWithSelector(
         IERC721.transferFrom.selector, address(forwarder), mainAddress, uniV4TokenId
@@ -313,6 +313,26 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     }
 
     IntentData memory intentData = _getIntentData(false, new Node[](0));
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(0.25e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(0.25e6)].toMemoryArray(),
+          partnerRecipients: [makeAddr('partnerRecipient2')].toMemoryArray()
+        })
+      );
+    }
 
     _setUpMainAddress(intentData, false, uniV4TokenId, true);
 
@@ -320,6 +340,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: feeInfo,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -329,7 +350,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
         unclaimedFee1,
         liquidityToRemove,
         unwrap,
-        intentFeesPercent0 << 128 | intentFeesPercent1
+        (intentFeesPercent0 << 128) | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,
@@ -340,33 +361,52 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       token0 = weth;
     }
 
-    uint256[2] memory feeBefore = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
+    uint256[2] memory feeBefore =
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(makeAddr('partnerRecipient2'))];
+    uint256[2] memory protocolFeeBefore =
+      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
-    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
+    (, bytes memory dkSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqHook));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
       address(pm), uniV4TokenId, liquidityToRemove
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
-    uint256 intentFee0 = liqAmount0 * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 = liqAmount1 * intentFeesPercent1 / 1e6;
+    uint256 intentFee0 = (liqAmount0 * intentFeesPercent0) / 1e6;
+    uint256 intentFee1 = (liqAmount1 * intentFeesPercent1) / 1e6;
 
     uint256 received0 = liqAmount0 + unclaimedFee0 - intentFee0;
     uint256 received1 = liqAmount1 + unclaimedFee1 - intentFee1;
 
-    uint256[2] memory feeAfter = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
+    uint256[2] memory feeAfter =
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(makeAddr('partnerRecipient2'))];
+    uint256[2] memory protocolFeeAfter =
+      [token0.balanceOf(protocolRecipient), token1.balanceOf(protocolRecipient)];
 
-    assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
-    assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
+    assertEq(feeAfter[0] - feeBefore[0], intentFee0 / 4, 'invalid intent fee 0');
+    assertEq(feeAfter[1] - feeBefore[1], intentFee1 / 4, 'invalid token1 fee 1');
+    assertEq(
+      protocolFeeAfter[0] - protocolFeeBefore[0],
+      intentFee0 - intentFee0 / 4,
+      'invalid protocol fee 0'
+    );
+    assertEq(
+      protocolFeeAfter[1] - protocolFeeBefore[1],
+      intentFee1 - intentFee1 / 4,
+      'invalid protocol fee 1'
+    );
 
     uint256[2] memory mainAddrAfter = [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
     assertEq(mainAddrAfter[0] - mainAddrBefore[0], received0, 'invalid token0 received');
     assertEq(mainAddrAfter[1] - mainAddrBefore[1], received1, 'invalid token1 received');
+
+    assertEq(token0.balanceOf(address(router)), 0, 'invalid router balance 0');
+    assertEq(token1.balanceOf(address(router)), 0, 'invalid router balance 1');
   }
 
   function testRevert_NotMeetConditions_YieldBased(bool withPermit) public {
@@ -389,13 +429,13 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(liquidity);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.warp(block.timestamp + 100);
     vm.startPrank(caller);
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_TimeBased(bool withPermit) public {
@@ -417,12 +457,12 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(liquidity);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_NotMeetConditions_PriceBased(bool withPermit) public {
@@ -444,12 +484,12 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(liquidity);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_PriceBased(bool withPermit) public {
@@ -471,11 +511,11 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(liquidity);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_TimeBased(bool withPermit) public {
@@ -493,25 +533,25 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     ActionData memory actionData = _getActionData(liquidity);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function test_executeSignedIntent_RemoveSuccess() public {
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, true, uniV4TokenId, false);
     ActionData memory actionData = _getActionData(liquidity);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
 
     vm.startPrank(caller);
     router.executeWithSignedIntent(
-      intentData, maSignature, daSignature, guardian, gdSignature, actionData
+      intentData, maSignature, dkSignature, guardian, gdSignature, actionData
     );
   }
 
@@ -523,12 +563,12 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     magicNumber = NOT_TRANSFER;
 
     ActionData memory actionData = _getActionData(liq);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_validationAfterExecution_InvalidOwner(uint256 liq) public {
@@ -539,12 +579,12 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     nftOwner = makeAddr('tmp');
 
     ActionData memory actionData = _getActionData(liq);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(BaseTickBasedRemoveLiquidityHook.InvalidOwner.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function test_RemoveSuccess_Transfer99Percent(uint256 liq) public {
@@ -555,46 +595,46 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     magicNumber = 990_000;
 
     ActionData memory actionData = _getActionData(liq);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testRevert_Transfer97Percent_NotTakeUnclaimedFees(uint256 liq) public {
-    liq = bound(liq, liquidity * 10 / 100, liquidity);
+    liq = bound(liq, (liquidity * 10) / 100, liquidity);
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
     magicNumber = 970_000;
 
     ActionData memory actionData = _getActionData(liq);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testFuzz_OutputAmounts(uint256 liq) public {
     wrapOrUnwrap = bound(liq, 0, 1) == 1;
-    liq = bound(liq, liquidity * 10 / 100, liquidity);
+    liq = bound(liq, (liquidity * 10) / 100, liquidity);
     takeUnclaimedFees = bound(liq, 0, 1) == 1;
 
     IntentData memory intentData = _getIntentData(true, new Node[](0));
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
     ActionData memory actionData = _getActionData(liq);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     if (takeUnclaimedFees) {
       vm.expectRevert();
     }
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testFuzz_ClaimFeeOnly(bool takeFees) public {
@@ -603,14 +643,14 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     _setUpMainAddress(intentData, false, uniV4TokenId, false);
 
     ActionData memory actionData = _getActionData(0);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     vm.startPrank(caller);
     if (takeUnclaimedFees) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
     }
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function _getIntentData(bool withPermit, Node[] memory nodes)
@@ -681,7 +721,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
       actionContracts: actionContracts,
       actionSelectors: actionSelectors,
       hook: address(rmLqHook),
@@ -713,8 +754,7 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
   }
 
   function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
-    MockActionContract.RemoveUniswapV4Params memory params = MockActionContract
-      .RemoveUniswapV4Params({
+    MockActionContract.RemoveUniswapV4Params memory params = MockActionContract.RemoveUniswapV4Params({
       posManager: IPositionManager(pm),
       tokenId: uniV4TokenId,
       admin: address(router),
@@ -728,15 +768,31 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       takeFees: takeUnclaimedFees
     });
 
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
+    }
+
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: feeInfo,
       approvalFlags: type(uint256).max,
       actionSelectorId: 0,
       actionCalldata: abi.encode(params),
       hookActionData: abi.encode(
-        0, fee0, fee1, _liquidity, wrapOrUnwrap, intentFeesPercent0 << 128 | intentFeesPercent1
+        0, fee0, fee1, _liquidity, wrapOrUnwrap, (intentFeesPercent0 << 128) | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,

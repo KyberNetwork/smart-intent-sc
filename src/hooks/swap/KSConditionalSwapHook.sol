@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
+import {PackedU128} from '../../libraries/types/PackedU128.sol';
+import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
 import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import {MerkleProof} from 'openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol';
-import {ActionData, BaseStatefulHook, IntentData} from 'src/hooks/base/BaseStatefulHook.sol';
-import {PackedU128} from 'src/libraries/types/PackedU128.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {IntentData} from '../../types/IntentData.sol';
 
 contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;
@@ -72,7 +76,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by swapIndexes / 32
    *      Individual counts are extracted using bit shifts based on swapIndexes % 32
    */
-  mapping(bytes32 intentHash => mapping(uint256 swapIndexes => uint256 swapCount)) public swapRecord;
+  mapping(bytes32 intentHash => mapping(uint256 swapIndexes => uint256 swapCount)) public
+    swapRecord;
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
 
@@ -121,7 +126,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
         amountIn: amountIn,
         srcFeePercent: intentSrcFee,
         dstFeePercent: intentDstFee,
-        recipientBalanceBefore: _getRecipientBalance(tokenOut, swapHookData.recipient, intentDstFee), // if dstFee is 0, transfer directly to the recipient
+        recipientBalanceBefore: _getRecipientBalance(
+          tokenOut, swapHookData.recipient, intentDstFee
+        ), // if dstFee is 0, transfer directly to the recipient
         swapperBalanceBefore: tokenIn.balanceOf(intentData.coreData.mainAddress),
         recipient: swapHookData.recipient
       })
@@ -294,7 +301,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     pure
     returns (SwapHookData calldata hookData)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       hookData := data.offset
     }
   }
@@ -313,7 +320,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     )
   {
     PackedU128 packedFees;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       leafIndex := calldataload(add(data.offset, 0x20))
       tokenOut := calldataload(add(data.offset, 0x40))
       packedFees := calldataload(add(data.offset, 0x60))
@@ -321,7 +328,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
 
     (uint256 length, uint256 offset) = data.decodeLengthOffset(0);
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       proof.length := length
       proof.offset := offset
     }
@@ -336,7 +343,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     pure
     returns (SwapValidationData calldata validationData)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       validationData := data.offset
     }
   }

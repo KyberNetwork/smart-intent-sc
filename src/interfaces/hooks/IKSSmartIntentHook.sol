@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import '../IKSSmartIntentRouter.sol';
+import {ActionData} from '../../types/ActionData.sol';
+import {IntentData} from '../../types/IntentData.sol';
+import {IKSSmartIntentRouter} from '../IKSSmartIntentRouter.sol';
 
 interface IKSSmartIntentHook {
   /**

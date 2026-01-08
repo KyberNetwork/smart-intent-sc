@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {ActionData} from '../../src/types/ActionData.sol';
+import {IntentData} from '../../src/types/IntentData.sol';
 import 'src/hooks/base/BaseConditionalHook.sol';
 
 contract MockConditionalHook is BaseConditionalHook {

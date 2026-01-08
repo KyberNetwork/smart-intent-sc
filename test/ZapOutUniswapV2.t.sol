@@ -58,11 +58,11 @@ contract ZapOutUniswapV2Test is BaseTest {
     ActionData memory actionData = _getActionData(intentData.tokenData);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testZapOutUniswapV2WithSignedIntentSuccess(uint256 mode) public {
@@ -74,13 +74,13 @@ contract ZapOutUniswapV2Test is BaseTest {
     ActionData memory actionData = _getActionData(intentData.tokenData);
 
     vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
     router.executeWithSignedIntent(
-      intentData, maSignature, daSignature, guardian, gdSignature, actionData
+      intentData, maSignature, dkSignature, guardian, gdSignature, actionData
     );
   }
 
@@ -107,7 +107,8 @@ contract ZapOutUniswapV2Test is BaseTest {
 
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
       actionContracts: [zapRouter].toMemoryArray(),
       actionSelectors: [IKSZapRouter.zap.selector].toMemoryArray(),
       hook: address(zapOutHook),
@@ -136,12 +137,29 @@ contract ZapOutUniswapV2Test is BaseTest {
     view
     returns (ActionData memory actionData)
   {
-    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+    uint256 approvalFlags =
+      (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
+    }
 
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
+      feeInfo: feeInfo,
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: zapOutCalldata,

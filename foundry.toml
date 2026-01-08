@@ -6,11 +6,11 @@ ffi = true
 fs_permissions = [{ access = 'read-write', path = './'}]
 
 additional_compiler_profiles = [
-  { name = "si_router", via_ir = true, optimizer_runs = 1000 }
+  { name = "si_router", via_ir = true, optimizer_runs = 2000 }
 ]
 
 compilation_restrictions = [
-  { paths = "src/KSSmartIntentRouter.sol", optimizer_runs = 1000 },
+  { paths = "src/KSSmartIntentRouter.sol", optimizer_runs = 2000 },
 ]
 
 [lint]
@@ -32,5 +32,3 @@ bsc_mainnet = "${BSC_NODE_URL}"
 
 [etherscan]
 mainnet = { key = "${ETHERSCAN_API_KEY}" }
-
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

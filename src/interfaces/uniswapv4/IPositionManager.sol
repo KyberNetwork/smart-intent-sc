@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import './IPoolManager.sol';
-import 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
+import {IPoolManager} from './IPoolManager.sol';
+import {PoolKey} from './Types.sol';
+
+import {IERC721} from 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
 
 /// @title IPositionManager
 /// @notice Interface for the PositionManager contract

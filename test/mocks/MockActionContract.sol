@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {console} from 'forge-std/console.sol';
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 import 'src/interfaces/IWETH.sol';
 
 import {ICLPositionManager} from 'src/interfaces/pancakev4/ICLPositionManager.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IPoolManager} from 'src/interfaces/uniswapv4/IPoolManager.sol';
+import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {PoolKey} from 'src/interfaces/uniswapv4/Types.sol';
 import {StateLibrary} from 'src/libraries/uniswapv4/StateLibrary.sol';
 
 struct UniswapV4Data {
@@ -67,8 +68,7 @@ contract MockActionContract {
   }
 
   function removeUniswapV4(RemoveUniswapV4Params memory params) external {
-    (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = params
-      .posManager
+    (uint256 amount0, uint256 amount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = params.posManager
       .poolManager().computePositionValues(params.posManager, params.tokenId, params.liquidity);
 
     (PoolKey memory poolKey,) = params.posManager.getPoolAndPositionInfo(params.tokenId);

@@ -4,6 +4,19 @@ pragma solidity ^0.8.0;
 
 /// @notice Library of helper functions to convert fixed-sized array types to dynamic arrays in tests.
 library ArraysHelper {
+  function toMemoryArray(bool[1] memory array) internal pure returns (bool[] memory) {
+    bool[] memory ret = new bool[](1);
+    ret[0] = array[0];
+    return ret;
+  }
+
+  function toMemoryArray(bool[2] memory array) internal pure returns (bool[] memory) {
+    bool[] memory ret = new bool[](2);
+    ret[0] = array[0];
+    ret[1] = array[1];
+    return ret;
+  }
+
   function toMemoryArray(address[1] memory array) internal pure returns (address[] memory) {
     address[] memory ret = new address[](1);
     ret[0] = array[0];
@@ -109,6 +122,19 @@ library ArraysHelper {
 
   function toMemoryArray(uint256[2] memory array) internal pure returns (uint256[] memory) {
     uint256[] memory ret = new uint256[](2);
+    ret[0] = array[0];
+    ret[1] = array[1];
+    return ret;
+  }
+
+  function toMemoryArray(uint24[1] memory array) internal pure returns (uint24[] memory) {
+    uint24[] memory ret = new uint24[](1);
+    ret[0] = array[0];
+    return ret;
+  }
+
+  function toMemoryArray(uint24[2] memory array) internal pure returns (uint24[] memory) {
+    uint24[] memory ret = new uint24[](2);
     ret[0] = array[0];
     ret[1] = array[1];
     return ret;

@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './BaseHook.sol';
+import {BaseHook} from './BaseHook.sol';
 
-import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
-import 'src/interfaces/hooks/IKSConditionalHook.sol';
+import {IKSConditionalHook} from '../../interfaces/hooks/IKSConditionalHook.sol';
+import 'src/hooks/base/BaseHook.sol';
+
+import {
+  Condition,
+  ConditionTree,
+  ConditionTreeLibrary,
+  ConditionType
+} from '../../types/ConditionTree.sol';
+
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 /**
  * @param startTimestamp the start timestamp of the condition
@@ -104,7 +113,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     PriceCondition calldata priceCondition = _decodePriceCondition(condition.data);
 
     uint256 currentPrice;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       currentPrice := calldataload(additionalData.offset)
     }
 
@@ -128,7 +137,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     uint256 fee1;
     uint256 poolPrice;
 
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       fee0 := calldataload(additionalData.offset)
       fee1 := calldataload(add(additionalData.offset, 0x20))
       poolPrice := calldataload(add(additionalData.offset, 0x40))
@@ -169,7 +178,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     pure
     returns (PriceCondition calldata priceCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       priceCondition := data.offset
     }
   }
@@ -179,7 +188,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     pure
     returns (TimeCondition calldata timeCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       timeCondition := data.offset
     }
   }
@@ -189,7 +198,7 @@ abstract contract BaseConditionalHook is BaseHook, IKSConditionalHook {
     pure
     returns (YieldCondition calldata yieldCondition)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       yieldCondition := data.offset
     }
   }

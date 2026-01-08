@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './ERC20Data.sol';
-import './ERC721Data.sol';
+import {ERC20Data} from './ERC20Data.sol';
+import {ERC721Data} from './ERC721Data.sol';
 
 struct TokenData {
   ERC20Data[] erc20Data;

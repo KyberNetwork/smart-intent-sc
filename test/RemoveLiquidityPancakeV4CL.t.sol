@@ -4,24 +4,21 @@ pragma solidity ^0.8.0;
 import './Base.t.sol';
 
 import 'src/hooks/base/BaseConditionalHook.sol';
-import {Actions} from 'src/interfaces/pancakev4/Types.sol';
 
+import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
 import {
-  ActionData,
   BaseTickBasedRemoveLiquidityHook,
-  CLPositionInfo,
   ICLPositionManager,
-  IntentCoreData,
-  KSRemoveLiquidityPancakeV4CLHook,
-  PoolId,
-  PoolKey as PKey,
-  TickInfo,
-  TokenData
+  KSRemoveLiquidityPancakeV4CLHook
 } from 'src/hooks/remove-liq/KSRemoveLiquidityPancakeV4CLHook.sol';
-import {ICLPoolManager} from 'src/interfaces/pancakev4/ICLPositionManager.sol';
-import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import 'src/libraries/uniswapv4/TickMath.sol';
+import {ICLPoolManager} from 'src/interfaces/pancakev4/ICLPoolManager.sol';
+import {Actions, PoolId, PoolKey, TickInfo} from 'src/interfaces/pancakev4/Types.sol';
+import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import {LiquidityAmounts} from 'src/libraries/uniswapv4/LiquidityAmounts.sol';
+import {TickMath} from 'src/libraries/uniswapv4/TickMath.sol';
 import 'test/common/Permit.sol';
+
+import 'src/types/ConditionTree.sol';
 
 contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   using SafeERC20 for IERC20;
@@ -82,7 +79,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     rmLqValidator = new KSRemoveLiquidityPancakeV4CLHook(wbnb);
     address[] memory validators = new address[](1);
     validators[0] = address(rmLqValidator);
-    PKey memory poolKey;
+    PoolKey memory poolKey;
     (
       poolKey,
       tickLower,
@@ -139,7 +136,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     uint256 balance0Before = token0.balanceOf(mainAddress);
@@ -147,19 +144,19 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     vm.startPrank(caller);
     if (conditionPass) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     } else {
       vm.expectRevert(IKSConditionalHook.ConditionsNotMet.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     }
 
     if (conditionPass) {
       uint256 balance0After = token0.balanceOf(mainAddress);
       uint256 balance1After = token1.balanceOf(mainAddress);
       uint256 intentFee0 =
-        pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1_000_000;
+        (pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0) / 1_000_000;
       uint256 intentFee1 =
-        pancakeCL.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1_000_000;
+        (pancakeCL.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1) / 1_000_000;
       assertEq(
         balance0After - balance0Before,
         pancakeCL.removeLiqParams.positionInfo.amounts[0] - intentFee0
@@ -229,10 +226,26 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     _setUpMainAddress(intentData, false, tokenId, true);
 
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
+    }
+
     ActionData memory actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: feeInfo,
       actionSelectorId: 1,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(multiCalldata),
@@ -242,7 +255,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
         pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1],
         pancakeCL.removeLiqParams.liquidityToRemove,
         unwrap,
-        intentFeesPercent0 << 128 | intentFeesPercent1
+        (intentFeesPercent0 << 128) | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,
@@ -253,29 +266,31 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       token0 = wbnb;
     }
 
-    uint256[2] memory feeBefore = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
+    uint256[2] memory feeBefore =
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(partnerRecipient)];
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
-    (, bytes memory daSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
+    (, bytes memory dkSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
       address(positionManager), tokenId, pancakeCL.removeLiqParams.liquidityToRemove
     );
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 intentFee0 =
-      pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0 / 1e6;
+      (pancakeCL.removeLiqParams.positionInfo.amounts[0] * intentFeesPercent0) / 1e6;
     uint256 intentFee1 =
-      pancakeCL.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1 / 1e6;
+      (pancakeCL.removeLiqParams.positionInfo.amounts[1] * intentFeesPercent1) / 1e6;
 
     uint256 received0 = pancakeCL.removeLiqParams.positionInfo.amounts[0]
       + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[0] - intentFee0;
     uint256 received1 = pancakeCL.removeLiqParams.positionInfo.amounts[1]
       + pancakeCL.removeLiqParams.positionInfo.unclaimedFees[1] - intentFee1;
 
-    uint256[2] memory feeAfter = [token0.balanceOf(feeRecipient), token1.balanceOf(feeRecipient)];
+    uint256[2] memory feeAfter =
+      [token0.balanceOf(partnerRecipient), token1.balanceOf(partnerRecipient)];
 
     assertEq(feeAfter[0] - feeBefore[0], intentFee0, 'invalid intent fee 0');
     assertEq(feeAfter[1] - feeBefore[1], intentFee1, 'invalid token1 fee 1');
@@ -311,12 +326,12 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, actionData);
 
     // always success when dont charge fees on the user's unclaimed fees
     if (pancakeCL.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -336,15 +351,15 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     if (actualReceived0 < fees[0] || actualReceived1 < fees[1]) {
       vm.startPrank(caller);
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughFeesReceived.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
     uint256 amount0ReceivedForLiquidity = actualReceived0 - fees[0];
     uint256 amount1ReceivedForLiquidity = actualReceived1 - fees[1];
 
-    uint256 intentFee0 = amount0ReceivedForLiquidity * intentFeesPercent0 / 1e6;
-    uint256 intentFee1 = amount1ReceivedForLiquidity * intentFeesPercent1 / 1e6;
+    uint256 intentFee0 = (amount0ReceivedForLiquidity * intentFeesPercent0) / 1e6;
+    uint256 intentFee1 = (amount1ReceivedForLiquidity * intentFeesPercent1) / 1e6;
 
     actualReceived0 -= intentFee0;
     actualReceived1 -= intentFee1;
@@ -359,11 +374,11 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     vm.startPrank(caller);
     if (actualReceived0 < minReceived0 || actualReceived1 < minReceived1) {
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.NotEnoughOutputAmount.selector);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     uint256 balance0After = token0.balanceOf(mainAddress);
     uint256 balance1After = token1.balanceOf(mainAddress);
@@ -440,7 +455,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
 
     IntentCoreData memory coreData = IntentCoreData({
       mainAddress: mainAddress,
-      delegatedAddress: delegatedAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
       actionContracts: actionContracts,
       actionSelectors: actionSelectors,
       hook: address(rmLqValidator),
@@ -473,31 +489,53 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
   }
 
   function _getActionData(uint256 _liquidity) internal view returns (ActionData memory actionData) {
-    MockActionContract.RemovePancakeV4CLParams memory params = MockActionContract
-      .RemovePancakeV4CLParams({
-      pm: ICLPositionManager(positionManager),
-      tokenId: tokenId,
-      router: address(router),
-      owner: tokenOwner,
-      token0: token0,
-      token1: token1,
-      liquidity: _liquidity,
-      transferPercent: transferPercent,
-      wrapOrUnwrap: wrapOrUnwrap,
-      weth: wbnb,
-      takeFees: takeUnclaimedFees,
-      amounts: amounts,
-      fees: fees
-    });
+    MockActionContract.RemovePancakeV4CLParams memory params =
+      MockActionContract.RemovePancakeV4CLParams({
+        pm: ICLPositionManager(positionManager),
+        tokenId: tokenId,
+        router: address(router),
+        owner: tokenOwner,
+        token0: token0,
+        token1: token1,
+        liquidity: _liquidity,
+        transferPercent: transferPercent,
+        wrapOrUnwrap: wrapOrUnwrap,
+        weth: wbnb,
+        takeFees: takeUnclaimedFees,
+        amounts: amounts,
+        fees: fees
+      });
+
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false].toMemoryArray(),
+          partnerFees: [uint24(1e6)].toMemoryArray(),
+          partnerRecipients: [partnerRecipient].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
+    }
+
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
+      feeInfo: feeInfo,
       actionSelectorId: 0,
       approvalFlags: type(uint256).max,
       actionCalldata: abi.encode(params),
       hookActionData: abi.encode(
-        0, fees[0], fees[1], _liquidity, wrapOrUnwrap, intentFeesPercent0 << 128 | intentFeesPercent1
+        0,
+        fees[0],
+        fees[1],
+        _liquidity,
+        wrapOrUnwrap,
+        (intentFeesPercent0 << 128) | intentFeesPercent1
       ),
       extraData: '',
       deadline: block.timestamp + 1 days,
@@ -698,12 +736,13 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       (
         pancakeCL.removeLiqParams.positionInfo.amounts[0],
         pancakeCL.removeLiqParams.positionInfo.amounts[1]
-      ) = LiquidityAmounts.getAmountsForLiquidity(
-        pancakeCL.removeLiqParams.sqrtPriceX96,
-        sqrtPriceLower,
-        sqrtPriceUpper,
-        uint128(pancakeCL.removeLiqParams.liquidityToRemove)
-      );
+      ) =
+        LiquidityAmounts.getAmountsForLiquidity(
+          pancakeCL.removeLiqParams.sqrtPriceX96,
+          sqrtPriceLower,
+          sqrtPriceUpper,
+          uint128(pancakeCL.removeLiqParams.liquidityToRemove)
+        );
     }
 
     (uint256 feeGrowthInside0, uint256 feeGrowthInside1) = _getFeeGrowthInside();
@@ -763,8 +802,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     }
   }
 
-  function _toId(PKey memory poolKey) internal pure returns (PoolId poolId) {
-    assembly ("memory-safe") {
+  function _toId(PoolKey memory poolKey) internal pure returns (PoolId poolId) {
+    assembly ('memory-safe') {
       poolId := keccak256(poolKey, 0xc0)
     }
   }
@@ -775,7 +814,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     vm.prank(posOwner);
     positionManager.safeTransferFrom(posOwner, mainAddress, tokenId);
 
-    (PKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
 
     (
       poolKey,
@@ -792,10 +831,6 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     pancakeCL.removeLiqParams.positionInfo.ticks[0] = tickLower;
     pancakeCL.removeLiqParams.positionInfo.ticks[1] = tickUpper;
     pancakeCL.removeLiqParams.liquidityToRemove = liquidity;
-
-    console.log('tickLower', tickLower);
-    console.log('tickUpper', tickUpper);
-    console.log('currentTick', currentTick);
 
     assertTrue(currentTick < tickLower || currentTick > tickUpper, 'wrong position');
   }

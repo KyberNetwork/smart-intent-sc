@@ -3,6 +3,9 @@ pragma solidity ^0.8.0;
 
 import 'src/hooks/base/BaseHook.sol';
 
+import {ActionData} from '../../src/types/ActionData.sol';
+import {IntentData} from '../../src/types/IntentData.sol';
+
 contract MockHook is BaseHook {
   modifier checkTokenLengths(ActionData calldata actionData) override {
     _;
@@ -37,8 +40,9 @@ contract MockHook is BaseHook {
     )
   {
     if (beforeExecutionData.length > 0) {
-      (tokens, fees, amounts, recipient) =
-        abi.decode(beforeExecutionData, (address[], uint256[], uint256[], address));
+      (tokens, fees, amounts, recipient) = abi.decode(
+        beforeExecutionData, (address[], uint256[], uint256[], address)
+      );
     }
   }
 }

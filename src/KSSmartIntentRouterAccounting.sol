@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './KSSmartIntentStorage.sol';
+import {KSSmartIntentStorage} from './KSSmartIntentStorage.sol';
 
-import 'ks-common-sc/src/base/ManagementRescuable.sol';
+import {ActionData} from './types/ActionData.sol';
+import {ERC20Data, ERC20DataLibrary} from './types/ERC20Data.sol';
+import {ERC721Data, ERC721DataLibrary} from './types/ERC721Data.sol';
+import {TokenData} from './types/TokenData.sol';
 
-import 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
-import 'ks-common-sc/src/libraries/token/PermitHelper.sol';
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+import {ManagementRescuable} from 'ks-common-sc/src/base/ManagementRescuable.sol';
+import {IKSGenericForwarder} from 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
+import {PermitHelper} from 'ks-common-sc/src/libraries/token/PermitHelper.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
-import 'openzeppelin-contracts/contracts/interfaces/IERC721Receiver.sol';
+import {IERC721Receiver} from 'openzeppelin-contracts/contracts/interfaces/IERC721Receiver.sol';
 
 abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, ManagementRescuable {
   using TokenHelper for address;
@@ -27,14 +31,14 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
       erc20Allowances[intentHash][erc20Data.token] = erc20Data.amount;
 
       if (erc20Data.permitData.length > 0) {
-        erc20Data.token.erc20Permit(mainAddress, erc20Data.permitData);
+        erc20Data.token.callERC20Permit(mainAddress, erc20Data.permitData);
       }
     }
     for (uint256 i = 0; i < tokenData.erc721Data.length; i++) {
       ERC721Data calldata erc721Data = tokenData.erc721Data[i];
 
       if (erc721Data.permitData.length > 0) {
-        erc721Data.token.erc721Permit(erc721Data.tokenId, erc721Data.permitData);
+        erc721Data.token.callERC721Permit(erc721Data.tokenId, erc721Data.permitData);
       }
     }
   }
@@ -49,9 +53,6 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
     IKSGenericForwarder _forwarder,
     uint256[] memory fees
   ) internal checkLengths(actionData.erc20Ids.length, actionData.erc20Amounts.length) {
-    /// @dev gas optimization
-    address _feeRecipient = feeRecipient;
-
     uint256 approvalFlags = actionData.approvalFlags;
 
     for (uint256 i = 0; i < actionData.erc20Ids.length; i++) {
@@ -67,7 +68,8 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
         fees[i],
         _checkFlag(approvalFlags, i),
         _forwarder,
-        _feeRecipient
+        actionData.feeInfo.partnerFeeConfigs[i],
+        actionData.feeInfo.protocolRecipient
       );
     }
     approvalFlags >>= tokenData.erc20Data.length;
@@ -106,7 +108,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
   }
 
   function _checkFlag(uint256 flag, uint256 index) internal pure returns (bool result) {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       result := and(shr(index, flag), 1)
     }
   }

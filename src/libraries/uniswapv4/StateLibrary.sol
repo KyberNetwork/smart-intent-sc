@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import 'openzeppelin-contracts/contracts/utils/math/Math.sol';
-import 'src/interfaces/uniswapv4/IPoolManager.sol';
-import 'src/interfaces/uniswapv4/IPositionManager.sol';
-import 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import 'src/libraries/uniswapv4/TickMath.sol';
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
+
+import {IPoolManager} from '../../interfaces/uniswapv4/IPoolManager.sol';
+import {IPositionManager} from '../../interfaces/uniswapv4/IPositionManager.sol';
+import {PoolKey} from '../../interfaces/uniswapv4/Types.sol';
+import {LiquidityAmounts} from './LiquidityAmounts.sol';
+import {TickMath} from './TickMath.sol';
 
 /// @notice A helper library to provide state getters that use extsload
 library StateLibrary {
@@ -256,7 +258,11 @@ library StateLibrary {
     }
   }
 
-  function _getPositionInfoSlot(bytes32 poolId, bytes32 positionId) internal pure returns (bytes32) {
+  function _getPositionInfoSlot(bytes32 poolId, bytes32 positionId)
+    internal
+    pure
+    returns (bytes32)
+  {
     // slot key of Pool.State value: `pools[poolId]`
     bytes32 stateSlot = _getPoolStateSlot(poolId);
 
@@ -282,7 +288,11 @@ library StateLibrary {
     return keccak256(abi.encodePacked(poolId, POOLS_SLOT));
   }
 
-  function getTickRange(uint256 posInfo) internal pure returns (int24 _tickLower, int24 _tickUpper) {
+  function getTickRange(uint256 posInfo)
+    internal
+    pure
+    returns (int24 _tickLower, int24 _tickUpper)
+  {
     assembly {
       _tickLower := signextend(2, shr(8, posInfo))
       _tickUpper := signextend(2, shr(32, posInfo))

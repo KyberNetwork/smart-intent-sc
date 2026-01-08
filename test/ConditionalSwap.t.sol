@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import './Base.t.sol';
 
-import {console} from 'forge-std/console.sol';
 import 'src/hooks/swap/KSConditionalSwapHook.sol';
 import 'src/libraries/types/PackedU128.sol';
 import 'test/utils/MerkleUtils.sol';
@@ -63,7 +62,7 @@ contract ConditionalSwapTest is BaseTest {
     returnAmount = bound(returnAmount, 100, 1_000_000e8);
 
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     intentData.tokenData.erc20Data[0].amount = amountIn;
     _setUpMainAddress(intentData, false);
 
@@ -90,7 +89,7 @@ contract ConditionalSwapTest is BaseTest {
 
     returnAmount = returnAmount - afterSwapFee;
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     if (feeBefore > maxSrcFee || feeAfter > maxDstFee) {
@@ -100,7 +99,7 @@ contract ConditionalSwapTest is BaseTest {
         )
       );
       vm.startPrank(caller);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
@@ -109,23 +108,23 @@ contract ConditionalSwapTest is BaseTest {
     uint256[2] memory mainAddressBefore =
       [tokenIn.balanceOf(mainAddress), tokenOut.balanceOf(mainAddress)];
     uint256[2] memory feeReceiversBefore =
-      [tokenIn.balanceOf(feeRecipient), tokenOut.balanceOf(feeRecipient)];
+      [tokenIn.balanceOf(partnerRecipient), tokenOut.balanceOf(partnerRecipient)];
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
 
     assertEq(tokenIn.balanceOf(address(router)), routerBefore[0]);
     assertEq(tokenOut.balanceOf(address(router)), routerBefore[1]);
     assertEq(tokenIn.balanceOf(mainAddress), mainAddressBefore[0] - amountIn);
     assertEq(tokenOut.balanceOf(mainAddress), mainAddressBefore[1] + returnAmount);
-    assertEq(tokenIn.balanceOf(feeRecipient), feeReceiversBefore[0] + beforeSwapFee);
-    assertEq(tokenOut.balanceOf(feeRecipient), feeReceiversBefore[1] + afterSwapFee);
+    assertEq(tokenIn.balanceOf(partnerRecipient), feeReceiversBefore[0] + beforeSwapFee);
+    assertEq(tokenOut.balanceOf(partnerRecipient), feeReceiversBefore[1] + afterSwapFee);
   }
 
   function testConditionalSwapSuccess(uint256 mode) public {
     mode = bound(mode, 0, 2);
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
 
     _setUpMainAddress(intentData, false);
 
@@ -140,12 +139,12 @@ contract ConditionalSwapTest is BaseTest {
       defaultCondition
     );
 
-    vm.warp(block.timestamp + 100);
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    vm.warp(vm.getBlockTimestamp() + 100);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function test_DCASwap_TimeBased(uint256 mode) public {
@@ -182,7 +181,7 @@ contract ConditionalSwapTest is BaseTest {
     {
       uint256 tmpSwapAmount = swapAmount;
       swapAmount = type(uint256).max;
-      intentData = _getIntentData(0, type(uint128).max, 1, condition);
+      intentData = _getIntentData(0, type(uint128).max, condition);
       _setUpMainAddress(intentData, false);
       swapAmount = tmpSwapAmount;
     }
@@ -246,13 +245,14 @@ contract ConditionalSwapTest is BaseTest {
 
     // swap 2
     {
-      vm.warp(block.timestamp + 500);
+      vm.warp(vm.getBlockTimestamp() + 500);
+      actionData.nonce += 1;
       _swap(mode, intentData, actionData, 0, 1);
     }
 
     // swap 3
     {
-      vm.warp(block.timestamp + 1000);
+      vm.warp(vm.getBlockTimestamp() + 600);
       actionData.hookActionData = abi.encode(
         MerkleUtils.getProof(_memLeaves, 2),
         2,
@@ -286,7 +286,7 @@ contract ConditionalSwapTest is BaseTest {
     {
       uint256 tmpSwapAmount = swapAmount;
       swapAmount = type(uint256).max;
-      intentData = _getIntentData(0, type(uint128).max, 1, condition);
+      intentData = _getIntentData(0, type(uint128).max, condition);
       _setUpMainAddress(intentData, false);
       swapAmount = tmpSwapAmount;
     }
@@ -338,7 +338,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 swapCount,
     uint256 index
   ) internal {
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
     bytes32 hash = router.hashTypedIntentData(intentData);
 
@@ -346,7 +346,7 @@ contract ConditionalSwapTest is BaseTest {
 
     assertEq(conditionalSwapHook.getSwapExecutionCount(hash, index), swapCount);
     vm.startPrank(caller);
-    router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     vm.stopPrank();
     assertEq(conditionalSwapHook.getSwapExecutionCount(hash, index), swapCount + 1);
 
@@ -366,7 +366,7 @@ contract ConditionalSwapTest is BaseTest {
       priceLimits: toPackedU128(0, type(uint128).max)
     });
 
-    IntentData memory intentData = _getIntentData(0, type(uint128).max, 1, condition);
+    IntentData memory intentData = _getIntentData(0, type(uint128).max, condition);
     _setUpMainAddress(intentData, false);
 
     bytes32[] memory _memLeaves = leaves;
@@ -379,7 +379,7 @@ contract ConditionalSwapTest is BaseTest {
       condition[0]
     );
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -407,7 +407,7 @@ contract ConditionalSwapTest is BaseTest {
       priceLimits: toPackedU128(type(uint128).max, type(uint128).max)
     });
 
-    IntentData memory intentData = _getIntentData(0, type(uint128).max, 1, condition);
+    IntentData memory intentData = _getIntentData(0, type(uint128).max, condition);
 
     _setUpMainAddress(intentData, false);
 
@@ -421,7 +421,7 @@ contract ConditionalSwapTest is BaseTest {
       condition[0]
     );
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -441,7 +441,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 tmpSwapAmount = swapAmount;
     swapAmount = type(uint256).max;
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
     swapAmount = tmpSwapAmount;
     ActionData memory actionData;
@@ -459,13 +459,13 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0), 0);
 
     {
-      (address caller, bytes memory daSignature, bytes memory gdSignature) =
+      (address caller, bytes memory dkSignature, bytes memory gdSignature) =
         _getCallerAndSignatures(mode, actionData);
 
       vm.startPrank(caller);
-      router.execute(intentData, daSignature, guardian, gdSignature, actionData);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       actionData.nonce += 1;
-      (caller, daSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
+      (caller, dkSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
       vm.startPrank(caller);
       vm.expectRevert(abi.encodeWithSelector(KSConditionalSwapHook.InvalidSwapLimit.selector, 2, 1));
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -479,7 +479,7 @@ contract ConditionalSwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     vm.assume(min < max && (min > swapAmount || max < swapAmount));
     IntentData memory intentData =
-      _getIntentData(min, max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(min, max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
 
     bytes32[] memory _memLeaves = leaves;
@@ -492,7 +492,7 @@ contract ConditionalSwapTest is BaseTest {
       defaultCondition
     );
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -508,7 +508,7 @@ contract ConditionalSwapTest is BaseTest {
 
     mode = bound(mode, 0, 2);
     IntentData memory intentData =
-      _getIntentData(0, type(uint128).max, 1, new KSConditionalSwapHook.SwapCondition[](0));
+      _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
     _setUpMainAddress(intentData, false);
 
     uint256 beforeSwapFee = (swapAmount * feeBefore) / 1_000_000;
@@ -523,7 +523,7 @@ contract ConditionalSwapTest is BaseTest {
       defaultCondition
     );
 
-    (address caller, bytes memory daSignature, bytes memory gdSignature) =
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, actionData);
 
     vm.startPrank(caller);
@@ -591,11 +591,11 @@ contract ConditionalSwapTest is BaseTest {
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
-      approvalFlags: approvalFlags,
+      feeInfo: feeInfo,
+      approvalFlags: (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1,
       actionSelectorId: swapViaMock ? 0 : 1,
       actionCalldata: swapViaMock
-        ? (
-          actionCalldata.length == 0
+        ? (actionCalldata.length == 0
             ? abi.encode(
               tokenIn,
               tokenOut,
@@ -604,14 +604,13 @@ contract ConditionalSwapTest is BaseTest {
               feeAfter == 0 ? mainAddress : address(router),
               mainAddress
             )
-            : actionCalldata
-        )
+            : actionCalldata)
         : actionCalldata,
       hookActionData: abi.encode(
         proof, leafIndex, tokenOut, toPackedU128(feeBefore, feeAfter), condition
       ),
       extraData: '',
-      deadline: block.timestamp + 1 days,
+      deadline: vm.getBlockTimestamp() + 1 days,
       nonce: 0
     });
   }
@@ -619,7 +618,6 @@ contract ConditionalSwapTest is BaseTest {
   function _getIntentData(
     uint256 min,
     uint256 max,
-    uint256 swapLimit,
     KSConditionalSwapHook.SwapCondition[] memory swapConditions
   ) internal returns (IntentData memory intentData) {
     KSConditionalSwapHook.SwapHookData memory hookData;
@@ -660,22 +658,9 @@ contract ConditionalSwapTest is BaseTest {
     IntentCoreData memory coreData;
     TokenData memory tokenData;
 
-    {
-      coreData = IntentCoreData({
-        mainAddress: mainAddress,
-        delegatedAddress: delegatedAddress,
-        actionContracts: [address(mockActionContract), address(swapRouter)].toMemoryArray(),
-        actionSelectors: [MockActionContract.swap.selector, IKSSwapRouterV2.swap.selector]
-          .toMemoryArray(),
-        hook: address(conditionalSwapHook),
-        hookIntentData: abi.encode(hookData)
-      });
-
-      tokenData.erc20Data = new ERC20Data[](1);
-      tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
-    }
-
-    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+    intentData.tokenData.erc20Data = new ERC20Data[](1);
+    intentData.tokenData.erc20Data[0] =
+      ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
   }
 
   function _setUpMainAddress(IntentData memory intentData, bool withSignedIntent) internal {
@@ -692,18 +677,27 @@ contract ConditionalSwapTest is BaseTest {
     view
     returns (ActionData memory actionData)
   {
-    uint256 approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+    actionData.feeInfo.protocolRecipient = protocolRecipient;
+    actionData.feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+    actionData.feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+      PartnersFeeConfigBuildParams({
+        feeModes: [false].toMemoryArray(),
+        partnerFees: [uint24(1e6)].toMemoryArray(),
+        partnerRecipients: [partnerRecipient].toMemoryArray()
+      })
+    );
 
     actionData = ActionData({
       erc20Ids: [uint256(0)].toMemoryArray(),
       erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
       erc721Ids: new uint256[](0),
-      approvalFlags: approvalFlags,
+      feeInfo: actionData.feeInfo,
+      approvalFlags: (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
       hookActionData: abi.encode(0),
       extraData: '',
-      deadline: block.timestamp + 1 days,
+      deadline: vm.getBlockTimestamp() + 1 days,
       nonce: 0
     });
   }

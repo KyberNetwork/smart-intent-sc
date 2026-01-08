@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import 'forge-std/Test.sol';
 
-import 'src/libraries/types/ConditionTree.sol';
+import 'src/types/ConditionTree.sol';
 import 'test/mocks/MockConditionalHook.sol';
 
 contract ConditionTreeTest is Test {
@@ -215,8 +215,9 @@ contract ConditionTreeTest is Test {
 
     Node[] memory nodes = new Node[](1);
     uint256[] memory emptyChildren = new uint256[](0);
-    nodes[0] =
-      Node({operationType: OperationType.AND, condition: condition, childrenIndexes: emptyChildren});
+    nodes[0] = Node({
+      operationType: OperationType.AND, condition: condition, childrenIndexes: emptyChildren
+    });
 
     _hook.validateConditionTree(_buildTree(nodes), 0);
   }

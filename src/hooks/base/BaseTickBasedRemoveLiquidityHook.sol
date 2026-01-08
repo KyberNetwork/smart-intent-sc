@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-import 'src/hooks/base/BaseConditionalHook.sol';
+import {BaseConditionalHook} from '../../hooks/base/BaseConditionalHook.sol';
+import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
 
-import 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
-import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
+import {IPositionManager} from '../../interfaces/uniswapv4/IPositionManager.sol';
+import {IERC721} from 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
+
+import {ActionData} from '../../types/ActionData.sol';
+import {ConditionTree, Node} from '../../types/ConditionTree.sol';
+import {IntentData} from '../../types/IntentData.sol';
 
 abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   using TokenHelper for address;
@@ -336,7 +342,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     pure
     returns (RemoveLiquidityHookData calldata validationData)
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       validationData := add(data.offset, calldataload(data.offset))
     }
   }
@@ -356,7 +362,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     )
   {
     uint256 packedFees;
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       index := calldataload(data.offset)
       fee0Generated := calldataload(add(data.offset, 0x20))
       fee1Generated := calldataload(add(data.offset, 0x40))
@@ -378,7 +384,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       OutputValidationParams calldata outputParams
     )
   {
-    assembly ("memory-safe") {
+    assembly ('memory-safe') {
       removeLiqParams := data.offset
       outputParams := add(data.offset, 0x260) // (outputParams starts at slot 19 (608th byte))
     }
