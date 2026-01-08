@@ -335,6 +335,16 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       return;
     }
 
+    if (
+      intentFeesPercent0 > pancakeCL.outputParams.maxFees[0]
+        || intentFeesPercent1 > pancakeCL.outputParams.maxFees[1]
+    ) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
     uint256 minReceived0 =
       (amounts[0] * (1_000_000 - pancakeCL.outputParams.maxFees[0])) / 1_000_000 + fees[0];
     uint256 minReceived1 =

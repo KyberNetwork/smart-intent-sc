@@ -198,6 +198,13 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
       return;
     }
 
+    if (intentFeesPercent0 > maxFeePercents || intentFeesPercent1 > maxFeePercents) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
     uint256 minReceived0 = (liqAmount0 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee0;
     uint256 minReceived1 = (liqAmount1 * (1_000_000 - maxFeePercents)) / 1_000_000 + unclaimedFee1;
 

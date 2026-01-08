@@ -152,6 +152,16 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       return;
     }
 
+    if (
+      intentFeesPercent0 > uniswapV3.outputParams.maxFees[0]
+        || intentFeesPercent1 > uniswapV3.outputParams.maxFees[1]
+    ) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
     uint256[2] memory amounts = uniswapV3.removeLiqParams.positionInfo.amounts;
     uint256[2] memory fees = uniswapV3.removeLiqParams.positionInfo.unclaimedFees;
 
