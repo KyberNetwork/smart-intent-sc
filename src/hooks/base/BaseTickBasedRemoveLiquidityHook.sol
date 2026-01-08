@@ -238,6 +238,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
     RemoveLiquidityParams memory removeLiqParams,
     OutputValidationParams memory outputParams
   ) internal view virtual {
+    // generated fees are trusted by backend and don't need to be validated against current position fees because they could contain both claimed fees and offchain fees
     (
       removeLiqParams.index,
       removeLiqParams.positionInfo.feesGenerated[0],
