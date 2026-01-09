@@ -13,6 +13,7 @@ import {IKSZapRouter} from './interfaces/actions/IKSZapRouter.sol';
 import {HookLibrary} from './libraries/HookLibrary.sol';
 
 import {ActionData} from './types/ActionData.sol';
+import {ActionWitness} from './types/ActionWitness.sol';
 import {IntentCoreData} from './types/IntentCoreData.sol';
 import {IntentData} from './types/IntentData.sol';
 
@@ -78,7 +79,7 @@ contract KSSmartIntentRouter is
       revert NotMainAddress();
     }
 
-    _delegate(intentData, _hashTypedDataV4(hasher.hash(intentData)));
+    _delegate(intentData, _hashTypedDataV4(hasher.hashIntentData(intentData)));
   }
 
   /// @inheritdoc IKSSmartIntentRouter
@@ -87,7 +88,7 @@ contract KSSmartIntentRouter is
       revert NotMainAddress();
     }
 
-    bytes32 intentHash = _hashTypedDataV4(hasher.hash(intentData));
+    bytes32 intentHash = _hashTypedDataV4(hasher.hashIntentData(intentData));
     intentStatuses[intentHash] = IntentStatus.REVOKED;
 
     emit RevokeIntent(intentHash);
@@ -101,7 +102,7 @@ contract KSSmartIntentRouter is
     bytes calldata gdSignature,
     ActionData calldata actionData
   ) public {
-    bytes32 intentHash = _hashTypedDataV4(hasher.hash(intentData));
+    bytes32 intentHash = _hashTypedDataV4(hasher.hashIntentData(intentData));
     _execute(intentHash, intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
@@ -114,7 +115,7 @@ contract KSSmartIntentRouter is
     bytes calldata gdSignature,
     ActionData calldata actionData
   ) public {
-    bytes32 intentHash = _hashTypedDataV4(hasher.hash(intentData));
+    bytes32 intentHash = _hashTypedDataV4(hasher.hashIntentData(intentData));
     if (!intentData.coreData.mainAddress.isValidSignatureNowCalldata(intentHash, maSignature)) {
       revert InvalidMainAddressSignature();
     }
@@ -163,13 +164,7 @@ contract KSSmartIntentRouter is
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 
-    _validateActionData(
-      intentData.coreData,
-      dkSignature,
-      guardian,
-      gdSignature,
-      _hashTypedDataV4(hasher.hash(actionData))
-    );
+    _validateActionData(intentData.coreData, actionData, dkSignature, guardian, gdSignature);
 
     (uint256[] memory fees, bytes memory beforeExecutionData) =
       HookLibrary.beforeExecution(intentHash, intentData, actionData);
@@ -220,24 +215,26 @@ contract KSSmartIntentRouter is
 
   function _validateActionData(
     IntentCoreData calldata coreData,
+    ActionData calldata actionData,
     bytes calldata dkSignature,
     address guardian,
-    bytes calldata gdSignature,
-    bytes32 actionHash
+    bytes calldata gdSignature
   ) internal view {
+    bytes32 witnessHash = _hashTypedDataV4(hasher.hashActionWitness(coreData, actionData));
+
     if (coreData.signatureVerifier == address(0)) {
       /// @dev use ECDSA scheme
       address delegatedAddress = coreData.delegatedKey.decodeAddress();
       if (
         msg.sender != delegatedAddress
-          && !delegatedAddress.isValidSignatureNowCalldata(actionHash, dkSignature)
+          && !delegatedAddress.isValidSignatureNowCalldata(witnessHash, dkSignature)
       ) {
         revert InvalidDelegatedKeySignature();
       }
     } else {
       if (
         IERC7913SignatureVerifier(coreData.signatureVerifier)
-            .verify(coreData.delegatedKey, actionHash, dkSignature)
+            .verify(coreData.delegatedKey, witnessHash, dkSignature)
           != IERC7913SignatureVerifier.verify.selector
       ) {
         revert InvalidDelegatedKeySignature();
@@ -245,7 +242,7 @@ contract KSSmartIntentRouter is
     }
 
     if (msg.sender != guardian) {
-      if (!guardian.isValidSignatureNowCalldata(actionHash, gdSignature)) {
+      if (!guardian.isValidSignatureNowCalldata(witnessHash, gdSignature)) {
         revert InvalidGuardianSignature();
       }
     }
