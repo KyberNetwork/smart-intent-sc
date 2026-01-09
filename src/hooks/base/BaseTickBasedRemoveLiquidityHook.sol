@@ -22,6 +22,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   error InvalidLiquidity();
   error NotEnoughOutputAmount();
   error NotEnoughFeesReceived();
+  error ExceedMaxFeesPercent();
 
   uint256 public constant Q128 = 1 << 128;
   address public immutable WETH;
@@ -255,6 +256,12 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       validationData.maxFees[removeLiqParams.index] >> 128,
       uint128(validationData.maxFees[removeLiqParams.index])
     ];
+
+    require(
+      outputParams.intentFeesPercent[0] <= outputParams.maxFees[0]
+        && outputParams.intentFeesPercent[1] <= outputParams.maxFees[1],
+      ExceedMaxFeesPercent()
+    );
   }
 
   /**
