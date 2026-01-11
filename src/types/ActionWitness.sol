@@ -18,12 +18,6 @@ library ActionWitnessLibrary {
   );
 
   function hash(ActionWitness calldata self) internal pure returns (bytes32) {
-    return keccak256(
-      abi.encode(
-        ACTION_WITNESS_TYPE_HASH,
-        self.intentHash,
-        self.actionData.hash()
-      )
-    );
+    return keccak256(abi.encode(ACTION_WITNESS_TYPE_HASH, self.intentHash, self.actionData.hash()));
   }
 }

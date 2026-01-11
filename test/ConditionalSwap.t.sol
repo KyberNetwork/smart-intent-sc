@@ -38,7 +38,7 @@ contract ConditionalSwapTest is BaseTest {
 
   struct TestFuzz_ConditionalSwap_Params {
     uint256 mode;
-        uint256 maxFeeBefore;
+    uint256 maxFeeBefore;
     uint256 maxFeeAfter;
     uint256 srcFee;
     uint256 dstFee;
@@ -46,9 +46,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 returnAmount;
   }
 
-  function testFuzz_ConditionalSwap(
-    TestFuzz_ConditionalSwap_Params memory params
-  ) public {
+  function testFuzz_ConditionalSwap(TestFuzz_ConditionalSwap_Params memory params) public {
     params.mode = bound(params.mode, 0, 2);
     params.maxFeeBefore = bound(params.maxFeeBefore, 0, 1_000_000);
     params.maxFeeAfter = bound(params.maxFeeAfter, 0, 1_000_000);
