@@ -49,7 +49,7 @@ contract ZapOutUniswapV3Test is BaseTest {
     ActionData memory actionData = _getActionData(intentData.tokenData);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -64,7 +64,7 @@ contract ZapOutUniswapV3Test is BaseTest {
     ActionData memory actionData = _getActionData(intentData.tokenData);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);

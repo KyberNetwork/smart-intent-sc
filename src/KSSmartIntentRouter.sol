@@ -164,7 +164,9 @@ contract KSSmartIntentRouter is
 
     _useUnorderedNonce(intentHash, actionData.nonce);
 
-    _validateActionData(intentData.coreData, actionData, dkSignature, guardian, gdSignature);
+    _validateActionData(
+      intentHash, intentData.coreData, actionData, dkSignature, guardian, gdSignature
+    );
 
     (uint256[] memory fees, bytes memory beforeExecutionData) =
       HookLibrary.beforeExecution(intentHash, intentData, actionData);
@@ -214,13 +216,14 @@ contract KSSmartIntentRouter is
   }
 
   function _validateActionData(
+    bytes32 intentHash,
     IntentCoreData calldata coreData,
     ActionData calldata actionData,
     bytes calldata dkSignature,
     address guardian,
     bytes calldata gdSignature
   ) internal view {
-    bytes32 witnessHash = _hashTypedDataV4(hasher.hashActionWitness(coreData, actionData));
+    bytes32 witnessHash = _hashTypedDataV4(hasher.hashActionWitness(intentHash, actionData));
 
     if (coreData.signatureVerifier == address(0)) {
       /// @dev use ECDSA scheme

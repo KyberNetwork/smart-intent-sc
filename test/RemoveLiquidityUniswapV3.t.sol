@@ -94,7 +94,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, intentData.coreData, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     uint256 balance0Before = uniswapV3.outputParams.tokens[0].balanceOf(mainAddress);
     uint256 balance1Before = uniswapV3.outputParams.tokens[1].balanceOf(mainAddress);
@@ -144,7 +144,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, intentData.coreData, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     // always success when dont charge fees on the user's unclaimed fees
     if (uniswapV3.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
@@ -346,7 +346,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     ];
 
     (, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, intentData.coreData, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(

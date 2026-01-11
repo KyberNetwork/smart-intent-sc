@@ -58,7 +58,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -89,7 +89,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -120,12 +120,10 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller,, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory dkSignature = _getWebAuthnSignature(
-      router.hashTypedActionWitness(
-        ActionWitness({coreData: intentData.coreData, actionData: actionData})
-      )
+      router.hashTypedActionWitness(ActionWitness({intentHash: intentHash, actionData: actionData}))
     );
 
     vm.startPrank(caller);
@@ -143,7 +141,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
@@ -168,7 +166,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -203,7 +201,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
@@ -236,7 +234,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -263,7 +261,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSmartIntentRouter.IntentRevoked.selector);
@@ -293,7 +291,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSmartIntentRouter.IntentRevoked.selector);
@@ -309,7 +307,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert();
@@ -343,7 +341,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -367,7 +365,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -391,7 +389,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.recordLogs();
     vm.startPrank(caller);
@@ -428,7 +426,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -473,7 +471,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
 

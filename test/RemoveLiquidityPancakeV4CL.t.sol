@@ -137,7 +137,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, intentData.coreData, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     uint256 balance0Before = token0.balanceOf(mainAddress);
     uint256 balance1Before = token1.balanceOf(mainAddress);
@@ -272,7 +272,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
     (, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, intentData.coreData, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
@@ -328,7 +328,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, intentData.coreData, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     // always success when dont charge fees on the user's unclaimed fees
     if (pancakeCL.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {

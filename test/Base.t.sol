@@ -127,36 +127,40 @@ contract BaseTest is Test {
     return abi.encodePacked(r, s, v);
   }
 
-  function _getGDSignature(IntentCoreData memory coreData, ActionData memory actionData)
+  function _getGDSignature(IntentData memory intentData, ActionData memory actionData)
     internal
     view
     returns (bytes memory)
   {
-    bytes32 witnessHash = router.hashTypedActionWitness(ActionWitness(coreData, actionData));
+    bytes32 witnessHash = router.hashTypedActionWitness(
+      ActionWitness(router.hashTypedIntentData(intentData), actionData)
+    );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(guardianKey, witnessHash);
     return abi.encodePacked(r, s, v);
   }
 
-  function _getDKSignature(IntentCoreData memory coreData, ActionData memory actionData)
+  function _getDKSignature(IntentData memory intentData, ActionData memory actionData)
     internal
     view
     returns (bytes memory)
   {
-    bytes32 witnessHash = router.hashTypedActionWitness(ActionWitness(coreData, actionData));
+    bytes32 witnessHash = router.hashTypedActionWitness(
+      ActionWitness(router.hashTypedIntentData(intentData), actionData)
+    );
     return _getSignature(delegatedPrivateKey, witnessHash);
   }
 
   function _getCallerAndSignatures(
     uint256 mode,
-    IntentCoreData memory coreData,
+    IntentData memory intentData,
     ActionData memory actionData
   ) internal view returns (address caller, bytes memory dkSignature, bytes memory gdSignature) {
     caller = mode == 0 ? randomCaller : (mode == 1 ? guardian : vm.addr(delegatedPrivateKey));
     if (mode == 0 || mode == 1) {
-      dkSignature = _getDKSignature(coreData, actionData);
+      dkSignature = _getDKSignature(intentData, actionData);
     }
     if (mode == 0 || mode == 2) {
-      gdSignature = _getGDSignature(coreData, actionData);
+      gdSignature = _getGDSignature(intentData, actionData);
     }
   }
 
