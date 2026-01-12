@@ -59,7 +59,7 @@ contract ZapOutUniswapV2Test is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -75,7 +75,7 @@ contract ZapOutUniswapV2Test is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, intentData.coreData, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
