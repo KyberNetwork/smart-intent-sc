@@ -192,15 +192,15 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, intentData, actionData);
 
-    // always success when dont charge fees on the user's unclaimed fees
-    if (fuzz.liquidityToRemove == 0 && !takeUnclaimedFees) {
+    if (intentFeesPercent0 > maxFeePercents || intentFeesPercent1 > maxFeePercents) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
       router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
 
-    if (intentFeesPercent0 > maxFeePercents || intentFeesPercent1 > maxFeePercents) {
-      vm.startPrank(caller);
-      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+    // always success when dont charge fees on the user's unclaimed fees
+    if (fuzz.liquidityToRemove == 0 && !takeUnclaimedFees) {
       router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }

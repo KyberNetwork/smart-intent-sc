@@ -330,18 +330,18 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(0, intentData, actionData);
 
-    // always success when dont charge fees on the user's unclaimed fees
-    if (pancakeCL.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
-      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
-      return;
-    }
-
     if (
       intentFeesPercent0 > pancakeCL.outputParams.maxFees[0]
         || intentFeesPercent1 > pancakeCL.outputParams.maxFees[1]
     ) {
       vm.startPrank(caller);
       vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+      return;
+    }
+
+    // always success when dont charge fees on the user's unclaimed fees
+    if (pancakeCL.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
       router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       return;
     }
