@@ -214,7 +214,6 @@ contract KSSmartIntentRouter is
         || selector == IKSSwapRouterV2.swapSimpleMode.selector
         || selector == IKSSwapRouterV3.swap.selector || selector == IKSZapRouter.zap.selector
         || selector == IKSAllowanceHub.permitTransferAndExecute.selector
-        || selector == IKSGenericRouter.ksExecute.selector
     ) {
       return IKSGenericForwarder(address(0));
     }

@@ -1,4 +1,6 @@
 /// @title IKSAllowanceHub
+pragma solidity ^0.8.0;
+
 /// @notice Interface for the KSAllowanceHub
 interface IKSAllowanceHub {
   /**
