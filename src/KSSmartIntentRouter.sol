@@ -7,7 +7,6 @@ import {KSSmartIntentRouterNonces} from './KSSmartIntentRouterNonces.sol';
 
 import {IKSSmartIntentRouter} from './interfaces/IKSSmartIntentRouter.sol';
 import {IKSAllowanceHub} from './interfaces/actions/IKSAllowanceHub.sol';
-import {IKSGenericRouter} from './interfaces/actions/IKSGenericRouter.sol';
 import {IKSSwapRouterV2} from './interfaces/actions/IKSSwapRouterV2.sol';
 import {IKSSwapRouterV3} from './interfaces/actions/IKSSwapRouterV3.sol';
 import {IKSZapRouter} from './interfaces/actions/IKSZapRouter.sol';
