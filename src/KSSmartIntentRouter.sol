@@ -6,10 +6,11 @@ import {KSSmartIntentRouterAccounting} from './KSSmartIntentRouterAccounting.sol
 import {KSSmartIntentRouterNonces} from './KSSmartIntentRouterNonces.sol';
 
 import {IKSSmartIntentRouter} from './interfaces/IKSSmartIntentRouter.sol';
+import {IKSAllowanceHub} from './interfaces/actions/IKSAllowanceHub.sol';
+import {IKSGenericRouter} from './interfaces/actions/IKSGenericRouter.sol';
 import {IKSSwapRouterV2} from './interfaces/actions/IKSSwapRouterV2.sol';
 import {IKSSwapRouterV3} from './interfaces/actions/IKSSwapRouterV3.sol';
 import {IKSZapRouter} from './interfaces/actions/IKSZapRouter.sol';
-
 import {HookLibrary} from './libraries/HookLibrary.sol';
 
 import {ActionData} from './types/ActionData.sol';
@@ -212,6 +213,8 @@ contract KSSmartIntentRouter is
       selector == IKSSwapRouterV2.swap.selector
         || selector == IKSSwapRouterV2.swapSimpleMode.selector
         || selector == IKSSwapRouterV3.swap.selector || selector == IKSZapRouter.zap.selector
+        || selector == IKSAllowanceHub.permitTransferAndExecute.selector
+        || selector == IKSGenericRouter.ksExecute.selector
     ) {
       return IKSGenericForwarder(address(0));
     }
