@@ -22,6 +22,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   error InvalidLiquidity();
   error NotEnoughOutputAmount();
   error NotEnoughFeesReceived();
+  error ExceedMaxFeesPercent();
 
   uint256 public constant Q128 = 1 << 128;
   address public immutable WETH;
@@ -255,16 +256,29 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       validationData.maxFees[removeLiqParams.index] >> 128,
       uint128(validationData.maxFees[removeLiqParams.index])
     ];
+
+    require(
+      outputParams.intentFeesPercent[0] <= outputParams.maxFees[0]
+        && outputParams.intentFeesPercent[1] <= outputParams.maxFees[1],
+      ExceedMaxFeesPercent()
+    );
   }
 
+  /**
+   * @notice Validate the conditions of the liquidity removal operation
+   * @param nodes The nodes of conditions (used to build the condition tree)
+   * @param fee0Generated The fee0 generated - an offchain component that could contain claimed fees, unclaimed fees, and yield-based fees
+   * @param fee1Generated The fee1 generated - an offchain component that could contain claimed fees, unclaimed fees, and yield-based fees
+   * @param poolPrice The price of the pool
+   */
   function _validateConditions(
     Node[] calldata nodes,
-    uint256 fee0Collected,
-    uint256 fee1Collected,
+    uint256 fee0Generated,
+    uint256 fee1Generated,
     uint256 poolPrice
   ) internal view virtual {
     this.validateConditionTree(
-      _buildConditionTree(nodes, fee0Collected, fee1Collected, poolPrice), 0
+      _buildConditionTree(nodes, fee0Generated, fee1Generated, poolPrice), 0
     );
   }
 
@@ -318,8 +332,8 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
 
   function _buildConditionTree(
     Node[] calldata nodes,
-    uint256 fee0Collected,
-    uint256 fee1Collected,
+    uint256 fee0Generated,
+    uint256 fee1Generated,
     uint256 poolPrice
   ) internal pure virtual returns (ConditionTree memory conditionTree) {
     conditionTree.nodes = nodes;
@@ -329,7 +343,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
         continue;
       }
       if (nodes[i].condition.isType(YIELD_BASED)) {
-        conditionTree.additionalData[i] = abi.encode(fee0Collected, fee1Collected, poolPrice);
+        conditionTree.additionalData[i] = abi.encode(fee0Generated, fee1Generated, poolPrice);
       } else if (nodes[i].condition.isType(PRICE_BASED)) {
         conditionTree.additionalData[i] = abi.encode(poolPrice);
       }

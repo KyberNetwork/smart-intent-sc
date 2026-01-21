@@ -58,7 +58,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -89,7 +89,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -119,9 +119,12 @@ contract MockActionTest is BaseTest {
     ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
 
     vm.warp(block.timestamp + 100);
-    (address caller,, bytes memory gdSignature) = _getCallerAndSignatures(mode, actionData);
+    (address caller,, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, intentData, actionData);
 
-    bytes memory dkSignature = _getWebAuthnSignature(router.hashTypedActionData(actionData));
+    bytes memory dkSignature = _getWebAuthnSignature(
+      router.hashTypedActionWitness(ActionWitness({intentHash: intentHash, actionData: actionData}))
+    );
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -138,7 +141,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
@@ -163,7 +166,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -198,7 +201,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     bytes memory maSignature = _getMASignature(intentData);
     vm.startPrank(caller);
@@ -231,7 +234,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -258,7 +261,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSmartIntentRouter.IntentRevoked.selector);
@@ -288,7 +291,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(IKSSmartIntentRouter.IntentRevoked.selector);
@@ -304,7 +307,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert();
@@ -338,7 +341,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -362,7 +365,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -386,7 +389,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.recordLogs();
     vm.startPrank(caller);
@@ -423,7 +426,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -468,7 +471,7 @@ contract MockActionTest is BaseTest {
 
     vm.warp(block.timestamp + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
 
@@ -666,7 +669,7 @@ contract MockActionTest is BaseTest {
     return array;
   }
 
-  function _getWebAuthnSignature(bytes32 actionHash)
+  function _getWebAuthnSignature(bytes32 witnessHash)
     internal
     view
     returns (bytes memory signature)
@@ -674,7 +677,7 @@ contract MockActionTest is BaseTest {
     bytes memory authenicatorData = _encodeAuthenticatorData(
       WebAuthn.AUTH_DATA_FLAGS_UP | WebAuthn.AUTH_DATA_FLAGS_UV
     );
-    string memory clientDataJSON = _encodeClientDataJSON(abi.encodePacked(actionHash));
+    string memory clientDataJSON = _encodeClientDataJSON(abi.encodePacked(witnessHash));
 
     bytes32 messageHash = sha256(abi.encodePacked(authenicatorData, sha256(bytes(clientDataJSON))));
     (bytes32 r, bytes32 s) = vm.signP256(delegatedPrivateKey, messageHash);
