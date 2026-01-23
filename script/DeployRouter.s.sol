@@ -5,7 +5,7 @@ import 'ks-common-sc/script/Base.s.sol';
 import 'src/KSSmartIntentRouter.sol';
 
 contract DeployRouter is BaseScript {
-  string salt = '';
+  string salt = '260123_2';
 
   function run() external {
     if (bytes(salt).length == 0) {
@@ -18,13 +18,12 @@ contract DeployRouter is BaseScript {
     address[] memory rescuers = _readAddressArray('router-rescuers');
     address[] memory actionContracts = _readAddressArray('action-contracts');
     address forwarder = _readAddress('forwarder');
-    address signatureVerifier = _readAddress('signature-verifier');
 
     vm.startBroadcast();
 
     bytes memory creationCode = abi.encodePacked(
       type(KSSmartIntentRouter).creationCode,
-      abi.encode(admin, guardians, rescuers, actionContracts, forwarder, signatureVerifier)
+      abi.encode(admin, guardians, rescuers, actionContracts, forwarder)
     );
     address router = _create3Deploy(keccak256(abi.encodePacked(salt)), creationCode);
 
