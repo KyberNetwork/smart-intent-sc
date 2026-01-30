@@ -23,6 +23,7 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
   error NotEnoughOutputAmount();
   error NotEnoughFeesReceived();
   error ExceedMaxFeesPercent();
+  error InvalidERC721Data();
 
   uint256 public constant Q128 = 1 << 128;
   address public immutable WETH;
@@ -301,6 +302,15 @@ abstract contract BaseTickBasedRemoveLiquidityHook is BaseConditionalHook {
       ) == removeLiquidityParams.positionInfo.liquidity - removeLiquidityParams.liquidityToRemove,
       InvalidLiquidity()
     );
+  }
+
+  function _validateERC721Data(
+    address nftAddress,
+    uint256 nftId,
+    address tokenAddress,
+    uint256 tokenId
+  ) internal view virtual {
+    require(nftAddress == tokenAddress && nftId == tokenId, InvalidERC721Data());
   }
 
   function _getPositionLiquidity(address nftAddress, uint256 nftId)
