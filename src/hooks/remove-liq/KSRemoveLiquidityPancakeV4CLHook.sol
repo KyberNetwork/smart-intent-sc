@@ -48,7 +48,7 @@ contract KSRemoveLiquidityPancakeV4CLHook is BaseTickBasedRemoveLiquidityHook {
     _cacheValidationData(pancakeCL, validationData, actionData.hookActionData);
 
     _validateERC721Data(
-      address(pancakeCL.clPoolManager),
+      pancakeCL.removeLiqParams.positionInfo.nftAddress,
       pancakeCL.removeLiqParams.positionInfo.nftId,
       intentData.tokenData.erc721Data[actionData.erc721Ids[0]].token,
       intentData.tokenData.erc721Data[actionData.erc721Ids[0]].tokenId
