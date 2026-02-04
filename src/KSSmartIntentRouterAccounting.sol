@@ -72,7 +72,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
         actionData.feeInfo.protocolRecipient
       );
     }
-    approvalFlags >>= tokenData.erc20Data.length;
+    approvalFlags >>= actionData.erc20Ids.length;
 
     for (uint256 i = 0; i < actionData.erc721Ids.length; i++) {
       address token = tokenData.erc721Data[actionData.erc721Ids[i]].token;
