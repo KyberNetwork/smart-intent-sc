@@ -28,6 +28,7 @@ import {
 } from 'openzeppelin-contracts/contracts/utils/cryptography/SignatureChecker.sol';
 
 import {ManagementBase} from 'ks-common-sc/src/base/ManagementBase.sol';
+import {ManagementRescuable} from 'ks-common-sc/src/base/ManagementRescuable.sol';
 import {IKSGenericForwarder} from 'ks-common-sc/src/interfaces/IKSGenericForwarder.sol';
 import {KSRoles} from 'ks-common-sc/src/libraries/KSRoles.sol';
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
@@ -50,9 +51,7 @@ contract KSSmartIntentRouter is
     address[] memory initialRescuers,
     address[] memory initialActionContracts,
     address _forwarder
-  ) ManagementBase(0, initialAdmin) {
-    _batchGrantRole(KSRoles.GUARDIAN_ROLE, initialGuardians);
-    _batchGrantRole(KSRoles.RESCUER_ROLE, initialRescuers);
+  ) ManagementBase(0, initialAdmin) ManagementRescuable(initialRescuers) {
     _batchGrantRole(ACTION_CONTRACT_ROLE, initialActionContracts);
 
     _updateForwarder(_forwarder);

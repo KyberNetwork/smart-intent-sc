@@ -50,10 +50,10 @@ contract DeployHooks is BaseScript {
     string memory contractName,
     bytes memory constructorArgs,
     string memory hookSalt
-  ) internal returns (address) {
+  ) internal returns (address deployed) {
     bytes memory bytecode = vm.getCode(contractName);
     bytes memory creationCode = abi.encodePacked(bytecode, constructorArgs);
-    return _create3Deploy(keccak256(abi.encodePacked(hookSalt)), creationCode);
+    (deployed,) = _create3Deploy(keccak256(abi.encodePacked(hookSalt)), creationCode);
   }
 
   function _getConstructorArgs(string[] memory paramSources) internal returns (bytes memory) {

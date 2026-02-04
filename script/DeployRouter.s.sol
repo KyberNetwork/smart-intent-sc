@@ -25,7 +25,7 @@ contract DeployRouter is BaseScript {
       type(KSSmartIntentRouter).creationCode,
       abi.encode(admin, guardians, rescuers, actionContracts, forwarder)
     );
-    address router = _create3Deploy(keccak256(abi.encodePacked(salt)), creationCode);
+    (address router,) = _create3Deploy(keccak256(abi.encodePacked(salt)), creationCode);
 
     _writeAddress('router', router);
 

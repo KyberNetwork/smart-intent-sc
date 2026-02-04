@@ -28,7 +28,7 @@ contract MockActionTest is BaseTest {
   }
 
   function testUpdateForwarder() public {
-    forwarder = new KSGenericForwarder();
+    forwarder = new KSWhitelistedForwarder(admin, new address[](0));
 
     vm.prank(makeAddr('random'));
     vm.expectRevert(
@@ -42,6 +42,37 @@ contract MockActionTest is BaseTest {
     vm.expectEmit(true, true, true, true);
     emit IKSSmartIntentRouter.UpdateForwarder(address(forwarder));
     router.updateForwarder(address(forwarder));
+  }
+
+  function testMockActionExecuteWithForwarderNotWhitelistedRouterShouldRevert(uint256 seed) public {
+    vm.startPrank(admin);
+    forwarder.revokeRole(WHITELISTED_ROLE, address(router));
+    vm.stopPrank();
+
+    uint256 mode = bound(seed, 0, 2);
+    IntentData memory intentData = _getIntentData(seed);
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+    _checkAllowancesAfterDelegation(intentHash, intentData.tokenData);
+
+    TokenData memory newTokenData = _getNewTokenData(intentData.tokenData, seed);
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), seed);
+
+    vm.warp(block.timestamp + 100);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, intentData, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector,
+        address(router),
+        WHITELISTED_ROLE
+      )
+    );
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function testMockActionExecuteSuccess(uint256 seed) public {
