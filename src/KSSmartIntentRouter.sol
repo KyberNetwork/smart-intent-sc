@@ -74,7 +74,7 @@ contract KSSmartIntentRouter is
   }
 
   /// @inheritdoc IKSSmartIntentRouter
-  function delegate(IntentData calldata intentData) public {
+  function delegate(IntentData calldata intentData) public whenNotPaused {
     if (intentData.coreData.mainAddress != msg.sender) {
       revert NotMainAddress();
     }
@@ -101,7 +101,7 @@ contract KSSmartIntentRouter is
     address guardian,
     bytes calldata gdSignature,
     ActionData calldata actionData
-  ) public {
+  ) public whenNotPaused {
     bytes32 intentHash = _hashTypedDataV4(hasher.hashIntentData(intentData));
     _execute(intentHash, intentData, dkSignature, guardian, gdSignature, actionData);
   }
@@ -114,7 +114,7 @@ contract KSSmartIntentRouter is
     address guardian,
     bytes calldata gdSignature,
     ActionData calldata actionData
-  ) public {
+  ) public whenNotPaused {
     bytes32 intentHash = _hashTypedDataV4(hasher.hashIntentData(intentData));
     if (!intentData.coreData.mainAddress.isValidSignatureNowCalldata(intentHash, maSignature)) {
       revert InvalidMainAddressSignature();
