@@ -4,13 +4,15 @@ pragma solidity ^0.8.0;
 import 'ks-common-sc/script/Base.s.sol';
 
 contract DeployHooks is BaseScript {
-  string salt = '260123';
+  string salt = '260205';
 
   struct HookConfig {
     string[] constructorParams;
     string exported;
   }
 
+  // forge script script/DeployHooks.s.sol --sig "run(string[])"
+  // "[KSRemoveLiquidityPancakeV4CLHook,KSRemoveLiquidityUniswapV3Hook,KSRemoveLiquidityUniswapV4Hook]" --verify
   function run(string[] memory hookNames) external {
     if (bytes(salt).length == 0) {
       revert('salt is required');
