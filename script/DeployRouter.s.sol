@@ -5,7 +5,7 @@ import 'ks-common-sc/script/Base.s.sol';
 import 'src/KSSmartIntentRouter.sol';
 
 contract DeployRouter is BaseScript {
-  string salt = '260123_2';
+  string salt = '260209';
 
   function run() external {
     if (bytes(salt).length == 0) {
