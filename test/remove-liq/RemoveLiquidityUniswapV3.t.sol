@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './Base.t.sol';
+import '../Base.t.sol';
 import 'src/hooks/base/BaseConditionalHook.sol';
 import 'src/hooks/remove-liq/KSRemoveLiquidityUniswapV3Hook.sol';
 
-import {IERC721} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
 import 'test/common/Permit.sol';
 
 import 'src/types/ConditionTree.sol';
