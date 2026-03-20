@@ -27,6 +27,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   error InvalidERC721Data();
   error InsufficientPositionValue();
   error TooLargeDistanceFromTickBoundaries();
+  error TooSmallDistanceFromTickBoundaries();
   error InvalidTickLower();
   error InvalidTickUpper();
   error ExceedMaxValueReductionInToken0();
@@ -42,8 +43,6 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    * @param maxValueReductionPerAction The max value reduction per action (in token0 if price decreases, in token1 if price increases)
    * @param minDistanceFromLowerTick The min distance from the lower tick to the current tick
    * @param minDistanceFromUpperTick The min distance from the upper tick to the current tick
-   * @param lowerTickDelta The difference between the new lower tick and the current tick
-   * @param upperTickDelta The difference between the new upper tick and the current tick
    * @param maxFees The max fees for each output token (1e6 = 100%)
    */
   struct ZapMigrateHookData {
@@ -54,8 +53,6 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     uint256 maxValueReductionPerAction;
     int24 minDistanceFromLowerTick;
     int24 minDistanceFromUpperTick;
-    int24 lowerTickDelta;
-    int24 upperTickDelta;
     uint256[] maxFees;
   }
 
@@ -215,11 +212,11 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     }
 
     // check tick boundaries
-    if (ppInfo.tickLower != ppInfo.tick + hookIntentData.lowerTickDelta) {
-      revert InvalidTickLower();
+    if (ppInfo.tick < ppInfo.tickLower + hookIntentData.minDistanceFromLowerTick) {
+      revert TooSmallDistanceFromTickBoundaries();
     }
-    if (ppInfo.tickUpper != ppInfo.tick + hookIntentData.upperTickDelta) {
-      revert InvalidTickUpper();
+    if (ppInfo.tick > ppInfo.tickUpper - hookIntentData.minDistanceFromUpperTick) {
+      revert TooSmallDistanceFromTickBoundaries();
     }
 
     uint256 directionalPositionValueAfter;

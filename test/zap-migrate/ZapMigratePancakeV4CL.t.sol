@@ -53,8 +53,6 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
 
   int24 internal newTickLower;
   int24 internal newTickUpper;
-  int24 internal lowerTickDelta;
-  int24 internal upperTickDelta;
 
   function _selectFork() public override {
     FORK_BLOCK = 56_756_230;
@@ -125,12 +123,32 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     if (currentTick > posTickUpper) {
       return (int24(1), int24(2));
     }
-    int24 dL = currentTick - posTickLower;
-    int24 dU = posTickUpper - currentTick;
-    if (dL <= dU) {
-      return (dL + 2, int24(1));
-    }
-    return (int24(1), dU + 2);
+
+    int24 dLnN = currentTick - newTickLower;
+    int24 dUnN = newTickUpper - currentTick;
+    int24 dLpos = currentTick - posTickLower;
+    int24 dUpos = posTickUpper - currentTick;
+
+    minL = int24(1);
+    minU = dUpos + int24(2);
+    if (minU > dUnN) minU = dUnN;
+    if (minU < int24(1)) minU = int24(1);
+    bool beforeOk = currentTick < posTickLower + minL || currentTick > posTickUpper - minU;
+    bool afterOk = currentTick >= newTickLower + minL && currentTick <= newTickUpper - minU;
+    if (beforeOk && afterOk) return (minL, minU);
+
+    minU = int24(1);
+    minL = dLpos + int24(2);
+    if (minL > dLnN) minL = dLnN;
+    if (minL < int24(1)) minL = int24(1);
+    beforeOk = currentTick < posTickLower + minL || currentTick > posTickUpper - minU;
+    afterOk = currentTick >= newTickLower + minL && currentTick <= newTickUpper - minU;
+    if (beforeOk && afterOk) return (minL, minU);
+
+    minU = dUpos + int24(2);
+    if (minU > dUnN) minU = dUnN;
+    if (minU < int24(1)) minU = int24(1);
+    return (int24(1), minU);
   }
 
   /// @dev Fuzzed start: in-range (near lower / near upper) or one-sided; tick vs range satisfies migrate boundary check.
@@ -195,9 +213,15 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
           newTickLower = shiftedL;
           newTickUpper = shiftedU;
         } else {
-          newTickLower = mintTL;
-          newTickUpper = mintTU;
+          newTickLower = mintTL + tickSpacing;
+          newTickUpper = mintTU + tickSpacing;
         }
+      }
+
+      {
+        int24 dLnN = currentTick - newTickLower;
+        int24 dUnN = newTickUpper - currentTick;
+        if (dLnN < int24(1) || dUnN < int24(1)) continue;
       }
 
       bytes memory mintActions = new bytes(2);
@@ -244,8 +268,6 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
       id = PM.nextTokenId() - 1;
       posNftId = id;
       (, posTickLower, posTickUpper, posLiquidity,,,) = PM.positions(id);
-      lowerTickDelta = newTickLower - currentTick;
-      upperTickDelta = newTickUpper - currentTick;
       return id;
     }
     revert('no fuzz mint');
@@ -275,8 +297,6 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
 
   function _hookData(
     uint256 nftId,
-    int24 lowerDelta,
-    int24 upperDelta,
     uint256 maxFee0,
     uint256 maxFee1,
     uint256 minV0,
@@ -297,20 +317,18 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
         maxValueReductionPerAction: maxReduction,
         minDistanceFromLowerTick: minDistL,
         minDistanceFromUpperTick: minDistU,
-        lowerTickDelta: lowerDelta,
-        upperTickDelta: upperDelta,
         maxFees: maxFees
       })
     );
   }
 
-  function _hookDataStandard(uint256 nftId, int24 ld, int24 ud, uint256 max0, uint256 max1)
+  function _hookDataStandard(uint256 nftId, uint256 max0, uint256 max1)
     internal
     view
     returns (bytes memory)
   {
     (int24 minL, int24 minU) = _minDistForMigrateHook();
-    return _hookData(nftId, ld, ud, max0, max1, 0, 0, type(uint128).max, minL, minU);
+    return _hookData(nftId, max0, max1, 0, 0, type(uint128).max, minL, minU);
   }
 
   function _buildIntent(uint256 nftId, bytes memory hookBytes)
@@ -417,9 +435,8 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     p = _boundExecutionParams(p);
     _mintStartPosition(seed);
 
-    IntentData memory intent = _buildIntent(
-      posNftId, _hookDataStandard(posNftId, lowerTickDelta, upperTickDelta, p.maxFee0, p.maxFee1)
-    );
+    IntentData memory intent =
+      _buildIntent(posNftId, _hookDataStandard(posNftId, p.maxFee0, p.maxFee1));
     ActionData memory action = _buildAction(posNftId, newTickLower, newTickUpper, mainAddress, p, 0);
 
     uint256 nextBefore = PM.nextTokenId();
@@ -435,49 +452,40 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     assertEq(nu, newTickUpper);
   }
 
-  function _extraInvalidLower(uint8 mult) internal view returns (int24 extra) {
-    int24 width = newTickUpper - newTickLower;
-    uint256 maxSteps = uint256(int256(width / tickSpacing));
-    unchecked {
-      if (maxSteps > 0) maxSteps--;
-    }
-    if (maxSteps < 1) maxSteps = 1;
-    if (maxSteps > 50) maxSteps = 50;
-    extra = int24(uint24(bound(uint256(mult), 1, maxSteps))) * tickSpacing;
-  }
-
-  function testFuzz_Revert_InvalidTickLower(uint256 seed, uint8 mult) public {
+  function testFuzz_Revert_TooSmallDistance_InvalidTickLower(uint256 seed, uint8 mult) public {
     _mintStartPosition(seed);
-    int24 extra = _extraInvalidLower(mult);
+    int24 maxBump = newTickUpper - newTickLower - int24(2) * tickSpacing;
+    vm.assume(maxBump > tickSpacing);
+    int24 extra = maxBump - int24(uint24(bound(uint256(mult), 1, 40))) * tickSpacing;
+    vm.assume(extra > int24(0));
+    vm.assume(currentTick < newTickLower + extra + int24(1));
+    vm.assume(newTickLower + extra < newTickUpper - tickSpacing);
 
     ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
     IntentData memory intent = _buildIntent(
-      posNftId,
-      _hookDataStandard(
-        posNftId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1
-      )
+      posNftId, _hookDataStandard(posNftId, migrateParams.maxFee0, migrateParams.maxFee1)
     );
     ActionData memory action =
       _buildAction(posNftId, newTickLower + extra, newTickUpper, mainAddress, migrateParams, 0);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InvalidTickLower.selector);
+    _executeExpectRevert(
+      intent, action, BaseTickBasedZapMigrateHook.TooSmallDistanceFromTickBoundaries.selector
+    );
   }
 
-  /// @dev Skew minted upper down one spacing so the hook still expects `newTickUpper` but the position does not.
-  /// Bumping upper up can cross price and make the PM mint both-sided → `FailedCall`.
-  function test_Revert_InvalidTickUpper(uint256 seed) public {
+  /// @dev Shrink minted upper by one spacing → pool tick ends up above `tickUpper - minDistance`.
+  function test_Revert_TooSmallDistance_InvalidTickUpper(uint256 seed) public {
     _mintStartPosition(seed);
 
     ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
     IntentData memory intent = _buildIntent(
-      posNftId,
-      _hookDataStandard(
-        posNftId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1
-      )
+      posNftId, _hookDataStandard(posNftId, migrateParams.maxFee0, migrateParams.maxFee1)
     );
     ActionData memory action = _buildAction(
       posNftId, newTickLower, newTickUpper - tickSpacing, mainAddress, migrateParams, 0
     );
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InvalidTickUpper.selector);
+    _executeExpectRevert(
+      intent, action, BaseTickBasedZapMigrateHook.TooSmallDistanceFromTickBoundaries.selector
+    );
   }
 
   function testFuzz_Revert_ExceedMaxFeesPercent(uint256 seed, ZapMigrateFuzzParams memory p)
@@ -493,8 +501,7 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     p.fee0Percent = FEE_ONE;
     p.fee1Percent = FEE_ONE;
 
-    IntentData memory intent =
-      _buildIntent(posNftId, _hookDataStandard(posNftId, lowerTickDelta, upperTickDelta, 0, 0));
+    IntentData memory intent = _buildIntent(posNftId, _hookDataStandard(posNftId, 0, 0));
     ActionData memory action =
       _buildAction(posNftId, newTickLower, newTickUpper, mainAddress, p, tinyLiq);
     _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.ExceedMaxFeesPercent.selector);
@@ -518,18 +525,7 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     (int24 minL, int24 minU) = _minDistForMigrateHook();
     IntentData memory intent = _buildIntent(
       posNftId,
-      _hookData(
-        posNftId,
-        lowerTickDelta,
-        upperTickDelta,
-        HOOK_MAX_FEE_10PCT,
-        HOOK_MAX_FEE_10PCT,
-        0,
-        0,
-        0,
-        minL,
-        minU
-      )
+      _hookData(posNftId, HOOK_MAX_FEE_10PCT, HOOK_MAX_FEE_10PCT, 0, 0, 0, minL, minU)
     );
     ActionData memory action =
       _buildAction(posNftId, newTickLower, newTickUpper, mainAddress, migrateParams, tinyLiq);
@@ -546,12 +542,8 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     if (nx == m) nx = m == type(uint160).max ? uint160(1) : m + 1;
 
     ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
-    IntentData memory intent = _buildIntent(
-      posNftId,
-      _hookDataStandard(
-        posNftId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1
-      )
-    );
+    IntentData memory intent =
+      _buildIntent(posNftId, _hookDataStandard(posNftId, migrateParams.maxFee0, migrateParams.maxFee1));
     ActionData memory action =
       _buildAction(posNftId, newTickLower, newTickUpper, address(nx), migrateParams, 0);
     _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InvalidOwner.selector);
@@ -564,16 +556,7 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     IntentData memory intent = _buildIntent(
       posNftId,
       _hookData(
-        posNftId,
-        lowerTickDelta,
-        upperTickDelta,
-        HOOK_MAX_FEE_10PCT,
-        HOOK_MAX_FEE_10PCT,
-        type(uint256).max,
-        0,
-        type(uint128).max,
-        minL,
-        minU
+        posNftId, HOOK_MAX_FEE_10PCT, HOOK_MAX_FEE_10PCT, type(uint256).max, 0, type(uint128).max, minL, minU
       )
     );
     ActionData memory action =
@@ -590,16 +573,7 @@ contract ZapMigratePancakeV4CLTest is BaseTest {
     IntentData memory intent = _buildIntent(
       posNftId,
       _hookData(
-        posNftId,
-        lowerTickDelta,
-        upperTickDelta,
-        HOOK_MAX_FEE_10PCT,
-        HOOK_MAX_FEE_10PCT,
-        0,
-        type(uint256).max,
-        type(uint128).max,
-        minL,
-        minU
+        posNftId, HOOK_MAX_FEE_10PCT, HOOK_MAX_FEE_10PCT, 0, type(uint256).max, type(uint128).max, minL, minU
       )
     );
     ActionData memory action =
