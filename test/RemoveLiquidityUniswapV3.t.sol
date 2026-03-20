@@ -94,7 +94,7 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     uint256 balance0Before = uniswapV3.outputParams.tokens[0].balanceOf(mainAddress);
     uint256 balance1Before = uniswapV3.outputParams.tokens[1].balanceOf(mainAddress);
@@ -144,7 +144,17 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
     ActionData memory actionData = _getActionData(uniswapV3.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    if (
+      intentFeesPercent0 > uniswapV3.outputParams.maxFees[0]
+        || intentFeesPercent1 > uniswapV3.outputParams.maxFees[1]
+    ) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+      return;
+    }
 
     // always success when dont charge fees on the user's unclaimed fees
     if (uniswapV3.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {
@@ -335,7 +345,8 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
       uniswapV3.outputParams.tokens[1].balanceOf(mainAddress)
     ];
 
-    (, bytes memory dkSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
+    (, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
@@ -399,6 +410,166 @@ contract RemoveLiquidityUniswapV3Test is BaseTest {
         uniswapV3.outputParams.tokens[1].balanceOf(address(router)), 0, 'invalid router balance 1'
       );
     }
+  }
+
+  function testRevert_InvalidERC721Data() public {
+    {
+      address posOwner = IUniswapV3PM(pm).ownerOf(963_350);
+      vm.prank(posOwner);
+      IERC721(pm).safeTransferFrom(posOwner, mainAddress, 963_350);
+    }
+    { // Claim all fees of two positions
+      vm.startPrank(mainAddress);
+      bytes[] memory claimCalldata = new bytes[](2);
+      claimCalldata[0] = abi.encodeWithSelector(
+        IUniswapV3PM.collect.selector,
+        IUniswapV3PM.CollectParams({
+          tokenId: tokenId,
+          recipient: mainAddress,
+          amount0Max: type(uint128).max,
+          amount1Max: type(uint128).max
+        })
+      );
+      claimCalldata[1] = abi.encodeWithSelector(
+        IUniswapV3PM.collect.selector,
+        IUniswapV3PM.CollectParams({
+          tokenId: 963_350,
+          recipient: mainAddress,
+          amount0Max: type(uint128).max,
+          amount1Max: type(uint128).max
+        })
+      );
+
+      IUniswapV3PM(pm).multicall(claimCalldata);
+      vm.stopPrank();
+    }
+
+    bytes[] memory multiCalldata;
+
+    multiCalldata = new bytes[](5);
+    multiCalldata[0] = abi.encodeWithSelector(
+      IUniswapV3PM.decreaseLiquidity.selector,
+      IUniswapV3PM.DecreaseLiquidityParams({
+        tokenId: tokenId,
+        liquidity: uint128(uniswapV3.removeLiqParams.liquidityToRemove),
+        amount0Min: 0,
+        amount1Min: 0,
+        deadline: block.timestamp + 1 days
+      })
+    );
+    multiCalldata[1] = abi.encodeWithSelector(
+      IUniswapV3PM.collect.selector,
+      IUniswapV3PM.CollectParams({
+        tokenId: tokenId,
+        recipient: address(pm),
+        amount0Max: type(uint128).max,
+        amount1Max: type(uint128).max
+      })
+    );
+    multiCalldata[2] = abi.encodeWithSelector(
+      IERC721.transferFrom.selector, address(forwarder), mainAddress, tokenId
+    );
+    multiCalldata[3] = abi.encodeWithSelector(IUniswapV3PM.unwrapWETH9.selector, 0, address(router));
+    multiCalldata[4] = abi.encodeWithSelector(
+      IUniswapV3PM.sweepToken.selector, uniswapV3.outputParams.tokens[0], 0, address(router)
+    );
+
+    IntentData memory intentData;
+    {
+      KSRemoveLiquidityUniswapV3Hook.RemoveLiquidityHookData memory hookData;
+      hookData.nftAddresses = new address[](1);
+      hookData.nftAddresses[0] = address(pm);
+      hookData.nftIds = new uint256[](1);
+      hookData.nftIds[0] = 963_350;
+      hookData.maxFees = new uint256[](1);
+      hookData.maxFees[0] = (maxFeePercents << 128) | maxFeePercents;
+      hookData.recipient = mainAddress;
+
+      address[] memory pools = new address[](1);
+      pools[0] = address(pool);
+      hookData.additionalData = abi.encode(pools);
+
+      hookData.nodes = new Node[][](1);
+      // Only one time condition true, no child conditions needed
+      Condition memory condition = _createTimeCondition(true);
+
+      Node[] memory nodes = new Node[](1);
+      nodes[0] = _createLeafNode(condition); // leaf node with time condition true
+
+      hookData.nodes[0] = nodes;
+
+      hookData.recipient = mainAddress;
+
+      address[] memory actionContracts = new address[](2);
+      actionContracts[0] = address(mockActionContract);
+      actionContracts[1] = address(pm);
+
+      bytes4[] memory actionSelectors = new bytes4[](2);
+      actionSelectors[0] = MockActionContract.removeUniswapV3.selector;
+      actionSelectors[1] = IUniswapV3PM.multicall.selector;
+
+      IntentCoreData memory coreData = IntentCoreData({
+        mainAddress: mainAddress,
+        signatureVerifier: address(0),
+        delegatedKey: delegatedPublicKey,
+        actionContracts: actionContracts,
+        actionSelectors: actionSelectors,
+        hook: address(rmLqValidator),
+        hookIntentData: abi.encode(hookData)
+      });
+
+      TokenData memory tokenData;
+      tokenData.erc721Data = new ERC721Data[](1);
+      tokenData.erc721Data[0] = ERC721Data({token: address(pm), tokenId: tokenId, permitData: ''});
+
+      intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+    }
+
+    _setUpMainAddress(intentData, false, tokenId);
+
+    FeeInfo memory feeInfo;
+    {
+      feeInfo.protocolRecipient = protocolRecipient;
+      feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
+      feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+        PartnersFeeConfigBuildParams({
+          feeModes: [false, true].toMemoryArray(),
+          partnerFees: [0.25e6, 0.25e6].toMemoryArray(),
+          partnerRecipients: [partnerRecipient, makeAddr('partnerRecipient2')].toMemoryArray()
+        })
+      );
+
+      feeInfo.partnerFeeConfigs[1] = feeInfo.partnerFeeConfigs[0];
+    }
+
+    ActionData memory actionData;
+    {
+      actionData = ActionData({
+        erc20Ids: new uint256[](0),
+        erc20Amounts: new uint256[](0),
+        erc721Ids: [uint256(0)].toMemoryArray(),
+        feeInfo: feeInfo,
+        actionSelectorId: 1,
+        approvalFlags: type(uint256).max,
+        actionCalldata: abi.encode(multiCalldata),
+        hookActionData: abi.encode(
+          0,
+          uniswapV3.removeLiqParams.positionInfo.unclaimedFees[0],
+          uniswapV3.removeLiqParams.positionInfo.unclaimedFees[1],
+          0,
+          false,
+          (intentFeesPercent0 << 128) | intentFeesPercent1
+        ),
+        extraData: '',
+        deadline: block.timestamp + 1 days,
+        nonce: 0
+      });
+    }
+
+    (, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+    vm.expectRevert(BaseTickBasedRemoveLiquidityHook.InvalidERC721Data.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
   function buildConditionTree(

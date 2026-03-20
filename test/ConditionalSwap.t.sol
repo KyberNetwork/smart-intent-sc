@@ -43,23 +43,24 @@ contract ConditionalSwapTest is BaseTest {
     conditionalSwapHook = new KSConditionalSwapHook(routers);
   }
 
-  function testFuzz_ConditionalSwap(
-    uint256 mode,
-    uint256 maxFeeBefore,
-    uint256 maxFeeAfter,
-    uint256 srcFee,
-    uint256 dstFee,
-    uint256 amountIn,
-    uint256 returnAmount
-  ) public {
-    mode = bound(mode, 0, 2);
-    maxSrcFee = bound(maxFeeBefore, 0, 1_000_000);
-    maxDstFee = bound(maxFeeAfter, 0, 1_000_000);
-    feeBefore = bound(srcFee, 0, 1_000_000);
-    feeAfter = bound(dstFee, 0, 1_000_000);
+  struct TestFuzz_ConditionalSwap_Params {
+    uint256 mode;
+    uint256 maxFeeBefore;
+    uint256 maxFeeAfter;
+    uint256 srcFee;
+    uint256 dstFee;
+    uint256 amountIn;
+    uint256 returnAmount;
+  }
 
-    amountIn = bound(amountIn, 100, 1_000_000e6);
-    returnAmount = bound(returnAmount, 100, 1_000_000e8);
+  function testFuzz_ConditionalSwap(TestFuzz_ConditionalSwap_Params memory params) public {
+    params.mode = bound(params.mode, 0, 2);
+    params.maxFeeBefore = bound(params.maxFeeBefore, 0, 1_000_000);
+    params.maxFeeAfter = bound(params.maxFeeAfter, 0, 1_000_000);
+    params.srcFee = bound(params.srcFee, 0, 1_000_000);
+    params.dstFee = bound(params.dstFee, 0, 1_000_000);
+    params.amountIn = bound(params.amountIn, 100, 1_000_000e6);
+    params.returnAmount = bound(params.returnAmount, 100, 1_000_000e8);
 
     IntentData memory intentData =
       _getIntentData(0, type(uint128).max, new KSConditionalSwapHook.SwapCondition[](0));
@@ -67,7 +68,7 @@ contract ConditionalSwapTest is BaseTest {
     _setUpMainAddress(intentData, false);
 
     uint256 beforeSwapFee = (amountIn * feeBefore) / 1_000_000;
-    uint256 afterSwapFee = (returnAmount * feeAfter) / 1_000_000;
+    uint256 afterSwapFee = (params.returnAmount * feeAfter) / 1_000_000;
 
     bytes32[] memory _memLeaves = leaves;
 
@@ -77,7 +78,7 @@ contract ConditionalSwapTest is BaseTest {
         tokenIn,
         tokenOut,
         amountIn - beforeSwapFee,
-        returnAmount,
+        params.returnAmount,
         feeAfter == 0 ? mainAddress : address(router),
         mainAddress
       ),
@@ -87,10 +88,10 @@ contract ConditionalSwapTest is BaseTest {
       defaultCondition
     );
 
-    returnAmount = returnAmount - afterSwapFee;
+    params.returnAmount = params.returnAmount - afterSwapFee;
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(params.mode, intentData, actionData);
 
     if (feeBefore > maxSrcFee || feeAfter > maxDstFee) {
       vm.expectRevert(
@@ -116,7 +117,7 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(tokenIn.balanceOf(address(router)), routerBefore[0]);
     assertEq(tokenOut.balanceOf(address(router)), routerBefore[1]);
     assertEq(tokenIn.balanceOf(mainAddress), mainAddressBefore[0] - amountIn);
-    assertEq(tokenOut.balanceOf(mainAddress), mainAddressBefore[1] + returnAmount);
+    assertEq(tokenOut.balanceOf(mainAddress), mainAddressBefore[1] + params.returnAmount);
     assertEq(tokenIn.balanceOf(partnerRecipient), feeReceiversBefore[0] + beforeSwapFee);
     assertEq(tokenOut.balanceOf(partnerRecipient), feeReceiversBefore[1] + afterSwapFee);
   }
@@ -141,7 +142,7 @@ contract ConditionalSwapTest is BaseTest {
 
     vm.warp(vm.getBlockTimestamp() + 100);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
@@ -339,7 +340,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 index
   ) internal {
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
     bytes32 hash = router.hashTypedIntentData(intentData);
 
     uint256 balanceBefore = tokenOut.balanceOf(mainAddress);
@@ -380,7 +381,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -422,7 +423,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -460,12 +461,12 @@ contract ConditionalSwapTest is BaseTest {
 
     {
       (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-        _getCallerAndSignatures(mode, actionData);
+        _getCallerAndSignatures(mode, intentData, actionData);
 
       vm.startPrank(caller);
       router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
       actionData.nonce += 1;
-      (caller, dkSignature, gdSignature) = _getCallerAndSignatures(mode, actionData);
+      (caller, dkSignature, gdSignature) = _getCallerAndSignatures(mode, intentData, actionData);
       vm.startPrank(caller);
       vm.expectRevert(abi.encodeWithSelector(KSConditionalSwapHook.InvalidSwapLimit.selector, 2, 1));
       router.execute(intentData, daSignature, guardian, gdSignature, actionData);
@@ -493,7 +494,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(
@@ -524,7 +525,7 @@ contract ConditionalSwapTest is BaseTest {
     );
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(mode, actionData);
+      _getCallerAndSignatures(mode, intentData, actionData);
 
     vm.startPrank(caller);
     vm.expectRevert(

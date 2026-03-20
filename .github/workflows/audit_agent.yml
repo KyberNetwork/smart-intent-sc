@@ -1,0 +1,57 @@
+name: Audit Agent
+
+on:
+    pull_request:
+
+jobs:
+    quick-scan:
+      runs-on: ubuntu-latest
+      env:
+        AUDIT_AGENT_TOKEN: ${{ secrets.AUDIT_AGENT_TOKEN }}
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 2
+
+        - name: Extract commit message and files
+          id: extract
+          run: |
+            # Get the commit message from the PR head
+            COMMIT_MSG=$(git log -1 --format=%B ${{ github.event.pull_request.head.sha }})
+            
+            echo "Commit message: $COMMIT_MSG"
+            
+            # Check if commit message matches pattern "scan: [...]"
+            if echo "$COMMIT_MSG" | grep -q '^scan: \[.*\]'; then
+              echo "should_scan=true" >> $GITHUB_OUTPUT
+              # Extract the file list (everything after "scan: ")
+              FILES=$(echo "$COMMIT_MSG" | sed 's/^scan: //')
+              
+              # Check if files are already quoted, if not add quotes
+              if ! echo "$FILES" | grep -q '"'; then
+                # No quotes found, add them around each file
+                # Convert [file1,file2,file3] to ["file1","file2","file3"]
+                FILES=$(echo "$FILES" | sed 's/\[/["/; s/\]/"]/' | sed 's/,/","/g' | sed 's/ //g')
+              fi
+              
+              echo "files=$FILES" >> $GITHUB_OUTPUT
+              echo "Found scan request with files: $FILES"
+            else
+              echo "should_scan=false" >> $GITHUB_OUTPUT
+              echo "No scan request found in commit message"
+            fi
+        
+        - name: Quick Scan
+          if: steps.extract.outputs.should_scan == 'true'
+          run: |
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-Api-Key: $AUDIT_AGENT_TOKEN" \
+              -d '{
+                "githubUrl": "${{ github.event.repository.html_url }}",
+                "branchName": "${{ github.event.pull_request.head.ref }}",
+                "issueNumber": ${{ github.event.number }},
+                "commitHash": "${{ github.event.pull_request.head.sha }}",
+                "contractFiles": ${{ steps.extract.outputs.files }}
+              }' \
+              https://api.auditagent.nethermind.io/api/v1/scanner/quick-scan/launch

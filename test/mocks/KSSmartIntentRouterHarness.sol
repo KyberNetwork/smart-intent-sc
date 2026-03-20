@@ -24,6 +24,14 @@ contract KSSmartIntentRouterHarness is KSSmartIntentRouter {
     return _hashTypedDataV4(actionData.hash());
   }
 
+  function hashTypedActionWitness(ActionWitness calldata actionWitness)
+    public
+    view
+    returns (bytes32)
+  {
+    return _hashTypedDataV4(actionWitness.hash());
+  }
+
   function getHasher() public view returns (KSSmartIntentHasher) {
     return hasher;
   }

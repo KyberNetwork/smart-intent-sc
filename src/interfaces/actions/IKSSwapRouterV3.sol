@@ -9,10 +9,12 @@ interface IKSSwapRouterV3 {
   /// @param targets The targets to transfer the input token to
   /// @param amounts The amounts to transfer to the targets
   struct InputTokenData {
-    // length = 5 * 32: IERC20Permit, use ERC20 `transferFrom`
-    // length = 6 * 32: IDaiLikePermit, use ERC20 `transferFrom`
-    // length = 0: use ERC20 `transferFrom`
-    // otherwise: use Permit2 `transferFrom`
+    // Permit method selection:
+    // length = 5 * 32: use ERC20 `permit`
+    // length = 6 * 32: use DAI `permit`
+    // Transfer method selection:
+    // length == 0: use Permit2 `transferFrom`
+    // length != 0: use ERC20 `transferFrom`
     bytes permitData;
     address[] feeRecipients;
     uint256[] fees;
@@ -31,32 +33,37 @@ interface IKSSwapRouterV3 {
   }
 
   /// @notice Contains the parameters for a swap
-  /// @param permit2Data The data to call permit2 with
   /// @param inputTokens The input tokens
-  /// @param inputAmounts The input amounts
+  /// @param inputAmounts The input amounts (only used for fee calculation)
   /// @param inputData The additional data for the input tokens
   /// @param outputTokens The output tokens
   /// @param outputData The additional data for the output tokens
+  /// @param permit2Data The data to call permit2 with
   /// @param executor The executor to call
   /// @param executorData The data to pass to the executor
   /// @param recipient The recipient of the output tokens
+  /// @param deadline The deadline for the swap
   /// @param clientData The client data
   struct SwapParams {
-    bytes permit2Data;
     address[] inputTokens;
     uint256[] inputAmounts;
     InputTokenData[] inputData;
     address[] outputTokens;
     OutputTokenData[] outputData;
+    bytes permit2Data;
     address executor;
     bytes executorData;
     address recipient;
+    uint256 deadline;
     bytes clientData;
   }
 
   /// @notice Entry point for swapping
   /// @param params The parameters for the swap
-  function swap(SwapParams calldata params) external payable;
+  function swap(SwapParams calldata params)
+    external
+    payable
+    returns (uint256[] memory outputAmounts, uint256 gasUsed);
 
   /// @notice Returns the address of who called the swap function
   function msgSender() external view returns (address);

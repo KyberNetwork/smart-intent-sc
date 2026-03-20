@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
-import {PackedU128} from '../../libraries/types/PackedU128.sol';
+import {PackedU128} from '../../types/PackedU128.sol';
 import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
 import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';

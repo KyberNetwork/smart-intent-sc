@@ -137,7 +137,7 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
 
     uint256 balance0Before = token0.balanceOf(mainAddress);
     uint256 balance1Before = token1.balanceOf(mainAddress);
@@ -271,7 +271,8 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     uint256[2] memory mainAddrBefore =
       [token0.balanceOf(mainAddress), token1.balanceOf(mainAddress)];
 
-    (, bytes memory dkSignature, bytes memory gdSignature) = _getCallerAndSignatures(0, actionData);
+    (, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
 
     vm.expectEmit(false, false, false, true, address(rmLqValidator));
     emit BaseTickBasedRemoveLiquidityHook.LiquidityRemoved(
@@ -327,7 +328,17 @@ contract RemoveLiquidityPancakeV4CLTest is BaseTest {
     ActionData memory actionData = _getActionData(pancakeCL.removeLiqParams.liquidityToRemove);
 
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
-      _getCallerAndSignatures(0, actionData);
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    if (
+      intentFeesPercent0 > pancakeCL.outputParams.maxFees[0]
+        || intentFeesPercent1 > pancakeCL.outputParams.maxFees[1]
+    ) {
+      vm.startPrank(caller);
+      vm.expectRevert(BaseTickBasedRemoveLiquidityHook.ExceedMaxFeesPercent.selector);
+      router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+      return;
+    }
 
     // always success when dont charge fees on the user's unclaimed fees
     if (pancakeCL.removeLiqParams.liquidityToRemove == 0 && !takeUnclaimedFees) {

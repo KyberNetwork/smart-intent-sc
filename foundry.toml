@@ -6,13 +6,13 @@ ffi = true
 fs_permissions = [{ access = 'read-write', path = './'}]
 
 additional_compiler_profiles = [
-  { name = "si_router", via_ir = true, optimizer_runs = 2000 }
+  { name = "si_router", via_ir = true, optimizer_runs = 1500 },
 ]
 
 compilation_restrictions = [
-  { paths = "src/KSSmartIntentRouter.sol", optimizer_runs = 2000 },
-]
+  { paths = "src/KSSmartIntentRouter.sol", optimizer_runs = 1500 },
 
+]
 [lint]
 lint_on_build = false
 
