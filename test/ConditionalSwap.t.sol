@@ -675,7 +675,7 @@ contract ConditionalSwapTest is BaseTest {
       delegatedKey: delegatedPublicKey,
       actionContracts: [address(mockActionContract), swapRouter].toMemoryArray(),
       actionSelectors: [MockActionContract.swap.selector, IKSSwapRouterV2.swap.selector]
-        .toMemoryArray(),
+      .toMemoryArray(),
       hook: address(conditionalSwapHook),
       hookIntentData: abi.encode(hookData)
     });
