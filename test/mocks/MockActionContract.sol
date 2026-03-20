@@ -7,7 +7,11 @@ import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import 'src/interfaces/IWETH.sol';
 
 import {ICLPositionManager} from 'src/interfaces/pancakev4/ICLPositionManager.sol';
-import {Actions as PancakeActions, PoolId, PoolKey as PancakePoolKey} from 'src/interfaces/pancakev4/Types.sol';
+import {
+  Actions as PancakeActions,
+  PoolId,
+  PoolKey as PancakePoolKey
+} from 'src/interfaces/pancakev4/Types.sol';
 import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import {IPoolManager} from 'src/interfaces/uniswapv4/IPoolManager.sol';
 import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
@@ -293,28 +297,30 @@ contract MockActionContract {
       params.pm.positions(params.oldTokenId);
 
     if (liquidity > 0) {
-      params.pm.decreaseLiquidity(
-        IUniswapV3PM.DecreaseLiquidityParams({
-          tokenId: params.oldTokenId,
-          liquidity: liquidity,
-          amount0Min: 0,
-          amount1Min: 0,
-          deadline: block.timestamp + 1 days
-        })
-      );
+      params.pm
+        .decreaseLiquidity(
+          IUniswapV3PM.DecreaseLiquidityParams({
+            tokenId: params.oldTokenId,
+            liquidity: liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: block.timestamp + 1 days
+          })
+        );
     }
 
     uint256 balance0Before = IERC20(token0).balanceOf(address(this));
     uint256 balance1Before = IERC20(token1).balanceOf(address(this));
 
-    params.pm.collect(
-      IUniswapV3PM.CollectParams({
-        tokenId: params.oldTokenId,
-        recipient: address(this),
-        amount0Max: type(uint128).max,
-        amount1Max: type(uint128).max
-      })
-    );
+    params.pm
+      .collect(
+        IUniswapV3PM.CollectParams({
+          tokenId: params.oldTokenId,
+          recipient: address(this),
+          amount0Max: type(uint128).max,
+          amount1Max: type(uint128).max
+        })
+      );
 
     uint256 collected0 = IERC20(token0).balanceOf(address(this)) - balance0Before;
     uint256 collected1 = IERC20(token1).balanceOf(address(this)) - balance1Before;
@@ -328,21 +334,22 @@ contract MockActionContract {
     token0.safeApprove(address(params.pm), params.amountDesireds[0]);
     token1.safeApprove(address(params.pm), params.amountDesireds[1]);
 
-    params.pm.mint(
-      IUniswapV3PM.MintParams({
-        token0: token0,
-        token1: token1,
-        fee: fee,
-        tickLower: params.newTickLower,
-        tickUpper: params.newTickUpper,
-        amount0Desired: params.amountDesireds[0],
-        amount1Desired: params.amountDesireds[1],
-        amount0Min: 0,
-        amount1Min: 0,
-        recipient: params.mainAddress,
-        deadline: block.timestamp + 1 days
-      })
-    );
+    params.pm
+      .mint(
+        IUniswapV3PM.MintParams({
+          token0: token0,
+          token1: token1,
+          fee: fee,
+          tickLower: params.newTickLower,
+          tickUpper: params.newTickUpper,
+          amount0Desired: params.amountDesireds[0],
+          amount1Desired: params.amountDesireds[1],
+          amount0Min: 0,
+          amount1Min: 0,
+          recipient: params.mainAddress,
+          deadline: block.timestamp + 1 days
+        })
+      );
   }
 
   struct ZapMigrateUniswapV4Params {

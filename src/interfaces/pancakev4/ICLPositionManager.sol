@@ -101,6 +101,4 @@ interface ICLPositionManager {
   function transferFrom(address _from, address _to, uint256 _tokenId) external payable;
 
   function poolKeys(bytes25 poolId) external view returns (PoolKey memory);
-
-  
 }

@@ -2,17 +2,17 @@
 pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
-import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
+import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
+import {BaseTickBasedZapMigrateHook} from 'src/hooks/base/BaseTickBasedZapMigrateHook.sol';
+import {KSZapMigrateUniswapV3Hook} from 'src/hooks/zap-migrate/KSZapMigrateUniswapV3Hook.sol';
 import {IUniswapV3Factory} from 'src/interfaces/uniswapv3/IUniswapV3Factory.sol';
 import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
 import {IUniswapV3Pool} from 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
-import {KSZapMigrateUniswapV3Hook} from 'src/hooks/zap-migrate/KSZapMigrateUniswapV3Hook.sol';
-import {BaseTickBasedZapMigrateHook} from 'src/hooks/base/BaseTickBasedZapMigrateHook.sol';
-import {FixedPoint96} from 'src/libraries/uniswapv4/FixedPoint96.sol';
 import {FixedPoint128} from 'src/libraries/uniswapv4/FixedPoint128.sol';
+import {FixedPoint96} from 'src/libraries/uniswapv4/FixedPoint96.sol';
 import {LiquidityAmounts} from 'src/libraries/uniswapv4/LiquidityAmounts.sol';
 import {TickMath} from 'src/libraries/uniswapv4/TickMath.sol';
 
@@ -23,7 +23,8 @@ contract ZapMigrateUniswapV3Test is BaseTest {
   using Math for uint256;
 
   IUniswapV3PM internal constant PM = IUniswapV3PM(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
-  IUniswapV3Pool internal constant POOL = IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
+  IUniswapV3Pool internal constant POOL =
+    IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
   address internal constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
   address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
@@ -326,8 +327,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
       _getFeeGrowthInside(p, tLower, tick, tUpper);
 
     unchecked {
-      amount0 += Math.mulDiv(feeGrowthInside0 - feeGrowthInside0LastX128, liquidity, FixedPoint128.Q128);
-      amount1 += Math.mulDiv(feeGrowthInside1 - feeGrowthInside1LastX128, liquidity, FixedPoint128.Q128);
+      amount0 += Math.mulDiv(
+        feeGrowthInside0 - feeGrowthInside0LastX128, liquidity, FixedPoint128.Q128
+      );
+      amount1 += Math.mulDiv(
+        feeGrowthInside1 - feeGrowthInside1LastX128, liquidity, FixedPoint128.Q128
+      );
     }
   }
 
@@ -396,18 +401,24 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     );
   }
 
-  function _hookDataStandard(uint256 nftId, int24 lowerDelta, int24 upperDelta, uint256 maxFee0, uint256 maxFee1)
-    internal
-    view
-    returns (bytes memory)
-  {
+  function _hookDataStandard(
+    uint256 nftId,
+    int24 lowerDelta,
+    int24 upperDelta,
+    uint256 maxFee0,
+    uint256 maxFee1
+  ) internal view returns (bytes memory) {
     (int24 minL, int24 minU) = _minDistForMigrateHookV3(nftId);
-    return _hookData(
-      nftId, lowerDelta, upperDelta, maxFee0, maxFee1, 0, 0, type(uint128).max, minL, minU
-    );
+    return
+      _hookData(
+        nftId, lowerDelta, upperDelta, maxFee0, maxFee1, 0, 0, type(uint128).max, minL, minU
+      );
   }
 
-  function _buildIntent(uint256 nftId, bytes memory hookData) internal returns (IntentData memory intentData) {
+  function _buildIntent(uint256 nftId, bytes memory hookData)
+    internal
+    returns (IntentData memory intentData)
+  {
     address[] memory contracts = new address[](1);
     contracts[0] = address(mockActionContract);
     bytes4[] memory selectors = new bytes4[](1);
@@ -452,16 +463,17 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     fees[0] = p.fee0Percent;
     fees[1] = p.fee1Percent;
 
-    MockActionContract.ZapMigrateUniswapV3Params memory params = MockActionContract.ZapMigrateUniswapV3Params({
-      pm: PM,
-      oldTokenId: nftId,
-      newTickLower: newLower,
-      newTickUpper: newUpper,
-      router: address(router),
-      mainAddress: mintRecipient,
-      amountDesireds: desired,
-      fees: fees
-    });
+    MockActionContract.ZapMigrateUniswapV3Params memory params =
+      MockActionContract.ZapMigrateUniswapV3Params({
+        pm: PM,
+        oldTokenId: nftId,
+        newTickLower: newLower,
+        newTickUpper: newUpper,
+        router: address(router),
+        mainAddress: mintRecipient,
+        amountDesireds: desired,
+        fees: fees
+      });
 
     FeeInfo memory feeInfo;
     feeInfo.protocolRecipient = protocolRecipient;
@@ -511,8 +523,9 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     p = _boundExecutionParams(p);
     uint256 tokenId = _mintStartPosition(seed);
 
-    IntentData memory intent =
-      _buildIntent(tokenId, _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, p.maxFee0, p.maxFee1));
+    IntentData memory intent = _buildIntent(
+      tokenId, _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, p.maxFee0, p.maxFee1)
+    );
     ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, p);
 
     uint256 supplyBefore = PM.totalSupply();
@@ -528,7 +541,9 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     assertEq(nu, newTickUpper);
   }
 
-  function testFuzz_Revert_TooLargeDistanceFromTickBoundaries(ZapMigrateFuzzParams memory p) public {
+  function testFuzz_Revert_TooLargeDistanceFromTickBoundaries(ZapMigrateFuzzParams memory p)
+    public
+  {
     p = _boundExecutionParams(p);
 
     deal(USDC, mainAddress, p.amountDesired0);
@@ -557,13 +572,28 @@ contract ZapMigrateUniswapV3Test is BaseTest {
 
     IntentData memory intent = _buildIntent(
       inRangeId,
-      _hookData(inRangeId, ntl - currentTick, ntu - currentTick, p.maxFee0, p.maxFee1, 0, 0, type(uint128).max, 0, 0)
+      _hookData(
+        inRangeId,
+        ntl - currentTick,
+        ntu - currentTick,
+        p.maxFee0,
+        p.maxFee1,
+        0,
+        0,
+        type(uint128).max,
+        0,
+        0
+      )
     );
     ActionData memory action = _buildAction(inRangeId, ntl, ntu, mainAddress, p);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.TooLargeDistanceFromTickBoundaries.selector);
+    _executeExpectRevert(
+      intent, action, BaseTickBasedZapMigrateHook.TooLargeDistanceFromTickBoundaries.selector
+    );
   }
 
-  function testFuzz_Revert_InsufficientPositionValue_Token0(uint256 seed, uint256 minValueBump) public {
+  function testFuzz_Revert_InsufficientPositionValue_Token0(uint256 seed, uint256 minValueBump)
+    public
+  {
     uint256 tokenId = _mintStartPosition(seed);
     minValueBump = bound(minValueBump, 1, type(uint128).max);
     (uint256 v0,) = _positionValues(tokenId);
@@ -589,11 +619,16 @@ contract ZapMigrateUniswapV3Test is BaseTest {
         minU
       )
     );
-    ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector);
+    ActionData memory action =
+      _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
+    _executeExpectRevert(
+      intent, action, BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector
+    );
   }
 
-  function testFuzz_Revert_InsufficientPositionValue_Token1(uint256 seed, uint256 minValueBump) public {
+  function testFuzz_Revert_InsufficientPositionValue_Token1(uint256 seed, uint256 minValueBump)
+    public
+  {
     uint256 tokenId = _mintStartPosition(seed);
     minValueBump = bound(minValueBump, 1, type(uint128).max);
     (, uint256 v1) = _positionValues(tokenId);
@@ -619,8 +654,11 @@ contract ZapMigrateUniswapV3Test is BaseTest {
         minU
       )
     );
-    ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector);
+    ActionData memory action =
+      _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
+    _executeExpectRevert(
+      intent, action, BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector
+    );
   }
 
   function testFuzz_Revert_InvalidTickLower(uint256 seed, uint8 spacingMult) public {
@@ -630,7 +668,9 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
     IntentData memory intent = _buildIntent(
       tokenId,
-      _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1)
+      _hookDataStandard(
+        tokenId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1
+      )
     );
     ActionData memory action =
       _buildAction(tokenId, newTickLower + extra, newTickUpper, mainAddress, migrateParams);
@@ -644,14 +684,18 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
     IntentData memory intent = _buildIntent(
       tokenId,
-      _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1)
+      _hookDataStandard(
+        tokenId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1
+      )
     );
     ActionData memory action =
       _buildAction(tokenId, newTickLower, newTickUpper + extra, mainAddress, migrateParams);
     _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InvalidTickUpper.selector);
   }
 
-  function testFuzz_Revert_ExceedMaxFeesPercent(uint256 seed, ZapMigrateFuzzParams memory p) public {
+  function testFuzz_Revert_ExceedMaxFeesPercent(uint256 seed, ZapMigrateFuzzParams memory p)
+    public
+  {
     uint256 tokenId = _mintStartPosition(seed);
 
     p.maxFee0 = 0;
@@ -662,21 +706,24 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     p.fee0Percent = FEE_ONE;
     p.fee1Percent = FEE_ONE;
 
-    IntentData memory intent =
-      _buildIntent(tokenId, _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, p.maxFee0, p.maxFee1));
+    IntentData memory intent = _buildIntent(
+      tokenId, _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, p.maxFee0, p.maxFee1)
+    );
     ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, p);
     _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.ExceedMaxFeesPercent.selector);
   }
 
-  function testFuzz_Revert_ExceedMaxValueReductionPerAction(uint256 seed, uint256 amount0Raw, uint256 amount1Raw)
-    public
-  {
+  function testFuzz_Revert_ExceedMaxValueReductionPerAction(
+    uint256 seed,
+    uint256 amount0Raw,
+    uint256 amount1Raw
+  ) public {
     uint256 tokenId = _mintStartPosition(seed);
 
     ZapMigrateFuzzParams memory migrateParams;
     migrateParams.maxFee0 = HOOK_MAX_FEE_10PCT;
     migrateParams.maxFee1 = HOOK_MAX_FEE_10PCT;
-    migrateParams.amountDesired0 = bound(amount0Raw, 100e6, 2_000e6);
+    migrateParams.amountDesired0 = bound(amount0Raw, 100e6, 2000e6);
     migrateParams.amountDesired1 = bound(amount1Raw, 1e14, 5e17);
 
     (int24 minL, int24 minU) = _minDistForMigrateHookV3(tokenId);
@@ -695,8 +742,11 @@ contract ZapMigrateUniswapV3Test is BaseTest {
         minU
       )
     );
-    ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.ExceedMaxValueReductionPerAction.selector);
+    ActionData memory action =
+      _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
+    _executeExpectRevert(
+      intent, action, BaseTickBasedZapMigrateHook.ExceedMaxValueReductionPerAction.selector
+    );
   }
 
   function testFuzz_Revert_InvalidOwner(uint256 seed, uint256 wrongRecipientSeed) public {
@@ -713,9 +763,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
     IntentData memory intent = _buildIntent(
       tokenId,
-      _hookDataStandard(tokenId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1)
+      _hookDataStandard(
+        tokenId, lowerTickDelta, upperTickDelta, migrateParams.maxFee0, migrateParams.maxFee1
+      )
     );
-    ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, wrongRecipient, migrateParams);
+    ActionData memory action =
+      _buildAction(tokenId, newTickLower, newTickUpper, wrongRecipient, migrateParams);
     _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InvalidOwner.selector);
   }
 }
