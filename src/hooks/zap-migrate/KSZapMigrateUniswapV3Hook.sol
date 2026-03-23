@@ -46,6 +46,7 @@ contract KSZapMigrateUniswapV3Hook is BaseTickBasedZapMigrateHook {
       IUniswapV3Factory(IUniswapV3PM(nftAddress).factory())
         .getPool(ppInfo.token0, ppInfo.token1, fee)
     );
+    ppInfo.poolUniqueId = bytes32(uint256(uint160(address(pool))));
 
     (ppInfo.sqrtPriceX96, ppInfo.tick,,,,,) = pool.slot0();
 

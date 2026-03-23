@@ -39,17 +39,15 @@ contract KSZapMigrateUniswapV3Hook is BaseTickBasedZapMigrateHook {
       feeGrowthInside1Last,
     ) = ICLPositionManager(nftAddress).positions(nftId);
 
+    PoolId poolId = _toId(poolKey);
+    ppInfo.poolUniqueId = PoolId.unwrap(poolId);
+
     ppInfo.token0 = poolKey.currency0;
     ppInfo.token1 = poolKey.currency1;
-    (ppInfo.sqrtPriceX96, ppInfo.tick,,) =
-      ICLPoolManager(poolKey.poolManager).getSlot0(_toId(poolKey));
+    (ppInfo.sqrtPriceX96, ppInfo.tick,,) = ICLPoolManager(poolKey.poolManager).getSlot0(poolId);
 
     (uint256 feeGrowthInside0, uint256 feeGrowthInside1) = _getFeeGrowthInside(
-      ICLPoolManager(poolKey.poolManager),
-      _toId(poolKey),
-      ppInfo.tickLower,
-      ppInfo.tick,
-      ppInfo.tickUpper
+      ICLPoolManager(poolKey.poolManager), poolId, ppInfo.tickLower, ppInfo.tick, ppInfo.tickUpper
     );
 
     (ppInfo.amount0, ppInfo.amount1) = LiquidityAmounts.getAmountsForLiquidity(

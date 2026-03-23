@@ -14,7 +14,6 @@ import {IntentData} from '../../types/IntentData.sol';
 import {FixedPoint96} from '../../libraries/uniswapv4/FixedPoint96.sol';
 
 import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
-import {SignedMath} from 'openzeppelin-contracts/contracts/utils/math/SignedMath.sol';
 
 abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   using TokenHelper for address;
@@ -28,6 +27,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   error InsufficientPositionValue();
   error TooLargeDistanceFromTickBoundaries();
   error TooSmallDistanceFromTickBoundaries();
+  error InvalidPoolUniqueId();
   error InvalidTickLower();
   error InvalidTickUpper();
   error ExceedMaxValueReductionInToken0();
@@ -47,7 +47,6 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    */
   struct ZapMigrateHookData {
     address nftAddress;
-    uint256 nftId;
     uint256 minValueInToken0;
     uint256 minValueInToken1;
     uint256 maxValueReductionPerAction;
@@ -58,6 +57,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
   /**
    * @notice Data structure for before execution data
+   * @param poolUniqueId The unique ID of the pool
    * @param amount0Before The amount of token0 of the position before execution
    * @param amount1Before The amount of token1 of the position before execution
    * @param balance0Before The balance of token0 of the router before execution
@@ -66,6 +66,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    * @param direction The direction which the price changes
    */
   struct BeforeExecutionData {
+    bytes32 poolUniqueId;
     uint256 amount0Before;
     uint256 amount1Before;
     uint256 balance0Before;
@@ -76,6 +77,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
   /**
    * @notice Data structure for pool and position info
+   * @param poolUniqueId The unique ID of the pool
    * @param sqrtPriceX96 The sqrt price of the pool
    * @param tick The current tick of the pool
    * @param tickLower The lower tick of the position
@@ -86,6 +88,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    * @param amount1 The amount of token1 of the position
    */
   struct PoolAndPositionInfo {
+    bytes32 poolUniqueId;
     uint160 sqrtPriceX96;
     int24 tick;
     int24 tickLower;
@@ -116,13 +119,14 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     view
     override
     checkTokenLengths(actionData)
+    onlyWhitelistedRouter
     returns (uint256[] memory, bytes memory beforeExecutionData)
   {
     ZapMigrateHookData calldata hookIntentData = _decodeHookData(intentData.coreData.hookIntentData);
 
     uint256 currentNftId = nftIds[intentHash];
     if (currentNftId == 0) {
-      currentNftId = hookIntentData.nftId;
+      currentNftId = intentData.tokenData.erc721Data[actionData.erc721Ids[0]].tokenId;
     }
 
     PoolAndPositionInfo memory ppInfo =
@@ -153,6 +157,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
     beforeExecutionData = abi.encode(
       BeforeExecutionData({
+        poolUniqueId: ppInfo.poolUniqueId,
         amount0Before: ppInfo.amount0,
         amount1Before: ppInfo.amount1,
         balance0Before: ppInfo.token0.balanceOf(msg.sender),
@@ -172,6 +177,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   )
     external
     override
+    onlyWhitelistedRouter
     returns (
       address[] memory tokens,
       uint256[] memory fees,
@@ -189,6 +195,9 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
     uint256 newNftId = _getNewNftId(hookIntentData.nftAddress);
     PoolAndPositionInfo memory ppInfo = _getPoolAndPositionInfo(hookIntentData.nftAddress, newNftId);
+    if (ppInfo.poolUniqueId != beforeExecutionData.poolUniqueId) {
+      revert InvalidPoolUniqueId();
+    }
 
     // check owner
     if (IERC721(hookIntentData.nftAddress).ownerOf(newNftId) != intentData.coreData.mainAddress) {
@@ -264,7 +273,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     virtual
     returns (uint256 amount0)
   {
-    return amount1.mulDiv(sqrtPriceX96, FixedPoint96.Q96).mulDiv(sqrtPriceX96, FixedPoint96.Q96);
+    return amount1.mulDiv(FixedPoint96.Q96, sqrtPriceX96).mulDiv(FixedPoint96.Q96, sqrtPriceX96);
   }
 
   function _convertToken0ToToken1(uint256 sqrtPriceX96, uint256 amount0)
@@ -273,6 +282,6 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     virtual
     returns (uint256 amount1)
   {
-    return amount0.mulDiv(FixedPoint96.Q96, sqrtPriceX96).mulDiv(FixedPoint96.Q96, sqrtPriceX96);
+    return amount0.mulDiv(sqrtPriceX96, FixedPoint96.Q96).mulDiv(sqrtPriceX96, FixedPoint96.Q96);
   }
 }

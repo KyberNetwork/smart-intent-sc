@@ -258,7 +258,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     returns (uint256)
   {
     return amount0
-      + amount1.mulDiv(sqrtPriceX96, FixedPoint96.Q96).mulDiv(sqrtPriceX96, FixedPoint96.Q96);
+      + amount1.mulDiv(FixedPoint96.Q96, sqrtPriceX96).mulDiv(FixedPoint96.Q96, sqrtPriceX96);
   }
 
   function _valueInToken1(uint256 sqrtPriceX96, uint256 amount0, uint256 amount1)
@@ -267,7 +267,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     returns (uint256)
   {
     return amount1
-      + amount0.mulDiv(FixedPoint96.Q96, sqrtPriceX96).mulDiv(FixedPoint96.Q96, sqrtPriceX96);
+      + amount0.mulDiv(sqrtPriceX96, FixedPoint96.Q96).mulDiv(sqrtPriceX96, FixedPoint96.Q96);
   }
 
   function _getFeeGrowthInside(
