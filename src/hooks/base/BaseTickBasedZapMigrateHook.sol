@@ -37,12 +37,13 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   /**
    * @notice Data structure for zap migrate validation
    * @param nftAddress The NFT address
-   * @param nftId The NFT ID
    * @param minValueInToken0 The min value of the position in token0
    * @param minValueInToken1 The min value of the position in token1
    * @param maxValueReductionPerAction The max value reduction per action (in token0 if price decreases, in token1 if price increases)
-   * @param minDistanceFromLowerTick The min distance from the lower tick to the current tick
-   * @param minDistanceFromUpperTick The min distance from the upper tick to the current tick
+   * @param maxDistanceFromLowerTickBeforeMigration The max distance from the lower tick to the current tick before migration
+   * @param maxDistanceFromUpperTickBeforeMigration The max distance from the upper tick to the current tick before migration
+   * @param minDistanceFromLowerTickAfterMigration The min distance from the lower tick to the current tick after migration
+   * @param minDistanceFromUpperTickAfterMigration The min distance from the upper tick to the current tick after migration
    * @param maxFees The max fees for each output token (1e6 = 100%)
    */
   struct ZapMigrateHookData {
@@ -50,13 +51,16 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     uint256 minValueInToken0;
     uint256 minValueInToken1;
     uint256 maxValueReductionPerAction;
-    int24 minDistanceFromLowerTick;
-    int24 minDistanceFromUpperTick;
+    int24 maxDistanceFromLowerTickBeforeMigration;
+    int24 maxDistanceFromUpperTickBeforeMigration;
+    int24 minDistanceFromLowerTickAfterMigration;
+    int24 minDistanceFromUpperTickAfterMigration;
     uint256[] maxFees;
   }
 
   /**
    * @notice Data structure for before execution data
+   * @param originalNftId The original NFT ID
    * @param poolUniqueId The unique ID of the pool
    * @param amount0Before The amount of token0 of the position before execution
    * @param amount1Before The amount of token1 of the position before execution
@@ -64,8 +68,10 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    * @param balance1Before The balance of token1 of the router before execution
    * @param directionalPositionValue The directional position value before execution
    * @param direction The direction which the price changes
+   * @param additionalData Additional data for the before execution
    */
   struct BeforeExecutionData {
+    uint256 originalNftId;
     bytes32 poolUniqueId;
     uint256 amount0Before;
     uint256 amount1Before;
@@ -73,6 +79,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     uint256 balance1Before;
     uint256 directionalPositionValue;
     bool direction;
+    bytes additionalData;
   }
 
   /**
@@ -134,21 +141,17 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
     uint256 valueInToken0 =
       ppInfo.amount0 + _convertToken1ToToken0(ppInfo.sqrtPriceX96, ppInfo.amount1);
-    if (valueInToken0 < hookIntentData.minValueInToken0) {
-      revert InsufficientPositionValue();
-    }
     uint256 valueInToken1 =
       ppInfo.amount1 + _convertToken0ToToken1(ppInfo.sqrtPriceX96, ppInfo.amount0);
-    if (valueInToken1 < hookIntentData.minValueInToken1) {
-      revert InsufficientPositionValue();
-    }
 
     uint256 directionalPositionValue;
     bool direction;
-    if (ppInfo.tick < ppInfo.tickLower + hookIntentData.minDistanceFromLowerTick) {
+    if (ppInfo.tick - ppInfo.tickLower <= hookIntentData.maxDistanceFromLowerTickBeforeMigration) {
       direction = true;
       directionalPositionValue = valueInToken0;
-    } else if (ppInfo.tick > ppInfo.tickUpper - hookIntentData.minDistanceFromUpperTick) {
+    } else if (
+      ppInfo.tickUpper - ppInfo.tick <= hookIntentData.maxDistanceFromUpperTickBeforeMigration
+    ) {
       direction = false;
       directionalPositionValue = valueInToken1;
     } else {
@@ -157,13 +160,15 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
     beforeExecutionData = abi.encode(
       BeforeExecutionData({
+        originalNftId: currentNftId,
         poolUniqueId: ppInfo.poolUniqueId,
         amount0Before: ppInfo.amount0,
         amount1Before: ppInfo.amount1,
         balance0Before: ppInfo.token0.balanceOf(msg.sender),
         balance1Before: ppInfo.token1.balanceOf(msg.sender),
         directionalPositionValue: directionalPositionValue,
-        direction: direction
+        direction: direction,
+        additionalData: _getAdditionalData(hookIntentData.nftAddress)
       })
     );
   }
@@ -193,13 +198,19 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     BeforeExecutionData memory beforeExecutionData =
       abi.decode(_beforeExecutionData, (BeforeExecutionData));
 
-    uint256 newNftId = _getNewNftId(hookIntentData.nftAddress);
+    uint256 newNftId = _getNewNftId(hookIntentData.nftAddress, beforeExecutionData.additionalData);
     PoolAndPositionInfo memory ppInfo = _getPoolAndPositionInfo(hookIntentData.nftAddress, newNftId);
     if (ppInfo.poolUniqueId != beforeExecutionData.poolUniqueId) {
       revert InvalidPoolUniqueId();
     }
 
     // check owner
+    if (
+      IERC721(hookIntentData.nftAddress).ownerOf(beforeExecutionData.originalNftId)
+        != intentData.coreData.mainAddress
+    ) {
+      revert InvalidOwner();
+    }
     if (IERC721(hookIntentData.nftAddress).ownerOf(newNftId) != intentData.coreData.mainAddress) {
       revert InvalidOwner();
     }
@@ -221,22 +232,26 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     }
 
     // check tick boundaries
-    if (ppInfo.tick < ppInfo.tickLower + hookIntentData.minDistanceFromLowerTick) {
+    if (ppInfo.tick - ppInfo.tickLower < hookIntentData.minDistanceFromLowerTickAfterMigration) {
       revert TooSmallDistanceFromTickBoundaries();
     }
-    if (ppInfo.tick > ppInfo.tickUpper - hookIntentData.minDistanceFromUpperTick) {
+    if (ppInfo.tickUpper - ppInfo.tick < hookIntentData.minDistanceFromUpperTickAfterMigration) {
       revert TooSmallDistanceFromTickBoundaries();
     }
 
-    uint256 directionalPositionValueAfter;
-    if (beforeExecutionData.direction) {
-      directionalPositionValueAfter =
-        ppInfo.amount0 + _convertToken1ToToken0(ppInfo.sqrtPriceX96, ppInfo.amount1);
-    } else {
-      directionalPositionValueAfter =
-        ppInfo.amount1 + _convertToken0ToToken1(ppInfo.sqrtPriceX96, ppInfo.amount0);
+    uint256 valueInToken0 =
+      ppInfo.amount0 + _convertToken1ToToken0(ppInfo.sqrtPriceX96, ppInfo.amount1);
+    if (valueInToken0 < hookIntentData.minValueInToken0) {
+      revert InsufficientPositionValue();
+    }
+    uint256 valueInToken1 =
+      ppInfo.amount1 + _convertToken0ToToken1(ppInfo.sqrtPriceX96, ppInfo.amount0);
+    if (valueInToken1 < hookIntentData.minValueInToken1) {
+      revert InsufficientPositionValue();
     }
 
+    uint256 directionalPositionValueAfter =
+      beforeExecutionData.direction ? valueInToken0 : valueInToken1;
     // check max value reduction per action
     if (
       directionalPositionValueAfter + hookIntentData.maxValueReductionPerAction
@@ -265,7 +280,18 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     virtual
     returns (PoolAndPositionInfo memory ppInfo);
 
-  function _getNewNftId(address nftAddress) internal view virtual returns (uint256 newNftId);
+  function _getAdditionalData(address nftAddress)
+    internal
+    view
+    virtual
+    returns (bytes memory additionalData)
+  {}
+
+  function _getNewNftId(address nftAddress, bytes memory additionalData)
+    internal
+    view
+    virtual
+    returns (uint256 newNftId);
 
   function _convertToken1ToToken0(uint256 sqrtPriceX96, uint256 amount1)
     internal

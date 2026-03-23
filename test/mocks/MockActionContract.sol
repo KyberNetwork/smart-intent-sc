@@ -40,6 +40,8 @@ contract MockActionContract {
   uint256 constant TAKE_PAIR = 0x11;
   uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
 
+  address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
   function execute(bytes calldata data) external {
     if (data.length > 0) {
       (address token, address router) = abi.decode(data, (address, address));
@@ -359,7 +361,6 @@ contract MockActionContract {
     int24 newTickUpper;
     address router;
     address mainAddress;
-    uint128 newLiquidity;
     uint256[] amountDesireds;
     uint256[] fees;
   }
@@ -370,19 +371,10 @@ contract MockActionContract {
     }
   }
 
-  function _pcsPoolId(PancakePoolKey memory key) private pure returns (PoolId id) {
+  function _pancakev4PoolId(PancakePoolKey memory key) private pure returns (PoolId id) {
     assembly ('memory-safe') {
       id := keccak256(key, 0xc0)
     }
-  }
-
-  function _v4TokenBalance(address currency) private view returns (uint256) {
-    return TokenHelper.balanceOf(currency, address(this));
-  }
-
-  function _v4TransferToRouter(address currency, address router_, uint256 amount) private {
-    if (amount == 0) return;
-    currency.safeTransfer(router_, amount);
   }
 
   function _minU256(uint256 a, uint256 b) private pure returns (uint256) {
@@ -395,63 +387,35 @@ contract MockActionContract {
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(params.oldTokenId);
     uint128 posLiq = pm.getPositionLiquidity(params.oldTokenId);
 
-    address c0 = poolKey.currency0;
-    address c1 = poolKey.currency1;
+    bytes32 poolId = _univ4PoolId(poolKey);
+    (uint160 sqrtP,,,) = pm.poolManager().getSlot0(poolId);
 
-    bytes32 pid = _univ4PoolId(poolKey);
-    (uint160 sqrtP,,,) = pm.poolManager().getSlot0(pid);
-
-    uint256 bal0Before = _v4TokenBalance(c0);
-    uint256 bal1Before = _v4TokenBalance(c1);
+    uint256 balance0Before = poolKey.currency0.selfBalance();
+    uint256 balance1Before = poolKey.currency1.selfBalance();
 
     bytes memory takeActions = new bytes(2);
     bytes[] memory takeParams = new bytes[](2);
     takeActions[0] = bytes1(uint8(Actions.DECREASE_LIQUIDITY));
     takeParams[0] = abi.encode(params.oldTokenId, posLiq, uint128(0), uint128(0), bytes(''));
     takeActions[1] = bytes1(uint8(Actions.TAKE_PAIR));
-    takeParams[1] = abi.encode(c0, c1, address(this));
+    takeParams[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
     pm.modifyLiquidities(abi.encode(takeActions, takeParams), type(uint256).max);
 
-    uint256 collected0 = _v4TokenBalance(c0) - bal0Before;
-    uint256 collected1 = _v4TokenBalance(c1) - bal1Before;
+    uint256 collected0 = poolKey.currency0.selfBalance() - balance0Before;
+    uint256 collected1 = poolKey.currency1.selfBalance() - balance1Before;
 
     uint256 fee0 = collected0 * params.fees[0] / 1e6;
     uint256 fee1 = collected1 * params.fees[1] / 1e6;
-    _v4TransferToRouter(c0, params.router, fee0);
-    _v4TransferToRouter(c1, params.router, fee1);
+    poolKey.currency0.safeTransfer(params.router, fee0);
+    poolKey.currency1.safeTransfer(params.router, fee1);
 
-    uint128 newLiq = params.newLiquidity;
-    if (newLiq == 0) {
-      uint256 avail0 = collected0 - fee0;
-      uint256 avail1 = collected1 - fee1;
-      uint256 budget0 = avail0;
-      uint256 budget1 = avail1;
-      if (params.amountDesireds.length >= 2) {
-        budget0 = _minU256(budget0, params.amountDesireds[0]);
-        budget1 = _minU256(budget1, params.amountDesireds[1]);
-      }
-      newLiq = LiquidityAmounts.getLiquidityForAmounts(
-        sqrtP,
-        TickMath.getSqrtRatioAtTick(params.newTickLower),
-        TickMath.getSqrtRatioAtTick(params.newTickUpper),
-        budget0,
-        budget1
-      );
-    }
-
-    uint128 a0max = type(uint128).max;
-    uint128 a1max = type(uint128).max;
-    if (params.amountDesireds.length >= 2) {
-      a0max = uint128(params.amountDesireds[0]);
-      a1max = uint128(params.amountDesireds[1]);
-    }
-
-    if (c0 != address(0)) {
-      c0.safeApprove(address(pm), type(uint256).max);
-    }
-    if (c1 != address(0)) {
-      c1.safeApprove(address(pm), type(uint256).max);
-    }
+    uint128 newLiq = LiquidityAmounts.getLiquidityForAmounts(
+      sqrtP,
+      TickMath.getSqrtRatioAtTick(params.newTickLower),
+      TickMath.getSqrtRatioAtTick(params.newTickUpper),
+      params.amountDesireds[0],
+      params.amountDesireds[1]
+    );
 
     bytes memory mintActions = new bytes(2);
     bytes[] memory mintParams = new bytes[](2);
@@ -461,15 +425,15 @@ contract MockActionContract {
       params.newTickLower,
       params.newTickUpper,
       uint256(newLiq),
-      a0max,
-      a1max,
+      params.amountDesireds[0],
+      params.amountDesireds[1],
       params.mainAddress,
       bytes('')
     );
     mintActions[1] = bytes1(uint8(Actions.SETTLE_PAIR));
     mintParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
 
-    uint256 ethValue = c0 == address(0) ? address(this).balance : 0;
+    uint256 ethValue = poolKey.currency0 == TokenHelper.NATIVE_ADDRESS ? address(this).balance : 0;
     pm.modifyLiquidities{value: ethValue}(abi.encode(mintActions, mintParams), type(uint256).max);
   }
 
@@ -480,7 +444,6 @@ contract MockActionContract {
     int24 newTickUpper;
     address router;
     address mainAddress;
-    uint128 newLiquidity;
     uint256[] amountDesireds;
     uint256[] fees;
   }
@@ -489,63 +452,35 @@ contract MockActionContract {
     ICLPositionManager pm = params.pm;
     (PancakePoolKey memory poolKey,,, uint128 posLiq,,,) = pm.positions(params.oldTokenId);
 
-    address c0 = poolKey.currency0;
-    address c1 = poolKey.currency1;
+    PoolId poolId = _pancakev4PoolId(poolKey);
+    (uint160 sqrtP,,,) = pm.clPoolManager().getSlot0(poolId);
 
-    PoolId pid = _pcsPoolId(poolKey);
-    (uint160 sqrtP,,,) = pm.clPoolManager().getSlot0(pid);
-
-    uint256 bal0Before = _v4TokenBalance(c0);
-    uint256 bal1Before = _v4TokenBalance(c1);
+    uint256 balance0Before = poolKey.currency0.selfBalance();
+    uint256 balance1Before = poolKey.currency1.selfBalance();
 
     bytes memory takeActions = new bytes(2);
     bytes[] memory takeParams = new bytes[](2);
     takeActions[0] = bytes1(uint8(PancakeActions.CL_DECREASE_LIQUIDITY));
     takeParams[0] = abi.encode(params.oldTokenId, posLiq, uint128(0), uint128(0), bytes(''));
     takeActions[1] = bytes1(uint8(PancakeActions.TAKE_PAIR));
-    takeParams[1] = abi.encode(c0, c1, address(this));
+    takeParams[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
     pm.modifyLiquidities(abi.encode(takeActions, takeParams), type(uint256).max);
 
-    uint256 collected0 = _v4TokenBalance(c0) - bal0Before;
-    uint256 collected1 = _v4TokenBalance(c1) - bal1Before;
+    uint256 collected0 = poolKey.currency0.selfBalance() - balance0Before;
+    uint256 collected1 = poolKey.currency1.selfBalance() - balance1Before;
 
     uint256 fee0 = collected0 * params.fees[0] / 1e6;
     uint256 fee1 = collected1 * params.fees[1] / 1e6;
-    _v4TransferToRouter(c0, params.router, fee0);
-    _v4TransferToRouter(c1, params.router, fee1);
+    poolKey.currency0.safeTransfer(params.router, fee0);
+    poolKey.currency1.safeTransfer(params.router, fee1);
 
-    uint128 newLiq = params.newLiquidity;
-    if (newLiq == 0) {
-      uint256 avail0 = collected0 - fee0;
-      uint256 avail1 = collected1 - fee1;
-      uint256 budget0 = avail0;
-      uint256 budget1 = avail1;
-      if (params.amountDesireds.length >= 2) {
-        budget0 = _minU256(budget0, params.amountDesireds[0]);
-        budget1 = _minU256(budget1, params.amountDesireds[1]);
-      }
-      newLiq = LiquidityAmounts.getLiquidityForAmounts(
-        sqrtP,
-        TickMath.getSqrtRatioAtTick(params.newTickLower),
-        TickMath.getSqrtRatioAtTick(params.newTickUpper),
-        budget0,
-        budget1
-      );
-    }
-
-    uint128 a0max = type(uint128).max;
-    uint128 a1max = type(uint128).max;
-    if (params.amountDesireds.length >= 2) {
-      a0max = uint128(params.amountDesireds[0]);
-      a1max = uint128(params.amountDesireds[1]);
-    }
-
-    if (c0 != address(0)) {
-      c0.safeApprove(address(pm), type(uint256).max);
-    }
-    if (c1 != address(0)) {
-      c1.safeApprove(address(pm), type(uint256).max);
-    }
+    uint128 newLiq = LiquidityAmounts.getLiquidityForAmounts(
+      sqrtP,
+      TickMath.getSqrtRatioAtTick(params.newTickLower),
+      TickMath.getSqrtRatioAtTick(params.newTickUpper),
+      params.amountDesireds[0],
+      params.amountDesireds[1]
+    );
 
     bytes memory mintActions = new bytes(2);
     bytes[] memory mintParams = new bytes[](2);
@@ -555,15 +490,15 @@ contract MockActionContract {
       params.newTickLower,
       params.newTickUpper,
       newLiq,
-      a0max,
-      a1max,
+      params.amountDesireds[0],
+      params.amountDesireds[1],
       params.mainAddress,
       bytes('')
     );
     mintActions[1] = bytes1(uint8(PancakeActions.SETTLE_PAIR));
     mintParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
 
-    uint256 ethValue = c0 == address(0) ? address(this).balance : 0;
+    uint256 ethValue = poolKey.currency0 == TokenHelper.NATIVE_ADDRESS ? address(this).balance : 0;
     pm.modifyLiquidities{value: ethValue}(abi.encode(mintActions, mintParams), type(uint256).max);
   }
 

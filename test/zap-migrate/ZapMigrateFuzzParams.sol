@@ -3,8 +3,14 @@ pragma solidity ^0.8.0;
 
 /// @notice Fuzz input for zap-migrate mint amounts and hook/action fee fields (1e6 = 100%).
 struct ZapMigrateFuzzParams {
-  uint256 amountDesired0;
-  uint256 amountDesired1;
+  int24 originalTickLower;
+  int24 originalTickUpper;
+  uint256 originalAmountDesired0;
+  uint256 originalAmountDesired1;
+  int24 newTickLower;
+  int24 newTickUpper;
+  uint256 newAmountDesired0;
+  uint256 newAmountDesired1;
   uint256 maxFee0;
   uint256 maxFee1;
   uint256 fee0Percent;

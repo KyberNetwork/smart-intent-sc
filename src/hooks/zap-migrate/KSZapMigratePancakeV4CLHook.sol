@@ -106,7 +106,19 @@ contract KSZapMigrateUniswapV3Hook is BaseTickBasedZapMigrateHook {
     }
   }
 
-  function _getNewNftId(address nftAddress) internal view override returns (uint256 newNftId) {
+  function _getAdditionalData(address nftAddress)
+    internal
+    view
+    override
+    returns (bytes memory additionalData)
+  {}
+
+  function _getNewNftId(address nftAddress, bytes memory)
+    internal
+    view
+    override
+    returns (uint256 newNftId)
+  {
     return ICLPositionManager(nftAddress).nextTokenId() - 1;
   }
 
