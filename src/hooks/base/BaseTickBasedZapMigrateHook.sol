@@ -28,8 +28,8 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   error TooLargeDistanceFromTickBoundaries();
   error TooSmallDistanceFromTickBoundaries();
   error InvalidPoolUniqueId();
-  error InvalidTickLower();
-  error InvalidTickUpper();
+  error TooSmallTickRangeLength();
+  error TooLargeTickRangeLength();
   error ExceedMaxValueReductionInToken0();
   error ExceedMaxValueReductionInToken1();
   error ExceedMaxValueReductionPerAction();
@@ -37,6 +37,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   /**
    * @notice Data structure for zap migrate validation
    * @param nftAddress The NFT address
+   * @param nftId The NFT ID
    * @param minValueInToken0 The min value of the position in token0
    * @param minValueInToken1 The min value of the position in token1
    * @param maxValueReductionPerAction The max value reduction per action (in token0 if price decreases, in token1 if price increases)
@@ -48,6 +49,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    */
   struct ZapMigrateHookData {
     address nftAddress;
+    uint256 nftId;
     uint256 minValueInToken0;
     uint256 minValueInToken1;
     uint256 maxValueReductionPerAction;
@@ -55,6 +57,8 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     int24 maxDistanceFromUpperTickBeforeMigration;
     int24 minDistanceFromLowerTickAfterMigration;
     int24 minDistanceFromUpperTickAfterMigration;
+    int24 minTickRangeLength;
+    int24 maxTickRangeLength;
     uint256[] maxFees;
   }
 
@@ -133,7 +137,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
 
     uint256 currentNftId = nftIds[intentHash];
     if (currentNftId == 0) {
-      currentNftId = intentData.tokenData.erc721Data[actionData.erc721Ids[0]].tokenId;
+      currentNftId = hookIntentData.nftId;
     }
 
     PoolAndPositionInfo memory ppInfo =
@@ -237,6 +241,12 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     }
     if (ppInfo.tickUpper - ppInfo.tick < hookIntentData.minDistanceFromUpperTickAfterMigration) {
       revert TooSmallDistanceFromTickBoundaries();
+    }
+    if (ppInfo.tickUpper - ppInfo.tickLower < hookIntentData.minTickRangeLength) {
+      revert TooSmallTickRangeLength();
+    }
+    if (ppInfo.tickUpper - ppInfo.tickLower > hookIntentData.maxTickRangeLength) {
+      revert TooLargeTickRangeLength();
     }
 
     uint256 valueInToken0 =
