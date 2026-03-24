@@ -2,41 +2,41 @@
 pragma solidity ^0.8.0;
 
 import '../Base.t.sol';
-import {IERC721} from 'openzeppelin-contracts/contracts/interfaces/IERC721.sol';
+
+import 'src/hooks/base/BaseHook.sol';
+import 'src/hooks/base/BaseTickBasedZapMigrateHook.sol';
+import 'src/hooks/zap-migrate/KSZapMigrateUniswapV3Hook.sol';
+
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
-import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
+import 'src/interfaces/uniswapv3/IUniswapV3Factory.sol';
+import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
+import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
 
-import {BaseTickBasedZapMigrateHook} from 'src/hooks/base/BaseTickBasedZapMigrateHook.sol';
-import {KSZapMigrateUniswapV3Hook} from 'src/hooks/zap-migrate/KSZapMigrateUniswapV3Hook.sol';
-import {IUniswapV3Factory} from 'src/interfaces/uniswapv3/IUniswapV3Factory.sol';
-import {IUniswapV3PM} from 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import {IUniswapV3Pool} from 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
-import {FixedPoint128} from 'src/libraries/uniswapv4/FixedPoint128.sol';
-import {FixedPoint96} from 'src/libraries/uniswapv4/FixedPoint96.sol';
-import {LiquidityAmounts} from 'src/libraries/uniswapv4/LiquidityAmounts.sol';
-import {TickMath} from 'src/libraries/uniswapv4/TickMath.sol';
-
-import {ZapMigrateFuzzParams} from './ZapMigrateFuzzParams.sol';
+import './ZapMigrateFuzzParams.sol';
 
 contract ZapMigrateUniswapV3Test is BaseTest {
   using ArraysHelper for *;
-  using Math for uint256;
 
   IUniswapV3PM internal constant PM = IUniswapV3PM(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
   IUniswapV3Pool internal constant POOL =
     IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
-  address internal constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-  address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
+  address internal constant TOKEN0 = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // USDC
+  address internal constant TOKEN1 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // WETH
   uint24 internal constant POOL_FEE = 500;
+
   int24 internal constant TICK_SPACING = 10;
-  int24 internal constant HALF_RANGE = 500;
+  uint256 internal constant FEE_PRECISION = 1_000_000;
 
-  uint256 internal constant FEE_ONE = 1_000_000;
-  /// @dev Hook max-fee field (1e6 = 100%); safe with `maxValueReduction = type(uint128).max` (avoid uint256.max — hook adds it).
-  uint256 internal constant HOOK_MAX_FEE_10PCT = 100_000;
+  KSZapMigrateUniswapV3Hook internal zapHook;
 
-  KSZapMigrateUniswapV3Hook internal hook;
+  struct PositionContext {
+    address token0;
+    address token1;
+    uint24 fee;
+    int24 tickLower;
+    int24 tickUpper;
+    int24 currentTick;
+  }
 
   function _selectFork() public override {
     FORK_BLOCK = 22_230_873;
@@ -45,418 +45,613 @@ contract ZapMigrateUniswapV3Test is BaseTest {
 
   function setUp() public override {
     super.setUp();
-
-    hook = new KSZapMigrateUniswapV3Hook([address(router)].toMemoryArray());
-
-    vm.prank(admin);
-    router.grantRole(ACTION_CONTRACT_ROLE, address(mockActionContract));
-
-    vm.startPrank(mainAddress);
-    IERC20(USDC).approve(address(PM), type(uint256).max);
-    IERC20(WETH).approve(address(PM), type(uint256).max);
-    PM.setApprovalForAll(address(router), true);
-    vm.stopPrank();
+    zapHook = new KSZapMigrateUniswapV3Hook([address(router)].toMemoryArray());
   }
 
-  // --- helpers: setup & mint -------------------------------------------------
-
-  function _floorTick(int24 tick, int24 spacing) internal pure returns (int24) {
-    int24 c = tick / spacing;
-    if (tick < 0 && tick % spacing != 0) c--;
-    return c * spacing;
-  }
-
-  // --- helpers: position value (mirror hook) --------------------------------
-
-  function _valueInToken0(uint256 sqrtPriceX96, uint256 amount0, uint256 amount1)
-    internal
-    pure
-    returns (uint256)
-  {
-    return amount0
-      + amount1.mulDiv(FixedPoint96.Q96, sqrtPriceX96).mulDiv(FixedPoint96.Q96, sqrtPriceX96);
-  }
-
-  function _valueInToken1(uint256 sqrtPriceX96, uint256 amount0, uint256 amount1)
-    internal
-    pure
-    returns (uint256)
-  {
-    return amount1
-      + amount0.mulDiv(sqrtPriceX96, FixedPoint96.Q96).mulDiv(sqrtPriceX96, FixedPoint96.Q96);
-  }
-
-  // --- helpers: fuzz bounds & hook/action build -------------------------------
-
-  function _boundExecutionParams(ZapMigrateFuzzParams memory p)
-    internal
-    pure
-    returns (ZapMigrateFuzzParams memory)
-  {
-    p.originalAmountDesired0 = bound(p.originalAmountDesired0, 1e6, 100e9);
-    p.originalAmountDesired1 = bound(p.originalAmountDesired1, 1e15, 50 ether);
-    p.newAmountDesired0 = bound(p.newAmountDesired0, 1e6, 100e9);
-    p.newAmountDesired1 = bound(p.newAmountDesired1, 1e15, 50 ether);
-    p.maxFee0 = bound(p.maxFee0, 0, 500_000);
-    p.maxFee1 = bound(p.maxFee1, 0, 500_000);
-    p.fee0Percent = bound(p.fee0Percent, 0, p.maxFee0);
-    p.fee1Percent = bound(p.fee1Percent, 0, p.maxFee1);
-    return p;
-  }
-
-  /// @dev Typical fixed params for revert tests that are not fuzzing amounts.
-  function _defaultMigrateParams() internal pure returns (ZapMigrateFuzzParams memory p) {
-    p.originalAmountDesired0 = 1e9;
-    p.originalAmountDesired1 = 1e17;
-    p.newAmountDesired0 = 1e9;
-    p.newAmountDesired1 = 1e17;
-    p.maxFee0 = HOOK_MAX_FEE_10PCT;
-    p.maxFee1 = HOOK_MAX_FEE_10PCT;
-  }
-
-  function _hookData(
-    uint256 maxFee0,
-    uint256 maxFee1,
-    uint256 minValueInToken0,
-    uint256 minValueInToken1,
-    uint256 maxValueReductionPerAction,
-    int24 minDistLower,
-    int24 minDistUpper
-  ) internal pure returns (bytes memory) {
-    uint256[] memory maxFees = new uint256[](2);
-    maxFees[0] = maxFee0;
-    maxFees[1] = maxFee1;
-    return abi.encode(
-      BaseTickBasedZapMigrateHook.ZapMigrateHookData({
-        nftAddress: address(PM),
-        minValueInToken0: minValueInToken0,
-        minValueInToken1: minValueInToken1,
-        maxValueReductionPerAction: maxValueReductionPerAction,
-        minDistanceFromLowerTick: minDistLower,
-        minDistanceFromUpperTick: minDistUpper,
-        maxFees: maxFees
-      })
+  function testFuzz_ZapMigrateUniswapV3_Success(ZapMigrateUniswapV3FuzzParams memory fuzz) public {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
     );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desired, 1e9, 40_000e6);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desired, 1 ether, 30 ether);
+    uint24 actionFee0 = uint24(bound(fuzz.actionFee0, 0, 50_000));
+    uint24 actionFee1 = uint24(bound(fuzz.actionFee1, 0, 50_000));
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, actionFee0, actionFee1);
+
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData = _buildActionData(
+      oldNftId,
+      newTickLower,
+      newTickUpper,
+      address(forwarder),
+      amount0Desired,
+      amount1Desired,
+      actionFee0,
+      actionFee1
+    );
+
+    deal(pos.token0, address(mockActionContract), amount0Desired);
+    deal(pos.token1, address(mockActionContract), amount1Desired);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+
+    bytes32 intentHash = router.hashTypedIntentData(intentData);
+    uint256 newNftId = zapHook.nftIds(intentHash);
+
+    assertTrue(newNftId != 0, 'new nft id is not recorded');
+    assertTrue(newNftId != oldNftId, 'new nft id must differ from old nft id');
+    assertEq(PM.ownerOf(oldNftId), address(forwarder), 'old nft owner mismatch');
+    assertEq(PM.ownerOf(newNftId), address(forwarder), 'new nft owner mismatch');
   }
 
-  function _hookDataStandard(uint256 nftId, uint256 maxFee0, uint256 maxFee1)
-    internal
-    view
-    returns (bytes memory)
-  {
-    (int24 minL, int24 minU) = _minDistForMigrateHookV3(nftId);
-    return _hookData(maxFee0, maxFee1, 0, 0, type(uint128).max, minL, minU);
+  function testFuzz_Revert_InvalidTokenData(ZapMigrateUniswapV3FuzzParams memory fuzz) public {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desired, 1e9, 2_000e6);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desired, 1e15, 2 ether);
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+
+    ActionData memory actionData = _buildActionData(
+      oldNftId,
+      newTickLower,
+      newTickUpper,
+      address(forwarder),
+      amount0Desired,
+      amount1Desired,
+      0,
+      0
+    );
+    actionData.erc20Ids = [uint256(0)].toMemoryArray();
+    actionData.erc20Amounts = [bound(fuzz.invalidTokenErc20Amount, 0, 1e18)].toMemoryArray();
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseHook.InvalidTokenData.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
-  function _buildIntent(uint256 nftId, bytes memory hookData)
-    internal
-    returns (IntentData memory intentData)
+  function testFuzz_Revert_TooLargeDistanceFromTickBoundaries(ZapMigrateUniswapV3FuzzParams memory fuzz)
+    public
   {
-    address[] memory contracts = new address[](1);
-    contracts[0] = address(mockActionContract);
-    bytes4[] memory selectors = new bytes4[](1);
-    selectors[0] = MockActionContract.zapMigrateUniswapV3.selector;
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
 
-    intentData = IntentData({
-      coreData: IntentCoreData({
-        mainAddress: mainAddress,
-        signatureVerifier: address(0),
-        delegatedKey: delegatedPublicKey,
-        actionContracts: contracts,
-        actionSelectors: selectors,
-        hook: address(hook),
-        hookIntentData: hookData
-      }),
-      tokenData: _singleErc721(nftId),
-      extraData: ''
-    });
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    int24 lowerExceededBy = int24(uint24(_clamp(fuzz.samplePositionIndex, 1, 10_000)));
+    int24 upperExceededBy = int24(uint24(_clamp(fuzz.invalidTokenErc20Amount, 1, 10_000)));
+    hookData.maxDistanceFromLowerTickBeforeMigration = -lowerExceededBy;
+    hookData.maxDistanceFromUpperTickBeforeMigration = -upperExceededBy;
+
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData =
+      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.TooLargeDistanceFromTickBoundaries.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testFuzz_Revert_InvalidOwner(ZapMigrateUniswapV3FuzzParams memory fuzz) public {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      mainAddress, fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desired, 1e9, 40_000e6);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desired, 1 ether, 30 ether);
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    IntentData memory intentData = _buildIntentData(mainAddress, hookData, oldNftId);
+    ActionData memory actionData = _buildActionData(
+      oldNftId, newTickLower, newTickUpper, mainAddress, amount0Desired, amount1Desired, 0, 0
+    );
+
+    deal(pos.token0, address(mockActionContract), amount0Desired);
+    deal(pos.token1, address(mockActionContract), amount1Desired);
+
     vm.prank(mainAddress);
     router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.InvalidOwner.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
-  function _singleErc721(uint256 nftId) private pure returns (TokenData memory td) {
-    td.erc721Data = new ERC721Data[](1);
-    td.erc721Data[0] = ERC721Data({token: address(PM), tokenId: nftId, permitData: ''});
+  function testFuzz_Revert_ExceedMaxFeesPercent(ZapMigrateUniswapV3FuzzParams memory fuzz) public {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desired, 1e9, 40_000e6);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desired, 1 ether, 30 ether);
+    uint24 actionFee0 = uint24(bound(fuzz.actionFee0, 1, FEE_PRECISION));
+    uint24 actionFee1 = uint24(bound(fuzz.actionFee1, 1, FEE_PRECISION));
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, actionFee0, actionFee1);
+    hookData.maxFee0 = bound(fuzz.maxFee0, 0, uint256(actionFee0 - 1));
+    hookData.maxFee1 = bound(fuzz.maxFee1, 0, uint256(actionFee1 - 1));
+
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData = _buildActionData(
+      oldNftId,
+      newTickLower,
+      newTickUpper,
+      address(forwarder),
+      amount0Desired,
+      amount1Desired,
+      actionFee0,
+      actionFee1
+    );
+
+    deal(pos.token0, address(mockActionContract), amount0Desired);
+    deal(pos.token1, address(mockActionContract), amount1Desired);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.ExceedMaxFeesPercent.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
-  function _buildAction(
-    uint256 nftId,
-    int24 newLower,
-    int24 newUpper,
-    address mintRecipient,
-    ZapMigrateFuzzParams memory p
-  ) internal returns (ActionData memory actionData) {
-    deal(USDC, address(mockActionContract), p.amountDesired0);
-    deal(WETH, address(mockActionContract), p.amountDesired1);
+  function testFuzz_Revert_TooSmallDistanceFromTickBoundaries(ZapMigrateUniswapV3FuzzParams memory fuzz)
+    public
+  {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
 
-    uint256[] memory desired = new uint256[](2);
-    desired[0] = p.amountDesired0;
-    desired[1] = p.amountDesired1;
-    uint256[] memory fees = new uint256[](2);
-    fees[0] = p.fee0Percent;
-    fees[1] = p.fee1Percent;
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    int24 requiredExtraDistance = int24(uint24(_clamp(fuzz.samplePositionIndex, 1, 10_000)));
+    hookData.minDistanceFromLowerTickAfterMigration =
+      (pos.currentTick - newTickLower) + requiredExtraDistance;
 
-    MockActionContract.ZapMigrateUniswapV3Params memory params =
-      MockActionContract.ZapMigrateUniswapV3Params({
-        pm: PM,
-        oldTokenId: nftId,
-        newTickLower: newLower,
-        newTickUpper: newUpper,
-        router: address(router),
-        mainAddress: mintRecipient,
-        amountDesireds: desired,
-        fees: fees
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData =
+      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+
+    deal(pos.token0, address(mockActionContract), 1e18);
+    deal(pos.token1, address(mockActionContract), 1e18);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.TooSmallDistanceFromTickBoundaries.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testFuzz_Revert_TooSmallTickRangeLength(ZapMigrateUniswapV3FuzzParams memory fuzz)
+    public
+  {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+    int24 range = newTickUpper - newTickLower;
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    int24 minIncrease = int24(uint24(_clamp(fuzz.invalidTokenErc20Amount, 1, 10_000)));
+    hookData.minTickRangeLength = range + minIncrease;
+
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData =
+      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+
+    deal(pos.token0, address(mockActionContract), 1e18);
+    deal(pos.token1, address(mockActionContract), 1e18);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.TooSmallTickRangeLength.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testFuzz_Revert_TooLargeTickRangeLength(ZapMigrateUniswapV3FuzzParams memory fuzz)
+    public
+  {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+    int24 range = newTickUpper - newTickLower;
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    uint256 maxDecrease = uint256(uint24(range - 1));
+    int24 decrease = int24(uint24(_clamp(fuzz.samplePositionIndex, 1, maxDecrease)));
+    hookData.maxTickRangeLength = range - decrease;
+
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData =
+      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+
+    deal(pos.token0, address(mockActionContract), 1e18);
+    deal(pos.token1, address(mockActionContract), 1e18);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.TooLargeTickRangeLength.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testFuzz_Revert_InsufficientPositionValue(ZapMigrateUniswapV3FuzzParams memory fuzz)
+    public
+  {
+    (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
+    (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
+      _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
+    hookData.minValueInToken0 = type(uint128).max + bound(fuzz.minValueInToken0, 1, 1e30);
+
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
+    ActionData memory actionData =
+      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+
+    deal(pos.token0, address(mockActionContract), 1e18);
+    deal(pos.token1, address(mockActionContract), 1e18);
+
+    vm.prank(address(forwarder));
+    router.delegate(intentData);
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testFuzz_Revert_InvalidPoolUniqueId(ZapMigrateUniswapV3FuzzParams memory fuzz) public {
+    (
+      uint256 index,
+      uint256 nftId,
+      address owner,
+      ,
+      ,
+      bytes32 poolUniqueId
+    ) = _samplePosition(fuzz.samplePositionIndex);
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData = _minimalHookData(nftId);
+    IntentData memory intentData = _buildIntentData(owner, hookData, nftId);
+
+    bytes32 invalidPoolUniqueId =
+      poolUniqueId ^ bytes32(_clamp(fuzz.invalidTokenErc20Amount, 1, type(uint256).max));
+    BaseTickBasedZapMigrateHook.BeforeExecutionData memory beforeData =
+      BaseTickBasedZapMigrateHook.BeforeExecutionData({
+        originalNftId: nftId,
+        poolUniqueId: invalidPoolUniqueId,
+        amount0Before: 1,
+        amount1Before: 1,
+        balance0Before: 0,
+        balance1Before: 0,
+        directionalPositionValue: 1,
+        direction: true,
+        additionalData: abi.encode(index)
       });
 
+    vm.prank(address(router));
+    vm.expectRevert(BaseTickBasedZapMigrateHook.InvalidPoolUniqueId.selector);
+    zapHook.afterExecution(bytes32(0), intentData, abi.encode(beforeData), '');
+  }
+
+  function testFuzz_Revert_ExceedMaxValueReductionPerAction(ZapMigrateUniswapV3FuzzParams memory fuzz)
+    public
+  {
+    (
+      uint256 index,
+      uint256 nftId,
+      address owner,
+      address token0,
+      address token1,
+      bytes32 poolUniqueId
+    ) = _samplePosition(fuzz.samplePositionIndex);
+
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData = _minimalHookData(nftId);
+    hookData.maxValueReductionPerAction = bound(fuzz.maxValueReductionPerAction, 0, 1e30);
+    uint256 directionalPositionValue =
+      type(uint256).max - bound(fuzz.minValueInToken0, 0, 1e30);
+
+    IntentData memory intentData = _buildIntentData(owner, hookData, nftId);
+
+    BaseTickBasedZapMigrateHook.BeforeExecutionData memory beforeData =
+      BaseTickBasedZapMigrateHook.BeforeExecutionData({
+        originalNftId: nftId,
+        poolUniqueId: poolUniqueId,
+        amount0Before: type(uint128).max,
+        amount1Before: type(uint128).max,
+        balance0Before: IERC20(token0).balanceOf(address(router)),
+        balance1Before: IERC20(token1).balanceOf(address(router)),
+        directionalPositionValue: directionalPositionValue,
+        direction: true,
+        additionalData: abi.encode(index)
+      });
+
+    vm.prank(address(router));
+    vm.expectRevert(BaseTickBasedZapMigrateHook.ExceedMaxValueReductionPerAction.selector);
+    zapHook.afterExecution(bytes32(0), intentData, abi.encode(beforeData), '');
+  }
+
+  function _successHookData(
+    ZapMigrateUniswapV3FuzzParams memory fuzz,
+    uint256 nftId,
+    PositionContext memory pos,
+    int24 newTickLower,
+    int24 newTickUpper,
+    uint24 actionFee0,
+    uint24 actionFee1
+  ) internal pure returns (BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData) {
+    int24 oldDistLower = pos.currentTick - pos.tickLower;
+    int24 oldDistUpper = pos.tickUpper - pos.currentTick;
+    int24 newDistLower = pos.currentTick - newTickLower;
+    int24 newDistUpper = newTickUpper - pos.currentTick;
+    int24 range = newTickUpper - newTickLower;
+
+    hookData.nftId = nftId;
+    hookData.minValueInToken0 = bound(fuzz.minValueInToken0, 0, 1);
+    hookData.minValueInToken1 = bound(fuzz.minValueInToken1, 0, 1);
+    hookData.maxValueReductionPerAction =
+      bound(fuzz.maxValueReductionPerAction, type(uint128).max, type(uint256).max);
+    hookData.maxDistanceFromLowerTickBeforeMigration =
+      _clampInt24(fuzz.maxDistanceFromLowerTickBeforeMigration, oldDistLower, type(int24).max);
+    hookData.maxDistanceFromUpperTickBeforeMigration =
+      _clampInt24(fuzz.maxDistanceFromUpperTickBeforeMigration, oldDistUpper, type(int24).max);
+    hookData.minDistanceFromLowerTickAfterMigration =
+      _clampInt24(fuzz.minDistanceFromLowerTickAfterMigration, 0, newDistLower);
+    hookData.minDistanceFromUpperTickAfterMigration =
+      _clampInt24(fuzz.minDistanceFromUpperTickAfterMigration, 0, newDistUpper);
+    hookData.minTickRangeLength = _clampInt24(fuzz.minTickRangeLength, 0, range);
+    hookData.maxTickRangeLength = _clampInt24(fuzz.maxTickRangeLength, range, type(int24).max);
+    hookData.maxFee0 = bound(fuzz.maxFee0, actionFee0, FEE_PRECISION);
+    hookData.maxFee1 = bound(fuzz.maxFee1, actionFee1, FEE_PRECISION);
+  }
+
+  function _positionContext(uint256 nftId) internal view returns (PositionContext memory pos) {
+    (,, pos.token0, pos.token1, pos.fee, pos.tickLower, pos.tickUpper,,,,,) = PM.positions(nftId);
+    (, pos.currentTick,,,,,) = POOL.slot0();
+  }
+
+  function _newTicks(int24 currentTick, uint8 rangeMultiplier)
+    internal
+    pure
+    returns (int24 lower, int24 upper)
+  {
+    uint8 m = uint8(_clamp(rangeMultiplier, 2, 120));
+    if (m % 2 == 1) {
+      m = m == 120 ? 119 : m + 1;
+    }
+    int24 base = currentTick / TICK_SPACING * TICK_SPACING;
+    if (currentTick < 0 && currentTick % TICK_SPACING != 0) {
+      base -= TICK_SPACING;
+    }
+
+    int24 range = int24(uint24(m)) * TICK_SPACING;
+    lower = base - range / 2;
+    upper = lower + range;
+
+    if (upper <= currentTick) {
+      upper += TICK_SPACING;
+      lower += TICK_SPACING;
+    }
+    if (lower >= currentTick) {
+      lower -= TICK_SPACING;
+      upper -= TICK_SPACING;
+    }
+  }
+
+  function _mintFreshPosition(
+    address owner,
+    uint8 mintRangeMultiplier,
+    uint256 mintAmount0DesiredRaw,
+    uint256 mintAmount1DesiredRaw
+  ) internal returns (uint256 nftId, PositionContext memory pos) {
+    (, int24 currentTick,,,,,) = POOL.slot0();
+    (int24 tickLower, int24 tickUpper) =
+      _newTicks(currentTick, uint8(_clamp(mintRangeMultiplier, 40, 120)));
+
+    uint256 mintAmount0Desired = bound(mintAmount0DesiredRaw, 30_000e6, 40_000e6);
+    uint256 mintAmount1Desired = bound(mintAmount1DesiredRaw, 18 ether, 22 ether);
+
+    address minter = mainAddress;
+    deal(TOKEN0, minter, mintAmount0Desired);
+    deal(TOKEN1, minter, mintAmount1Desired);
+
+    vm.startPrank(minter);
+    IERC20(TOKEN0).approve(address(PM), type(uint256).max);
+    IERC20(TOKEN1).approve(address(PM), type(uint256).max);
+    (nftId,,,) = PM.mint(
+      IUniswapV3PM.MintParams({
+        token0: TOKEN0,
+        token1: TOKEN1,
+        fee: POOL_FEE,
+        tickLower: tickLower,
+        tickUpper: tickUpper,
+        amount0Desired: mintAmount0Desired,
+        amount1Desired: mintAmount1Desired,
+        amount0Min: 0,
+        amount1Min: 0,
+        recipient: minter,
+        deadline: block.timestamp + 1 days
+      })
+    );
+    vm.stopPrank();
+
+    if (owner != minter) {
+      vm.prank(minter);
+      PM.transferFrom(minter, owner, nftId);
+    }
+
+    vm.prank(owner);
+    PM.approve(address(router), nftId);
+
+    pos = _positionContext(nftId);
+  }
+
+  function _buildIntentData(
+    address intentMainAddress,
+    BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData,
+    uint256 nftId
+  ) internal view returns (IntentData memory intentData) {
+    IntentCoreData memory coreData = IntentCoreData({
+      mainAddress: intentMainAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
+      actionContracts: [address(mockActionContract)].toMemoryArray(),
+      actionSelectors: [MockActionContract.zapMigrateUniswapV3.selector].toMemoryArray(),
+      hook: address(zapHook),
+      hookIntentData: abi.encode(hookData)
+    });
+
+    TokenData memory tokenData;
+    tokenData.erc721Data = new ERC721Data[](1);
+    tokenData.erc721Data[0] = ERC721Data({token: address(PM), tokenId: nftId, permitData: ''});
+
+    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+  }
+
+  function _buildActionData(
+    uint256 oldNftId,
+    int24 newTickLower,
+    int24 newTickUpper,
+    address newNftRecipient,
+    uint256 amount0Desired,
+    uint256 amount1Desired,
+    uint24 actionFee0,
+    uint24 actionFee1
+  ) internal view returns (ActionData memory actionData) {
     FeeInfo memory feeInfo;
     feeInfo.protocolRecipient = protocolRecipient;
     feeInfo.partnerFeeConfigs = new FeeConfig[][](2);
     feeInfo.partnerFeeConfigs[0] = new FeeConfig[](0);
     feeInfo.partnerFeeConfigs[1] = new FeeConfig[](0);
 
+    MockActionContract.ZapMigrateUniswapV3Params memory params =
+      MockActionContract.ZapMigrateUniswapV3Params({
+        pm: PM,
+        oldTokenId: oldNftId,
+        newTickLower: newTickLower,
+        newTickUpper: newTickUpper,
+        router: address(router),
+        mainAddress: newNftRecipient,
+        amountDesireds: [amount0Desired, amount1Desired].toMemoryArray(),
+        fees: [uint256(actionFee0), uint256(actionFee1)].toMemoryArray()
+      });
+
     actionData = ActionData({
       erc20Ids: new uint256[](0),
       erc20Amounts: new uint256[](0),
       erc721Ids: [uint256(0)].toMemoryArray(),
       feeInfo: feeInfo,
-      actionSelectorId: 0,
       approvalFlags: type(uint256).max,
+      actionSelectorId: 0,
       actionCalldata: abi.encode(params),
       hookActionData: '',
       extraData: '',
-      deadline: _actionDeadline(),
+      deadline: block.timestamp + 1 days,
       nonce: 0
     });
   }
 
-  function _actionDeadline() private view returns (uint256) {
-    return block.timestamp + 1 days;
-  }
-
-  function _execute(IntentData memory intentData, ActionData memory actionData) internal {
-    (, bytes memory dk, bytes memory gd) = _getCallerAndSignatures(0, intentData, actionData);
-    vm.prank(randomCaller);
-    router.execute(intentData, dk, guardian, gd, actionData);
-  }
-
-  function _executeExpectRevert(
-    IntentData memory intentData,
-    ActionData memory actionData,
-    bytes4 expectedSelector
-  ) internal {
-    (, bytes memory dk, bytes memory gd) = _getCallerAndSignatures(0, intentData, actionData);
-    vm.prank(randomCaller);
-    vm.expectRevert(expectedSelector);
-    router.execute(intentData, dk, guardian, gd, actionData);
-  }
-
-  // --- fuzz tests -------------------------------------------------------------
-
-  function testFuzz_ZapMigrate_Success(uint256 seed, ZapMigrateFuzzParams memory p) public {
-    p = _boundExecutionParams(p);
-    uint256 tokenId = _mintStartPosition(seed);
-
-    IntentData memory intent =
-      _buildIntent(tokenId, _hookDataStandard(tokenId, p.maxFee0, p.maxFee1));
-    ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, p);
-
-    uint256 supplyBefore = PM.totalSupply();
-    _execute(intent, action);
-
-    assertEq(PM.totalSupply(), supplyBefore + 1, 'new NFT');
-    uint256 newId = PM.tokenByIndex(PM.totalSupply() - 1);
-    assertEq(IERC721(address(PM)).ownerOf(newId), mainAddress);
-    assertEq(hook.nftIds(router.hashTypedIntentData(intent)), newId);
-
-    (,,,,, int24 nl, int24 nu,,,,,) = PM.positions(newId);
-    assertEq(nl, newTickLower);
-    assertEq(nu, newTickUpper);
-  }
-
-  function testFuzz_Revert_TooLargeDistanceFromTickBoundaries(ZapMigrateFuzzParams memory p)
-    public
+  function _minimalHookData(uint256 nftId)
+    internal
+    pure
+    returns (BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData)
   {
-    p = _boundExecutionParams(p);
-
-    deal(USDC, mainAddress, p.amountDesired0);
-    deal(WETH, mainAddress, p.amountDesired1);
-    vm.startPrank(mainAddress);
-    (uint256 inRangeId,,,) = PM.mint(
-      IUniswapV3PM.MintParams({
-        token0: USDC,
-        token1: WETH,
-        fee: POOL_FEE,
-        tickLower: _floorTick(currentTick, TICK_SPACING) - HALF_RANGE,
-        tickUpper: _floorTick(currentTick, TICK_SPACING) + HALF_RANGE,
-        amount0Desired: p.amountDesired0,
-        amount1Desired: p.amountDesired1,
-        amount0Min: 0,
-        amount1Min: 0,
-        recipient: mainAddress,
-        deadline: _actionDeadline()
-      })
-    );
-    vm.stopPrank();
-
-    int24 aligned = _floorTick(currentTick, TICK_SPACING);
-    int24 ntl = aligned - HALF_RANGE + TICK_SPACING;
-    int24 ntu = aligned + HALF_RANGE + TICK_SPACING;
-
-    IntentData memory intent =
-      _buildIntent(inRangeId, _hookData(p.maxFee0, p.maxFee1, 0, 0, type(uint128).max, 0, 0));
-    ActionData memory action = _buildAction(inRangeId, ntl, ntu, mainAddress, p);
-    _executeExpectRevert(
-      intent, action, BaseTickBasedZapMigrateHook.TooLargeDistanceFromTickBoundaries.selector
-    );
+    hookData.nftId = nftId;
+    hookData.maxDistanceFromLowerTickBeforeMigration = type(int24).max;
+    hookData.maxDistanceFromUpperTickBeforeMigration = type(int24).max;
+    hookData.minDistanceFromLowerTickAfterMigration = type(int24).min;
+    hookData.minDistanceFromUpperTickAfterMigration = type(int24).min;
+    hookData.maxTickRangeLength = type(int24).max;
+    hookData.maxValueReductionPerAction = type(uint256).max;
+    hookData.maxFee0 = FEE_PRECISION;
+    hookData.maxFee1 = FEE_PRECISION;
   }
 
-  function testFuzz_Revert_InsufficientPositionValue_Token0(uint256 seed, uint256 minValueBump)
-    public
+  function _samplePosition(uint256 sampleIndex)
+    internal
+    view
+    returns (
+      uint256 index,
+      uint256 nftId,
+      address owner,
+      address token0,
+      address token1,
+      bytes32 poolUniqueId
+    )
   {
-    uint256 tokenId = _mintStartPosition(seed);
-    minValueBump = bound(minValueBump, 1, type(uint128).max);
-    (uint256 v0,) = _positionValues(tokenId);
-    uint256 min0;
-    unchecked {
-      min0 = v0 + minValueBump;
-    }
+    uint256 total = PM.totalSupply();
+    index = _clamp(sampleIndex, 0, total - 1);
+    nftId = PM.tokenByIndex(index);
+    owner = PM.ownerOf(nftId);
+    uint24 fee;
+    (,, token0, token1, fee,,,,,,,) = PM.positions(nftId);
 
-    ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
-    (int24 minL, int24 minU) = _minDistForMigrateHookV3(tokenId);
-    IntentData memory intent = _buildIntent(
-      tokenId,
-      _hookData(HOOK_MAX_FEE_10PCT, HOOK_MAX_FEE_10PCT, min0, 0, type(uint128).max, minL, minU)
-    );
-    ActionData memory action =
-      _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(
-      intent, action, BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector
-    );
+    IUniswapV3Pool pool =
+      IUniswapV3Pool(IUniswapV3Factory(PM.factory()).getPool(token0, token1, fee));
+    poolUniqueId = bytes32(uint256(uint160(address(pool))));
   }
 
-  function testFuzz_Revert_InsufficientPositionValue_Token1(uint256 seed, uint256 minValueBump)
-    public
-  {
-    uint256 tokenId = _mintStartPosition(seed);
-    minValueBump = bound(minValueBump, 1, type(uint128).max);
-    (, uint256 v1) = _positionValues(tokenId);
-    uint256 min1;
-    unchecked {
-      min1 = v1 + minValueBump;
-    }
-
-    ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
-    (int24 minL, int24 minU) = _minDistForMigrateHookV3(tokenId);
-    IntentData memory intent = _buildIntent(
-      tokenId,
-      _hookData(HOOK_MAX_FEE_10PCT, HOOK_MAX_FEE_10PCT, 0, min1, type(uint128).max, minL, minU)
-    );
-    ActionData memory action =
-      _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(
-      intent, action, BaseTickBasedZapMigrateHook.InsufficientPositionValue.selector
-    );
+  function _clamp(uint256 value, uint256 min, uint256 max) internal pure returns (uint256) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
   }
 
-  function testFuzz_Revert_TooSmallDistance_InvalidTickLower(uint256 seed, uint8 spacingMult)
-    public
-  {
-    uint256 tokenId = _mintStartPosition(seed);
-    int24 maxBump = newTickUpper - newTickLower - int24(2) * TICK_SPACING;
-    vm.assume(maxBump > TICK_SPACING);
-    int24 extra = maxBump - int24(uint24(bound(uint256(spacingMult), 1, 40))) * TICK_SPACING;
-    vm.assume(extra > int24(0));
-    vm.assume(currentTick < newTickLower + extra + int24(1));
-    vm.assume(newTickLower + extra < newTickUpper - TICK_SPACING);
-
-    ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
-    IntentData memory intent = _buildIntent(
-      tokenId, _hookDataStandard(tokenId, migrateParams.maxFee0, migrateParams.maxFee1)
-    );
-    ActionData memory action =
-      _buildAction(tokenId, newTickLower + extra, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(
-      intent, action, BaseTickBasedZapMigrateHook.TooSmallDistanceFromTickBoundaries.selector
-    );
-  }
-
-  /// @dev Shrink upper tick (vs successful migrate) so pool tick is above `tickUpper - minDistance`.
-  function testFuzz_Revert_TooSmallDistance_InvalidTickUpper(uint256 seed, uint8 spacingMult)
-    public
-  {
-    uint256 tokenId = _mintStartPosition(seed);
-    int24 extra = int24(uint24(bound(uint256(spacingMult), 1, 50))) * TICK_SPACING;
-
-    ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
-    IntentData memory intent = _buildIntent(
-      tokenId, _hookDataStandard(tokenId, migrateParams.maxFee0, migrateParams.maxFee1)
-    );
-    ActionData memory action =
-      _buildAction(tokenId, newTickLower, newTickUpper - extra, mainAddress, migrateParams);
-    _executeExpectRevert(
-      intent, action, BaseTickBasedZapMigrateHook.TooSmallDistanceFromTickBoundaries.selector
-    );
-  }
-
-  function testFuzz_Revert_ExceedMaxFeesPercent(uint256 seed, ZapMigrateFuzzParams memory p)
-    public
-  {
-    uint256 tokenId = _mintStartPosition(seed);
-
-    p.maxFee0 = 0;
-    p.maxFee1 = 0;
-    p.amountDesired0 = bound(p.amountDesired0, 1e6, 50e6);
-    p.amountDesired1 = bound(p.amountDesired1, 1e15, 5e17);
-    // Both 100%: one-sided positions only have one token at collect; fee1=0 would skip WETH-only (profile 2).
-    p.fee0Percent = FEE_ONE;
-    p.fee1Percent = FEE_ONE;
-
-    IntentData memory intent =
-      _buildIntent(tokenId, _hookDataStandard(tokenId, p.maxFee0, p.maxFee1));
-    ActionData memory action = _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, p);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.ExceedMaxFeesPercent.selector);
-  }
-
-  function testFuzz_Revert_ExceedMaxValueReductionPerAction(
-    uint256 seed,
-    uint256 amount0Raw,
-    uint256 amount1Raw
-  ) public {
-    uint256 tokenId = _mintStartPosition(seed);
-
-    ZapMigrateFuzzParams memory migrateParams;
-    migrateParams.maxFee0 = HOOK_MAX_FEE_10PCT;
-    migrateParams.maxFee1 = HOOK_MAX_FEE_10PCT;
-    migrateParams.amountDesired0 = bound(amount0Raw, 100e6, 2000e6);
-    migrateParams.amountDesired1 = bound(amount1Raw, 1e14, 5e17);
-
-    (int24 minL, int24 minU) = _minDistForMigrateHookV3(tokenId);
-    IntentData memory intent =
-      _buildIntent(tokenId, _hookData(HOOK_MAX_FEE_10PCT, HOOK_MAX_FEE_10PCT, 0, 0, 0, minL, minU));
-    ActionData memory action =
-      _buildAction(tokenId, newTickLower, newTickUpper, mainAddress, migrateParams);
-    _executeExpectRevert(
-      intent, action, BaseTickBasedZapMigrateHook.ExceedMaxValueReductionPerAction.selector
-    );
-  }
-
-  function testFuzz_Revert_InvalidOwner(uint256 seed, uint256 wrongRecipientSeed) public {
-    uint256 tokenId = _mintStartPosition(seed);
-
-    uint256 x = bound(wrongRecipientSeed, 1, type(uint160).max);
-    uint160 main = uint160(mainAddress);
-    uint160 nx = uint160(x);
-    if (nx == main) {
-      nx = main == type(uint160).max ? uint160(1) : main + 1;
-    }
-    address wrongRecipient = address(nx);
-
-    ZapMigrateFuzzParams memory migrateParams = _defaultMigrateParams();
-    IntentData memory intent = _buildIntent(
-      tokenId, _hookDataStandard(tokenId, migrateParams.maxFee0, migrateParams.maxFee1)
-    );
-    ActionData memory action =
-      _buildAction(tokenId, newTickLower, newTickUpper, wrongRecipient, migrateParams);
-    _executeExpectRevert(intent, action, BaseTickBasedZapMigrateHook.InvalidOwner.selector);
+  function _clampInt24(int24 value, int24 min, int24 max) internal pure returns (int24) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
   }
 }

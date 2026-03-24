@@ -30,13 +30,10 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   error InvalidPoolUniqueId();
   error TooSmallTickRangeLength();
   error TooLargeTickRangeLength();
-  error ExceedMaxValueReductionInToken0();
-  error ExceedMaxValueReductionInToken1();
   error ExceedMaxValueReductionPerAction();
 
   /**
    * @notice Data structure for zap migrate validation
-   * @param nftAddress The NFT address
    * @param nftId The NFT ID
    * @param minValueInToken0 The min value of the position in token0
    * @param minValueInToken1 The min value of the position in token1
@@ -45,10 +42,10 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
    * @param maxDistanceFromUpperTickBeforeMigration The max distance from the upper tick to the current tick before migration
    * @param minDistanceFromLowerTickAfterMigration The min distance from the lower tick to the current tick after migration
    * @param minDistanceFromUpperTickAfterMigration The min distance from the upper tick to the current tick after migration
-   * @param maxFees The max fees for each output token (1e6 = 100%)
+   * @param maxFee0 The max fee for output token0 (1e6 = 100%)
+   * @param maxFee1 The max fee for output token1 (1e6 = 100%)
    */
   struct ZapMigrateHookData {
-    address nftAddress;
     uint256 nftId;
     uint256 minValueInToken0;
     uint256 minValueInToken1;
@@ -59,7 +56,8 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     int24 minDistanceFromUpperTickAfterMigration;
     int24 minTickRangeLength;
     int24 maxTickRangeLength;
-    uint256[] maxFees;
+    uint256 maxFee0;
+    uint256 maxFee1;
   }
 
   /**
@@ -134,14 +132,14 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     returns (uint256[] memory, bytes memory beforeExecutionData)
   {
     ZapMigrateHookData calldata hookIntentData = _decodeHookData(intentData.coreData.hookIntentData);
+    address nftAddress = intentData.tokenData.erc721Data[0].token;
 
     uint256 currentNftId = nftIds[intentHash];
     if (currentNftId == 0) {
       currentNftId = hookIntentData.nftId;
     }
 
-    PoolAndPositionInfo memory ppInfo =
-      _getPoolAndPositionInfo(hookIntentData.nftAddress, currentNftId);
+    PoolAndPositionInfo memory ppInfo = _getPoolAndPositionInfo(nftAddress, currentNftId);
 
     uint256 valueInToken0 =
       ppInfo.amount0 + _convertToken1ToToken0(ppInfo.sqrtPriceX96, ppInfo.amount1);
@@ -172,7 +170,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
         balance1Before: ppInfo.token1.balanceOf(msg.sender),
         directionalPositionValue: directionalPositionValue,
         direction: direction,
-        additionalData: _getAdditionalData(hookIntentData.nftAddress)
+        additionalData: _getAdditionalData(nftAddress)
       })
     );
   }
@@ -198,24 +196,25 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
       return (new address[](0), new uint256[](0), new uint256[](0), address(0));
     }
 
-    ZapMigrateHookData calldata hookIntentData = _decodeHookData(intentData.coreData.hookIntentData);
+    ZapMigrateHookData memory hookIntentData = _decodeHookData(intentData.coreData.hookIntentData);
     BeforeExecutionData memory beforeExecutionData =
       abi.decode(_beforeExecutionData, (BeforeExecutionData));
+    address nftAddress = intentData.tokenData.erc721Data[0].token;
 
-    uint256 newNftId = _getNewNftId(hookIntentData.nftAddress, beforeExecutionData.additionalData);
-    PoolAndPositionInfo memory ppInfo = _getPoolAndPositionInfo(hookIntentData.nftAddress, newNftId);
+    uint256 newNftId = _getNewNftId(nftAddress, beforeExecutionData.additionalData);
+    PoolAndPositionInfo memory ppInfo = _getPoolAndPositionInfo(nftAddress, newNftId);
     if (ppInfo.poolUniqueId != beforeExecutionData.poolUniqueId) {
       revert InvalidPoolUniqueId();
     }
 
     // check owner
     if (
-      IERC721(hookIntentData.nftAddress).ownerOf(beforeExecutionData.originalNftId)
+      IERC721(nftAddress).ownerOf(beforeExecutionData.originalNftId)
         != intentData.coreData.mainAddress
     ) {
       revert InvalidOwner();
     }
-    if (IERC721(hookIntentData.nftAddress).ownerOf(newNftId) != intentData.coreData.mainAddress) {
+    if (IERC721(nftAddress).ownerOf(newNftId) != intentData.coreData.mainAddress) {
       revert InvalidOwner();
     }
 
@@ -228,10 +227,10 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     amounts = new uint256[](2);
 
     // check max fees
-    if (fees[0] * FEE_PRECISION > beforeExecutionData.amount0Before * hookIntentData.maxFees[0]) {
+    if (fees[0] * FEE_PRECISION > beforeExecutionData.amount0Before * hookIntentData.maxFee0) {
       revert ExceedMaxFeesPercent();
     }
-    if (fees[1] * FEE_PRECISION > beforeExecutionData.amount1Before * hookIntentData.maxFees[1]) {
+    if (fees[1] * FEE_PRECISION > beforeExecutionData.amount1Before * hookIntentData.maxFee1) {
       revert ExceedMaxFeesPercent();
     }
 
@@ -280,7 +279,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     returns (ZapMigrateHookData calldata hookData)
   {
     assembly ('memory-safe') {
-      hookData := add(data.offset, calldataload(data.offset))
+      hookData := data.offset
     }
   }
 
