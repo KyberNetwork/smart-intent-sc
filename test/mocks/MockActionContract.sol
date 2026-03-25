@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 
+import {IAllowanceTransfer} from 'ks-common-sc/src/interfaces/IAllowanceTransfer.sol';
 import 'src/interfaces/IWETH.sol';
 
 import {ICLPositionManager} from 'src/interfaces/pancakev4/ICLPositionManager.sol';
@@ -41,6 +42,7 @@ contract MockActionContract {
   uint256 constant NOT_TRANSFER = uint256(keccak256('NOT_TRANSFER'));
 
   address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+  address internal constant PERMIT2_BSC = 0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768;
 
   function execute(bytes calldata data) external {
     if (data.length > 0) {
@@ -333,8 +335,8 @@ contract MockActionContract {
     if (feeAmount0 > 0) token0.safeTransfer(params.router, feeAmount0);
     if (feeAmount1 > 0) token1.safeTransfer(params.router, feeAmount1);
 
-    token0.safeApprove(address(params.pm), params.amountDesireds[0]);
-    token1.safeApprove(address(params.pm), params.amountDesireds[1]);
+    token0.forceApprove(address(params.pm), params.amountDesireds[0]);
+    token1.forceApprove(address(params.pm), params.amountDesireds[1]);
 
     params.pm
       .mint(
@@ -417,6 +419,17 @@ contract MockActionContract {
       params.amountDesireds[1]
     );
 
+    if (!poolKey.currency0.isNative()) {
+      poolKey.currency0.forceApprove(PERMIT2, type(uint256).max);
+      IAllowanceTransfer(PERMIT2)
+        .approve(poolKey.currency0, address(pm), type(uint160).max, type(uint48).max);
+    }
+    if (!poolKey.currency1.isNative()) {
+      poolKey.currency1.forceApprove(PERMIT2, type(uint256).max);
+      IAllowanceTransfer(PERMIT2)
+        .approve(poolKey.currency1, address(pm), type(uint160).max, type(uint48).max);
+    }
+
     bytes memory mintActions = new bytes(2);
     bytes[] memory mintParams = new bytes[](2);
     mintActions[0] = bytes1(uint8(Actions.MINT_POSITION));
@@ -433,7 +446,7 @@ contract MockActionContract {
     mintActions[1] = bytes1(uint8(Actions.SETTLE_PAIR));
     mintParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
 
-    uint256 ethValue = poolKey.currency0 == TokenHelper.NATIVE_ADDRESS ? address(this).balance : 0;
+    uint256 ethValue = poolKey.currency0.isNative() ? address(this).balance : 0;
     pm.modifyLiquidities{value: ethValue}(abi.encode(mintActions, mintParams), type(uint256).max);
   }
 
@@ -481,6 +494,21 @@ contract MockActionContract {
       params.amountDesireds[0],
       params.amountDesireds[1]
     );
+
+    if (poolKey.currency0 != TokenHelper.NATIVE_ADDRESS) {
+      poolKey.currency0.safeApprove(PERMIT2_BSC, 0);
+      poolKey.currency0.safeApprove(PERMIT2_BSC, type(uint256).max);
+      IAllowanceTransfer(PERMIT2_BSC).approve(
+        poolKey.currency0, address(pm), type(uint160).max, type(uint48).max
+      );
+    }
+    if (poolKey.currency1 != TokenHelper.NATIVE_ADDRESS) {
+      poolKey.currency1.safeApprove(PERMIT2_BSC, 0);
+      poolKey.currency1.safeApprove(PERMIT2_BSC, type(uint256).max);
+      IAllowanceTransfer(PERMIT2_BSC).approve(
+        poolKey.currency1, address(pm), type(uint160).max, type(uint48).max
+      );
+    }
 
     bytes memory mintActions = new bytes(2);
     bytes[] memory mintParams = new bytes[](2);

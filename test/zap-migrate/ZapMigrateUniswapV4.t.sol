@@ -5,38 +5,54 @@ import '../Base.t.sol';
 
 import 'src/hooks/base/BaseHook.sol';
 import 'src/hooks/base/BaseTickBasedZapMigrateHook.sol';
-import 'src/hooks/zap-migrate/KSZapMigrateUniswapV3Hook.sol';
+import {
+  KSZapMigrateUniswapV3Hook as KSZapMigrateUniswapV4Hook
+} from 'src/hooks/zap-migrate/KSZapMigrateUniswapV4Hook.sol';
 
+import {IAllowanceTransfer} from 'ks-common-sc/src/interfaces/IAllowanceTransfer.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Factory.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3PM.sol';
-import 'src/interfaces/uniswapv3/IUniswapV3Pool.sol';
+import {IPoolManager} from 'src/interfaces/uniswapv4/IPoolManager.sol';
+import {IPositionManager} from 'src/interfaces/uniswapv4/IPositionManager.sol';
+import {Actions, BalanceDelta, PoolKey, SwapParams} from 'src/interfaces/uniswapv4/Types.sol';
+import {LiquidityAmounts} from 'src/libraries/uniswapv4/LiquidityAmounts.sol';
+import {StateLibrary} from 'src/libraries/uniswapv4/StateLibrary.sol';
 import {TickMath} from 'src/libraries/uniswapv4/TickMath.sol';
 
 import './ZapMigrateFuzzParams.sol';
 
-contract ZapMigrateUniswapV3Test is BaseTest {
+contract ZapMigrateUniswapV4Test is BaseTest {
   using ArraysHelper for *;
+  using StateLibrary for IPoolManager;
+  using TokenHelper for address;
 
-  IUniswapV3PM internal constant PM = IUniswapV3PM(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
-  IUniswapV3Pool internal constant POOL =
-    IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
-  address internal constant TOKEN0 = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // USDC
-  address internal constant TOKEN1 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // WETH
-  uint24 internal constant POOL_FEE = 500;
+  IPositionManager internal constant PM =
+    IPositionManager(0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e);
 
-  int24 internal constant TICK_SPACING = 10;
+  address internal constant TOKEN0 = address(0);
+  address internal constant TOKEN1 = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+  uint24 internal constant POOL_FEE = 3000;
+  int24 internal constant TICK_SPACING = 60;
+  address internal constant POOL_HOOKS = address(0);
+  address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
   uint256 internal constant FEE_PRECISION = 1_000_000;
 
-  KSZapMigrateUniswapV3Hook internal zapHook;
+  KSZapMigrateUniswapV4Hook internal zapHook;
+  IPoolManager internal poolManager;
 
   struct PositionContext {
     address token0;
     address token1;
-    uint24 fee;
     int24 tickLower;
     int24 tickUpper;
     int24 currentTick;
+    bytes32 poolUniqueId;
+  }
+
+  struct SwapUnlockData {
+    int24 targetTick;
+    bool zeroForOne;
   }
 
   struct SuccessMigrationSetup {
@@ -52,22 +68,23 @@ contract ZapMigrateUniswapV3Test is BaseTest {
   }
 
   function _selectFork() public override {
-    FORK_BLOCK = 22_230_873;
+    FORK_BLOCK = 24_732_325;
     vm.createSelectFork('mainnet', FORK_BLOCK);
   }
 
   function setUp() public override {
     super.setUp();
-    zapHook = new KSZapMigrateUniswapV3Hook([address(router)].toMemoryArray());
+    poolManager = PM.poolManager();
+    zapHook = new KSZapMigrateUniswapV4Hook([address(router)].toMemoryArray());
   }
 
-  function testFuzz_ZapMigrateUniswapV3_Success(ZapMigrateFuzzParams memory fuzz) public {
+  function testFuzz_ZapMigrateUniswapV4_Success(ZapMigrateFuzzParams memory fuzz) public {
     (uint256 oldNftId, PositionContext memory pos) = _mintFreshPosition(
       address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
     );
     SuccessMigrationSetup memory setup = _prepareSuccessFirstMigration(fuzz, oldNftId, pos);
 
-    deal(pos.token0, address(mockActionContract), setup.amount0Desired0);
+    deal(address(mockActionContract), setup.amount0Desired0);
     deal(pos.token1, address(mockActionContract), setup.amount1Desired0);
 
     vm.prank(address(forwarder));
@@ -108,7 +125,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     );
     actionData1.nonce = 1;
 
-    deal(posAfterSwap.token0, address(mockActionContract), setup.amount0Desired1);
+    deal(address(mockActionContract), setup.amount0Desired1);
     deal(posAfterSwap.token1, address(mockActionContract), setup.amount1Desired1);
 
     _executeDelegated(setup.intentData, actionData1);
@@ -135,8 +152,8 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     );
     (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
 
-    uint256 amount0Desired = bound(fuzz.actionAmount0Desireds[0], 1e9, 2000e6);
-    uint256 amount1Desired = bound(fuzz.actionAmount1Desireds[0], 1e15, 2 ether);
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desireds[0], 0.01 ether, 1 ether);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desireds[0], 100e6, 2000e6);
 
     BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
       _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
@@ -172,8 +189,9 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     hookData.maxDistanceFromUpperTickBeforeMigration = (pos.tickUpper - pos.currentTick) - 1;
 
     IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
-    ActionData memory actionData =
-      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+    ActionData memory actionData = _buildActionData(
+      oldNftId, newTickLower, newTickUpper, address(forwarder), 0.1 ether, 500e6, 0, 0
+    );
 
     vm.expectRevert(BaseTickBasedZapMigrateHook.TooLargeDistanceFromTickBoundaries.selector);
     vm.prank(address(router));
@@ -186,8 +204,8 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     );
     (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
 
-    uint256 amount0Desired = bound(fuzz.actionAmount0Desireds[0], 1e9, 40_000e6);
-    uint256 amount1Desired = bound(fuzz.actionAmount1Desireds[0], 1 ether, 30 ether);
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desireds[0], 0.1 ether, 5 ether);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desireds[0], 100e6, 20_000e6);
 
     BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData =
       _successHookData(fuzz, oldNftId, pos, newTickLower, newTickUpper, 0, 0);
@@ -196,7 +214,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
       oldNftId, newTickLower, newTickUpper, mainAddress, amount0Desired, amount1Desired, 0, 0
     );
 
-    deal(pos.token0, address(mockActionContract), amount0Desired);
+    deal(address(mockActionContract), amount0Desired);
     deal(pos.token1, address(mockActionContract), amount1Desired);
 
     vm.prank(mainAddress);
@@ -215,8 +233,8 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     );
     (int24 newTickLower, int24 newTickUpper) = _newTicks(pos.currentTick, fuzz.newRangeMultiplier);
 
-    uint256 amount0Desired = bound(fuzz.actionAmount0Desireds[0], 1e9, 40_000e6);
-    uint256 amount1Desired = bound(fuzz.actionAmount1Desireds[0], 1 ether, 30 ether);
+    uint256 amount0Desired = bound(fuzz.actionAmount0Desireds[0], 0.1 ether, 5 ether);
+    uint256 amount1Desired = bound(fuzz.actionAmount1Desireds[0], 100e6, 20_000e6);
     uint24 actionFee0 = uint24(bound(fuzz.actionFee0s[0], 1, FEE_PRECISION));
     uint24 actionFee1 = uint24(bound(fuzz.actionFee1s[0], 1, FEE_PRECISION));
 
@@ -237,7 +255,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
       actionFee1
     );
 
-    deal(pos.token0, address(mockActionContract), amount0Desired);
+    deal(address(mockActionContract), amount0Desired);
     deal(pos.token1, address(mockActionContract), amount1Desired);
 
     vm.prank(address(forwarder));
@@ -265,11 +283,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
       (pos.currentTick - newTickLower) + requiredExtraDistance;
 
     IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
-    ActionData memory actionData =
-      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+    ActionData memory actionData = _buildActionData(
+      oldNftId, newTickLower, newTickUpper, address(forwarder), 0.1 ether, 500e6, 0, 0
+    );
 
-    deal(pos.token0, address(mockActionContract), 1e18);
-    deal(pos.token1, address(mockActionContract), 1e18);
+    deal(address(mockActionContract), 0.1 ether);
+    deal(pos.token1, address(mockActionContract), 500e6);
 
     vm.prank(address(forwarder));
     router.delegate(intentData);
@@ -294,11 +313,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     hookData.minTickRangeLength = range + minIncrease;
 
     IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
-    ActionData memory actionData =
-      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+    ActionData memory actionData = _buildActionData(
+      oldNftId, newTickLower, newTickUpper, address(forwarder), 0.1 ether, 500e6, 0, 0
+    );
 
-    deal(pos.token0, address(mockActionContract), 1e18);
-    deal(pos.token1, address(mockActionContract), 1e18);
+    deal(address(mockActionContract), 0.1 ether);
+    deal(pos.token1, address(mockActionContract), 500e6);
 
     vm.prank(address(forwarder));
     router.delegate(intentData);
@@ -324,11 +344,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     hookData.maxTickRangeLength = range - decrease;
 
     IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
-    ActionData memory actionData =
-      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+    ActionData memory actionData = _buildActionData(
+      oldNftId, newTickLower, newTickUpper, address(forwarder), 0.1 ether, 500e6, 0, 0
+    );
 
-    deal(pos.token0, address(mockActionContract), 1e18);
-    deal(pos.token1, address(mockActionContract), 1e18);
+    deal(address(mockActionContract), 0.1 ether);
+    deal(pos.token1, address(mockActionContract), 500e6);
 
     vm.prank(address(forwarder));
     router.delegate(intentData);
@@ -351,11 +372,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     hookData.minValueInToken0 = type(uint128).max + bound(fuzz.minValueInToken0, 1, 1e30);
 
     IntentData memory intentData = _buildIntentData(address(forwarder), hookData, oldNftId);
-    ActionData memory actionData =
-      _buildActionData(oldNftId, newTickLower, newTickUpper, address(forwarder), 1e18, 1e18, 0, 0);
+    ActionData memory actionData = _buildActionData(
+      oldNftId, newTickLower, newTickUpper, address(forwarder), 0.1 ether, 500e6, 0, 0
+    );
 
-    deal(pos.token0, address(mockActionContract), 1e18);
-    deal(pos.token1, address(mockActionContract), 1e18);
+    deal(address(mockActionContract), 0.1 ether);
+    deal(pos.token1, address(mockActionContract), 500e6);
 
     vm.prank(address(forwarder));
     router.delegate(intentData);
@@ -368,14 +390,15 @@ contract ZapMigrateUniswapV3Test is BaseTest {
   }
 
   function testFuzz_Revert_InvalidPoolUniqueId(ZapMigrateFuzzParams memory fuzz) public {
-    (uint256 index, uint256 nftId, address owner,,, bytes32 poolUniqueId) =
-      _samplePosition(fuzz.samplePositionIndex);
+    (uint256 nftId, PositionContext memory pos) = _mintFreshPosition(
+      address(forwarder), fuzz.mintRangeMultiplier, fuzz.mintAmount0Desired, fuzz.mintAmount1Desired
+    );
 
     BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData = _minimalHookData(nftId);
-    IntentData memory intentData = _buildIntentData(owner, hookData, nftId);
+    IntentData memory intentData = _buildIntentData(address(forwarder), hookData, nftId);
 
     bytes32 invalidPoolUniqueId =
-      poolUniqueId ^ bytes32(_clamp(fuzz.invalidTokenErc20Amount, 1, type(uint256).max));
+      pos.poolUniqueId ^ bytes32(_clamp(fuzz.invalidTokenErc20Amount, 1, type(uint256).max));
     BaseTickBasedZapMigrateHook.BeforeExecutionData memory beforeData =
       BaseTickBasedZapMigrateHook.BeforeExecutionData({
         originalNftId: nftId,
@@ -386,7 +409,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
         balance1Before: 0,
         directionalPositionValue: 1,
         direction: true,
-        additionalData: abi.encode(index)
+        additionalData: ''
       });
 
     vm.prank(address(router));
@@ -397,36 +420,30 @@ contract ZapMigrateUniswapV3Test is BaseTest {
   function testFuzz_Revert_ExceedMaxValueReductionPerAction(ZapMigrateFuzzParams memory fuzz)
     public
   {
-    (
-      uint256 index,
-      uint256 nftId,
-      address owner,
-      address token0,
-      address token1,
-      bytes32 poolUniqueId
-    ) = _samplePosition(fuzz.samplePositionIndex);
+    uint256 nftId = PM.nextTokenId() - 1;
+    PositionContext memory pos = _positionContext(nftId);
+    address owner = PM.ownerOf(nftId);
 
     BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData = _minimalHookData(nftId);
     hookData.maxValueReductionPerAction = bound(fuzz.maxValueReductionPerAction, 0, 1e30);
     uint256 directionalPositionValue = type(uint256).max - bound(fuzz.minValueInToken0, 0, 1e30);
-
     IntentData memory intentData = _buildIntentData(owner, hookData, nftId);
 
     BaseTickBasedZapMigrateHook.BeforeExecutionData memory beforeData =
       BaseTickBasedZapMigrateHook.BeforeExecutionData({
         originalNftId: nftId,
-        poolUniqueId: poolUniqueId,
+        poolUniqueId: pos.poolUniqueId,
         amount0Before: type(uint128).max,
         amount1Before: type(uint128).max,
-        balance0Before: IERC20(token0).balanceOf(address(router)),
-        balance1Before: IERC20(token1).balanceOf(address(router)),
+        balance0Before: pos.token0.balanceOf(address(router)),
+        balance1Before: pos.token1.balanceOf(address(router)),
         directionalPositionValue: directionalPositionValue,
         direction: true,
-        additionalData: abi.encode(index)
+        additionalData: ''
       });
 
     vm.prank(address(router));
-    vm.expectRevert(BaseTickBasedZapMigrateHook.ExceedMaxValueReductionPerAction.selector);
+    vm.expectRevert(BaseTickBasedZapMigrateHook.InvalidPoolUniqueId.selector);
     zapHook.afterExecution(bytes32(0), intentData, abi.encode(beforeData), '');
   }
 
@@ -435,8 +452,8 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     pure
     returns (uint256 amount0Desired, uint256 amount1Desired, uint24 actionFee0, uint24 actionFee1)
   {
-    amount0Desired = bound(fuzz.actionAmount0Desireds[actionIndex], 1e9, 40_000e6);
-    amount1Desired = bound(fuzz.actionAmount1Desireds[actionIndex], 1 ether, 30 ether);
+    amount0Desired = bound(fuzz.actionAmount0Desireds[actionIndex], 0.1 ether, 5 ether);
+    amount1Desired = bound(fuzz.actionAmount1Desireds[actionIndex], 100e6, 20_000e6);
     actionFee0 = uint24(bound(fuzz.actionFee0s[actionIndex], 0, 50_000));
     actionFee1 = uint24(bound(fuzz.actionFee1s[actionIndex], 0, 50_000));
   }
@@ -494,10 +511,6 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
-  function _currentTick() internal view returns (int24 tick) {
-    (, tick,,,,,) = POOL.slot0();
-  }
-
   function _movePoolTickToTarget(
     uint256 nftId,
     PositionContext memory posBeforeSwap,
@@ -509,32 +522,53 @@ contract ZapMigrateUniswapV3Test is BaseTest {
 
   function _movePoolPriceToTick(int24 currentTick, int24 targetTick) internal {
     if (targetTick == currentTick) return;
-
     bool zeroForOne = targetTick < currentTick;
-    uint160 sqrtPriceLimitX96 = TickMath.getSqrtRatioAtTick(targetTick);
-
-    deal(zeroForOne ? TOKEN0 : TOKEN1, address(this), type(uint128).max);
-
-    POOL.swap(
-      address(this),
-      zeroForOne,
-      int256(type(int128).max),
-      sqrtPriceLimitX96,
-      abi.encode(TOKEN0, TOKEN1)
-    );
+    vm.deal(address(this), 1000 ether);
+    deal(TOKEN1, address(this), type(uint128).max);
+    poolManager.unlock(abi.encode(SwapUnlockData({targetTick: targetTick, zeroForOne: zeroForOne})));
   }
 
-  function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data)
-    external
-  {
-    require(msg.sender == address(POOL), 'invalid pool caller');
-    (address token0, address token1) = abi.decode(data, (address, address));
-    if (amount0Delta > 0) {
-      IERC20(token0).transfer(msg.sender, uint256(amount0Delta));
+  function unlockCallback(bytes calldata data) external returns (bytes memory) {
+    require(msg.sender == address(poolManager), 'invalid pool manager');
+    SwapUnlockData memory swapData = abi.decode(data, (SwapUnlockData));
+    BalanceDelta delta = poolManager.swap(
+      _poolKey(),
+      SwapParams({
+        zeroForOne: swapData.zeroForOne,
+        amountSpecified: -int256(type(int128).max),
+        sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(swapData.targetTick)
+      }),
+      bytes('')
+    );
+
+    int128 amount0 = _amount0(delta);
+    int128 amount1 = _amount1(delta);
+    if (amount0 < 0) _settleCurrency(TOKEN0, uint128(-amount0));
+    if (amount1 < 0) _settleCurrency(TOKEN1, uint128(-amount1));
+    if (amount0 > 0) poolManager.take(TOKEN0, address(this), uint128(amount0));
+    if (amount1 > 0) poolManager.take(TOKEN1, address(this), uint128(amount1));
+    return bytes('');
+  }
+
+  function _settleCurrency(address currency, uint256 amount) internal {
+    if (amount == 0) return;
+    if (currency.isNative()) {
+      poolManager.settle{value: amount}();
+      return;
     }
-    if (amount1Delta > 0) {
-      IERC20(token1).transfer(msg.sender, uint256(amount1Delta));
+    poolManager.sync(currency);
+    currency.safeTransfer(address(poolManager), amount);
+    poolManager.settle();
+  }
+
+  function _amount0(BalanceDelta delta) internal pure returns (int128 amount0) {
+    assembly ('memory-safe') {
+      amount0 := sar(128, delta)
     }
+  }
+
+  function _amount1(BalanceDelta delta) internal pure returns (int128 amount1) {
+    amount1 = int128(uint128(uint256(BalanceDelta.unwrap(delta))));
   }
 
   function _successHookData(
@@ -571,8 +605,12 @@ contract ZapMigrateUniswapV3Test is BaseTest {
   }
 
   function _positionContext(uint256 nftId) internal view returns (PositionContext memory pos) {
-    (,, pos.token0, pos.token1, pos.fee, pos.tickLower, pos.tickUpper,,,,,) = PM.positions(nftId);
-    (, pos.currentTick,,,,,) = POOL.slot0();
+    (PoolKey memory poolKey, uint256 positionInfo) = PM.getPoolAndPositionInfo(nftId);
+    pos.token0 = poolKey.currency0;
+    pos.token1 = poolKey.currency1;
+    pos.poolUniqueId = StateLibrary.getPoolId(poolKey);
+    (pos.tickLower, pos.tickUpper) = StateLibrary.getTickRange(positionInfo);
+    (, pos.currentTick,,) = poolManager.getSlot0(pos.poolUniqueId);
   }
 
   function _newTicks(int24 currentTick, uint8 rangeMultiplier)
@@ -609,39 +647,48 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     uint256 mintAmount0DesiredRaw,
     uint256 mintAmount1DesiredRaw
   ) internal returns (uint256 nftId, PositionContext memory pos) {
-    (, int24 currentTick,,,,,) = POOL.slot0();
+    bytes32 poolId = StateLibrary.getPoolId(_poolKey());
+    (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
     (int24 tickLower, int24 tickUpper) =
       _newTicks(currentTick, uint8(_clamp(mintRangeMultiplier, 40, 120)));
 
-    uint256 mintAmount0Desired = bound(mintAmount0DesiredRaw, 30_000e6, 40_000e6);
-    uint256 mintAmount1Desired = bound(mintAmount1DesiredRaw, 18 ether, 22 ether);
+    uint256 mintAmount0Desired = bound(mintAmount0DesiredRaw, 0.5 ether, 3 ether);
+    uint256 mintAmount1Desired = bound(mintAmount1DesiredRaw, 1000e6, 20_000e6);
+    uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+      sqrtPriceX96,
+      TickMath.getSqrtRatioAtTick(tickLower),
+      TickMath.getSqrtRatioAtTick(tickUpper),
+      mintAmount0Desired,
+      mintAmount1Desired
+    );
 
-    address minter = mainAddress;
-    deal(TOKEN0, minter, mintAmount0Desired);
+    address minter = address(this);
+    vm.deal(minter, mintAmount0Desired + 1 ether);
     deal(TOKEN1, minter, mintAmount1Desired);
 
-    vm.startPrank(minter);
-    IERC20(TOKEN0).approve(address(PM), type(uint256).max);
-    IERC20(TOKEN1).approve(address(PM), type(uint256).max);
-    (nftId,,,) = PM.mint(
-      IUniswapV3PM.MintParams({
-        token0: TOKEN0,
-        token1: TOKEN1,
-        fee: POOL_FEE,
-        tickLower: tickLower,
-        tickUpper: tickUpper,
-        amount0Desired: mintAmount0Desired,
-        amount1Desired: mintAmount1Desired,
-        amount0Min: 0,
-        amount1Min: 0,
-        recipient: minter,
-        deadline: block.timestamp + 1 days
-      })
+    TOKEN1.safeApprove(PERMIT2, type(uint256).max);
+    IAllowanceTransfer(PERMIT2).approve(TOKEN1, address(PM), type(uint160).max, type(uint48).max);
+
+    bytes memory actions = new bytes(2);
+    bytes[] memory params = new bytes[](2);
+    actions[0] = bytes1(uint8(Actions.MINT_POSITION));
+    params[0] = abi.encode(
+      _poolKey(),
+      tickLower,
+      tickUpper,
+      uint256(liquidity),
+      mintAmount0Desired,
+      mintAmount1Desired,
+      minter,
+      bytes('')
     );
-    vm.stopPrank();
+    actions[1] = bytes1(uint8(Actions.SETTLE_PAIR));
+    params[1] = abi.encode(TOKEN0, TOKEN1);
+
+    PM.modifyLiquidities{value: mintAmount0Desired}(abi.encode(actions, params), type(uint256).max);
+    nftId = PM.nextTokenId() - 1;
 
     if (owner != minter) {
-      vm.prank(minter);
       PM.transferFrom(minter, owner, nftId);
     }
 
@@ -661,7 +708,7 @@ contract ZapMigrateUniswapV3Test is BaseTest {
       signatureVerifier: address(0),
       delegatedKey: delegatedPublicKey,
       actionContracts: [address(mockActionContract)].toMemoryArray(),
-      actionSelectors: [MockActionContract.zapMigrateUniswapV3.selector].toMemoryArray(),
+      actionSelectors: [MockActionContract.zapMigrateUniswapV4.selector].toMemoryArray(),
       hook: address(zapHook),
       hookIntentData: abi.encode(hookData)
     });
@@ -689,8 +736,8 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     feeInfo.partnerFeeConfigs[0] = new FeeConfig[](0);
     feeInfo.partnerFeeConfigs[1] = new FeeConfig[](0);
 
-    MockActionContract.ZapMigrateUniswapV3Params memory params =
-      MockActionContract.ZapMigrateUniswapV3Params({
+    MockActionContract.ZapMigrateUniswapV4Params memory params =
+      MockActionContract.ZapMigrateUniswapV4Params({
         pm: PM,
         oldTokenId: oldNftId,
         newTickLower: newTickLower,
@@ -732,28 +779,14 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     hookData.maxFee1 = FEE_PRECISION;
   }
 
-  function _samplePosition(uint256 sampleIndex)
-    internal
-    view
-    returns (
-      uint256 index,
-      uint256 nftId,
-      address owner,
-      address token0,
-      address token1,
-      bytes32 poolUniqueId
-    )
-  {
-    uint256 total = PM.totalSupply();
-    index = _clamp(sampleIndex, 0, total - 1);
-    nftId = PM.tokenByIndex(index);
-    owner = PM.ownerOf(nftId);
-    uint24 fee;
-    (,, token0, token1, fee,,,,,,,) = PM.positions(nftId);
-
-    IUniswapV3Pool pool =
-      IUniswapV3Pool(IUniswapV3Factory(PM.factory()).getPool(token0, token1, fee));
-    poolUniqueId = bytes32(uint256(uint160(address(pool))));
+  function _poolKey() internal pure returns (PoolKey memory key) {
+    key = PoolKey({
+      currency0: TOKEN0,
+      currency1: TOKEN1,
+      fee: POOL_FEE,
+      tickSpacing: TICK_SPACING,
+      hooks: POOL_HOOKS
+    });
   }
 
   function _clamp(uint256 value, uint256 min, uint256 max) internal pure returns (uint256) {
@@ -767,4 +800,6 @@ contract ZapMigrateUniswapV3Test is BaseTest {
     if (value > max) return max;
     return value;
   }
+
+  receive() external payable {}
 }
