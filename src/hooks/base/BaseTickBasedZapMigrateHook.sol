@@ -276,9 +276,8 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     if (maxValueReductionPerAction > FEE_PRECISION) {
       maxValueReductionPerAction = FEE_PRECISION;
     }
-    uint256 minDirectionalPositionValueAfter = beforeExecutionData.directionalPositionValue.mulDiv(
-      FEE_PRECISION - maxValueReductionPerAction, FEE_PRECISION
-    );
+    uint256 minDirectionalPositionValueAfter = beforeExecutionData.directionalPositionValue
+      .mulDiv(FEE_PRECISION - maxValueReductionPerAction, FEE_PRECISION);
     if (directionalPositionValueAfter < minDirectionalPositionValueAfter) {
       revert ExceedMaxValueReductionPerAction();
     }

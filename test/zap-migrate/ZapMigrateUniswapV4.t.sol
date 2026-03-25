@@ -426,7 +426,8 @@ contract ZapMigrateUniswapV4Test is BaseTest {
     address owner = PM.ownerOf(nftId);
 
     BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData = _minimalHookData(nftId);
-    hookData.maxValueReductionPerAction = bound(fuzz.maxValueReductionPerAction, 0, FEE_PRECISION - 1);
+    hookData.maxValueReductionPerAction =
+      bound(fuzz.maxValueReductionPerAction, 0, FEE_PRECISION - 1);
     uint256 directionalPositionValue = type(uint256).max - bound(fuzz.minValueInToken0, 0, 1e30);
     IntentData memory intentData = _buildIntentData(owner, hookData, nftId);
 

@@ -498,16 +498,14 @@ contract MockActionContract {
     if (poolKey.currency0 != TokenHelper.NATIVE_ADDRESS) {
       poolKey.currency0.safeApprove(PERMIT2_BSC, 0);
       poolKey.currency0.safeApprove(PERMIT2_BSC, type(uint256).max);
-      IAllowanceTransfer(PERMIT2_BSC).approve(
-        poolKey.currency0, address(pm), type(uint160).max, type(uint48).max
-      );
+      IAllowanceTransfer(PERMIT2_BSC)
+        .approve(poolKey.currency0, address(pm), type(uint160).max, type(uint48).max);
     }
     if (poolKey.currency1 != TokenHelper.NATIVE_ADDRESS) {
       poolKey.currency1.safeApprove(PERMIT2_BSC, 0);
       poolKey.currency1.safeApprove(PERMIT2_BSC, type(uint256).max);
-      IAllowanceTransfer(PERMIT2_BSC).approve(
-        poolKey.currency1, address(pm), type(uint160).max, type(uint48).max
-      );
+      IAllowanceTransfer(PERMIT2_BSC)
+        .approve(poolKey.currency1, address(pm), type(uint160).max, type(uint48).max);
     }
 
     bytes memory mintActions = new bytes(2);
