@@ -31,13 +31,14 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
   error TooSmallTickRangeLength();
   error TooLargeTickRangeLength();
   error ExceedMaxValueReductionPerAction();
+  error WrongPriceMovementDirection();
 
   /**
    * @notice Data structure for zap migrate validation
    * @param nftId The NFT ID
    * @param minValueInToken0 The min value of the position in token0
    * @param minValueInToken1 The min value of the position in token1
-   * @param maxValueReductionPerAction The max value reduction per action (in token0 if price decreases, in token1 if price increases)
+   * @param maxValueReductionPerAction The max value reduction per action (1e6 = 100%)
    * @param maxDistanceFromLowerTickBeforeMigration The max distance from the lower tick to the current tick before migration
    * @param maxDistanceFromUpperTickBeforeMigration The max distance from the upper tick to the current tick before migration
    * @param minDistanceFromLowerTickAfterMigration The min distance from the lower tick to the current tick after migration
@@ -81,6 +82,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     uint256 balance1Before;
     uint256 directionalPositionValue;
     bool direction;
+    uint160 sqrtPriceX96Before;
     bytes additionalData;
   }
 
@@ -150,12 +152,12 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
     bool direction;
     if (ppInfo.tick - ppInfo.tickLower <= hookIntentData.maxDistanceFromLowerTickBeforeMigration) {
       direction = true;
-      directionalPositionValue = valueInToken0;
+      directionalPositionValue = valueInToken1;
     } else if (
       ppInfo.tickUpper - ppInfo.tick <= hookIntentData.maxDistanceFromUpperTickBeforeMigration
     ) {
       direction = false;
-      directionalPositionValue = valueInToken1;
+      directionalPositionValue = valueInToken0;
     } else {
       revert TooLargeDistanceFromTickBoundaries();
     }
@@ -168,6 +170,7 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
         amount1Before: ppInfo.amount1,
         balance0Before: ppInfo.token0.balanceOf(msg.sender),
         balance1Before: ppInfo.token1.balanceOf(msg.sender),
+        sqrtPriceX96Before: ppInfo.sqrtPriceX96,
         directionalPositionValue: directionalPositionValue,
         direction: direction,
         additionalData: _getAdditionalData(nftAddress)
@@ -259,13 +262,24 @@ abstract contract BaseTickBasedZapMigrateHook is BaseStatefulHook {
       revert InsufficientPositionValue();
     }
 
+    require(
+      (ppInfo.sqrtPriceX96 <= beforeExecutionData.sqrtPriceX96Before)
+        == beforeExecutionData.direction,
+      WrongPriceMovementDirection()
+    );
+
     uint256 directionalPositionValueAfter =
-      beforeExecutionData.direction ? valueInToken0 : valueInToken1;
-    // check max value reduction per action
-    if (
-      directionalPositionValueAfter + hookIntentData.maxValueReductionPerAction
-        < beforeExecutionData.directionalPositionValue
-    ) {
+      beforeExecutionData.direction ? valueInToken1 : valueInToken0;
+
+    // check max value reduction per action (ppm, 1e6 = 100%)
+    uint256 maxValueReductionPerAction = hookIntentData.maxValueReductionPerAction;
+    if (maxValueReductionPerAction > FEE_PRECISION) {
+      maxValueReductionPerAction = FEE_PRECISION;
+    }
+    uint256 minDirectionalPositionValueAfter = beforeExecutionData.directionalPositionValue.mulDiv(
+      FEE_PRECISION - maxValueReductionPerAction, FEE_PRECISION
+    );
+    if (directionalPositionValueAfter < minDirectionalPositionValueAfter) {
       revert ExceedMaxValueReductionPerAction();
     }
 

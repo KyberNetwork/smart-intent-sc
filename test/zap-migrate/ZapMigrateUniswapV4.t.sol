@@ -407,6 +407,7 @@ contract ZapMigrateUniswapV4Test is BaseTest {
         amount1Before: 1,
         balance0Before: 0,
         balance1Before: 0,
+        sqrtPriceX96Before: 0,
         directionalPositionValue: 1,
         direction: true,
         additionalData: ''
@@ -425,7 +426,7 @@ contract ZapMigrateUniswapV4Test is BaseTest {
     address owner = PM.ownerOf(nftId);
 
     BaseTickBasedZapMigrateHook.ZapMigrateHookData memory hookData = _minimalHookData(nftId);
-    hookData.maxValueReductionPerAction = bound(fuzz.maxValueReductionPerAction, 0, 1e30);
+    hookData.maxValueReductionPerAction = bound(fuzz.maxValueReductionPerAction, 0, FEE_PRECISION - 1);
     uint256 directionalPositionValue = type(uint256).max - bound(fuzz.minValueInToken0, 0, 1e30);
     IntentData memory intentData = _buildIntentData(owner, hookData, nftId);
 
@@ -437,6 +438,7 @@ contract ZapMigrateUniswapV4Test is BaseTest {
         amount1Before: type(uint128).max,
         balance0Before: pos.token0.balanceOf(address(router)),
         balance1Before: pos.token1.balanceOf(address(router)),
+        sqrtPriceX96Before: 0,
         directionalPositionValue: directionalPositionValue,
         direction: true,
         additionalData: ''
@@ -480,10 +482,12 @@ contract ZapMigrateUniswapV4Test is BaseTest {
     (setup.amount0Desired1, setup.amount1Desired1, setup.actionFee01, setup.actionFee11) =
       _actionParams(fuzz, 1);
     int24 minRange = newTickUpper0 - newTickLower0;
+    // Keep post-migration min-distance checks satisfiable for the second migration
+    // regardless of tick alignment after swap and range reconstruction.
     hookData.minDistanceFromLowerTickAfterMigration =
-      _clampInt24(fuzz.minDistanceFromLowerTickAfterMigration, 0, TICK_SPACING);
+      _clampInt24(fuzz.minDistanceFromLowerTickAfterMigration, 0, 1);
     hookData.minDistanceFromUpperTickAfterMigration =
-      _clampInt24(fuzz.minDistanceFromUpperTickAfterMigration, 0, TICK_SPACING);
+      _clampInt24(fuzz.minDistanceFromUpperTickAfterMigration, 0, 1);
     hookData.minTickRangeLength = _clampInt24(fuzz.minTickRangeLength, 0, minRange);
     hookData.maxTickRangeLength = _clampInt24(fuzz.maxTickRangeLength, minRange, type(int24).max);
     uint256 actionFee0Max = actionFee00 > setup.actionFee01 ? actionFee00 : setup.actionFee01;
@@ -589,7 +593,7 @@ contract ZapMigrateUniswapV4Test is BaseTest {
     hookData.nftId = nftId;
     hookData.minValueInToken0 = bound(fuzz.minValueInToken0, 0, 1);
     hookData.minValueInToken1 = bound(fuzz.minValueInToken1, 0, 1);
-    hookData.maxValueReductionPerAction = type(uint128).max;
+    hookData.maxValueReductionPerAction = FEE_PRECISION;
     hookData.maxDistanceFromLowerTickBeforeMigration =
       _clampInt24(fuzz.maxDistanceFromLowerTickBeforeMigration, oldDistLower, type(int24).max);
     hookData.maxDistanceFromUpperTickBeforeMigration =
@@ -774,7 +778,7 @@ contract ZapMigrateUniswapV4Test is BaseTest {
     hookData.minDistanceFromLowerTickAfterMigration = type(int24).min;
     hookData.minDistanceFromUpperTickAfterMigration = type(int24).min;
     hookData.maxTickRangeLength = type(int24).max;
-    hookData.maxValueReductionPerAction = type(uint256).max;
+    hookData.maxValueReductionPerAction = FEE_PRECISION;
     hookData.maxFee0 = FEE_PRECISION;
     hookData.maxFee1 = FEE_PRECISION;
   }
