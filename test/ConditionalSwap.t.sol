@@ -490,6 +490,43 @@ contract ConditionalSwapTest is BaseTest {
     _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidProof.selector);
   }
 
+  /// @dev swap counts are packed into a byte per index, so a leaf index past uint8 has nowhere to
+  ///      be recorded and must be rejected rather than silently aliasing another index.
+  function testRevert_MaxConditionIndex(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    uint256 overflowLeafIndex = uint256(type(uint8).max) + 1;
+
+    KSConditionalSwapHook.SwapCondition[] memory conditions =
+      new KSConditionalSwapHook.SwapCondition[](1);
+    conditions[0] = KSConditionalSwapHook.SwapCondition({
+      swapLimit: 1,
+      timeLimits: toPackedU128(vm.getBlockTimestamp(), vm.getBlockTimestamp() + 1 days),
+      amountInLimits: toPackedU128(0, type(uint128).max),
+      maxFees: toPackedU128(maxSrcFee, maxDstFee),
+      priceLimits: toPackedU128(0, type(uint128).max),
+      oracle: _noOracle()
+    });
+
+    // commit the condition at the overflowing index, so the proof itself is valid
+    _setUpLeaves([overflowLeafIndex].toMemoryArray(), conditions);
+    IntentData memory intentData = _getIntentDataForRoot();
+    _setUpMainAddress(intentData, false);
+
+    ActionData memory actionData = _getActionData(intentData.tokenData, '', true);
+    bytes32[] memory memLeaves = leaves;
+    actionData.hookActionData = abi.encode(
+      MerkleUtils.getProof(memLeaves, 0),
+      overflowLeafIndex,
+      tokenOut,
+      toPackedU128(feeBefore, feeAfter),
+      conditions[0]
+    );
+
+    _expectExecuteRevert(
+      mode, intentData, actionData, KSConditionalSwapHook.MaxConditionIndex.selector
+    );
+  }
+
   function test_Chainlink_MarketTrigger_Pass(uint256 mode) public {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
@@ -1344,11 +1381,23 @@ contract ConditionalSwapTest is BaseTest {
     internal
     returns (bytes32[] memory, bytes32)
   {
+    uint256[] memory leafIndexes = new uint256[](conditions.length);
+    for (uint256 i = 0; i < conditions.length; i++) {
+      leafIndexes[i] = i;
+    }
+    return _setUpLeaves(leafIndexes, conditions);
+  }
+
+  /// @dev As above, but with leaf indexes that need not match the position in the tree.
+  function _setUpLeaves(
+    uint256[] memory leafIndexes,
+    KSConditionalSwapHook.SwapCondition[] memory conditions
+  ) internal returns (bytes32[] memory, bytes32) {
     leaves = new bytes32[](conditions.length);
     delete leafConditions;
 
     for (uint256 i = 0; i < conditions.length; i++) {
-      leaves[i] = keccak256(abi.encode(i, tokenIn, tokenOut, conditions[i]));
+      leaves[i] = keccak256(abi.encode(leafIndexes[i], tokenIn, tokenOut, conditions[i]));
       leafConditions.push(conditions[i]);
     }
 
@@ -1424,8 +1473,6 @@ contract ConditionalSwapTest is BaseTest {
     uint256 max,
     KSConditionalSwapHook.SwapCondition[] memory swapConditions
   ) internal returns (IntentData memory intentData) {
-    KSConditionalSwapHook.SwapHookData memory hookData;
-
     if (swapConditions.length == 0) {
       swapConditions = new KSConditionalSwapHook.SwapCondition[](1);
       swapConditions[0] = KSConditionalSwapHook.SwapCondition({
@@ -1439,6 +1486,13 @@ contract ConditionalSwapTest is BaseTest {
     }
 
     _setUpLeaves(swapConditions);
+
+    return _getIntentDataForRoot();
+  }
+
+  /// @dev Builds an intent committing to the root `_setUpLeaves` last produced.
+  function _getIntentDataForRoot() internal view returns (IntentData memory intentData) {
+    KSConditionalSwapHook.SwapHookData memory hookData;
     hookData.root = root;
     hookData.recipient = mainAddress;
 
