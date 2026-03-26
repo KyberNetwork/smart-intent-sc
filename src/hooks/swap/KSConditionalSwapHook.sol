@@ -273,19 +273,13 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   ) internal returns (bool, uint8) {
     require(index <= type(uint8).max, MaxLeafIndex());
     uint256 slotKey = index / 32;
+    uint256 shift = (index % 32) * 8;
     uint256 packedValue = record[slotKey];
-    uint256 bytePosition = index % 32;
+    uint8 swapCount = uint8(packedValue >> shift) + 1;
 
-    uint8 swapCount = uint8(packedValue >> (bytePosition * 8)) + 1;
+    if (swapCount > limit) return (false, swapCount);
 
-    if (swapCount > limit) {
-      return (false, swapCount);
-    }
-
-    packedValue += 1 << (bytePosition * 8);
-
-    record[slotKey] = packedValue;
-
+    record[slotKey] = packedValue + (1 << shift);
     return (true, swapCount);
   }
 
