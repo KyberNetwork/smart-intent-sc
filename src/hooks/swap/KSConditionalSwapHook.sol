@@ -22,6 +22,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   error InvalidFees(
     uint256 srcFeePercent, uint256 dstFeePercent, uint256 maxSrcFee, uint256 maxDstFee
   );
+  error MaxLeafIndex();
   error InvalidPrice(uint256 price, uint256 minPrice, uint256 maxPrice);
   error InvalidSwapLimit(uint256 swapCount, uint256 limit);
 
@@ -30,9 +31,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   /**
    * @notice Data structure for conditional swap
-   * @param swapConditions The swap conditions, a swap will be executed if one of the conditions is met
-   * @param srcTokens The source tokens
-   * @param dstTokens The destination tokens
+   * @param root The Merkle root of all valid swap conditions
    * @param recipient The recipient of the destination token
    */
   struct SwapHookData {
@@ -166,7 +165,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       tokenOut, validationData.recipient, validationData.dstFeePercent
     ) - validationData.recipientBalanceBefore;
 
-    uint256 price = (amountOut * DENOMINATOR) / amountIn;
+    uint256 fee = (amountOut * validationData.dstFeePercent) / PRECISION;
+    uint256 price = ((amountOut - fee) * DENOMINATOR) / amountIn;
 
     _validateSwapCondition(
       validationData.swapCondition,
@@ -186,10 +186,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     tokens[0] = tokenOut;
 
     fees = new uint256[](1);
-    fees[0] = (amountOut * validationData.dstFeePercent) / PRECISION;
+    fees[0] = fee;
 
     amounts = new uint256[](1);
-    amounts[0] = amountOut - fees[0];
+    amounts[0] = amountOut - fee;
 
     recipient = validationData.recipient;
 
@@ -249,7 +249,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       revert InvalidPrice(price, condition.priceLimits.value0(), condition.priceLimits.value1());
     }
 
-    (bool success, uint8 swapCount) = _increaseByOne(record, uint8(index), condition.swapLimit);
+    (bool success, uint8 swapCount) = _increaseByOne(record, index, condition.swapLimit);
     if (!success) {
       revert InvalidSwapLimit(swapCount, condition.swapLimit);
     }
@@ -257,18 +257,23 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   /**
    * @notice Increments swap count for a specific condition index
-   * @dev Uses bit manipulation to efficiently store counts in packed format
+   * @dev Uses bit manipulation to efficiently store counts in packed format.
+   *      Each uint256 slot holds 32 uint8 counters; the slot is selected by index/32
+   *      and the byte position within that slot by index%32.
    * @param record Storage mapping containing packed swap counts
    * @param index The condition index to increment
    * @param limit Maximum allowed swaps for this condition
-   * @return success True if increment was successful (within limit), false otherwise
+   * @return success True if increment was within limit and the count was stored, false otherwise
+   * @return swapCount The new swap count after incrementing (or the over-limit value if failed)
    */
   function _increaseByOne(
     mapping(uint256 packedIndexes => uint256 packedValues) storage record,
-    uint8 index,
+    uint256 index,
     uint8 limit
   ) internal returns (bool, uint8) {
-    uint256 packedValue = record[index / 32];
+    require(index <= type(uint8).max, MaxLeafIndex());
+    uint256 slotKey = index / 32;
+    uint256 packedValue = record[slotKey];
     uint256 bytePosition = index % 32;
 
     uint8 swapCount = uint8(packedValue >> (bytePosition * 8)) + 1;
@@ -279,7 +284,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
     packedValue += 1 << (bytePosition * 8);
 
-    record[index / 32] = packedValue;
+    record[slotKey] = packedValue;
 
     return (true, swapCount);
   }

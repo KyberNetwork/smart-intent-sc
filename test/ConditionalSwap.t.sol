@@ -562,6 +562,72 @@ contract ConditionalSwapTest is BaseTest {
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
+  function testRevert_MaxLeafIndex(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+
+    uint256 overflowLeafIndex = uint256(type(uint8).max) + 1; // 256
+
+    KSConditionalSwapHook.SwapCondition memory condition = KSConditionalSwapHook.SwapCondition({
+      swapLimit: 1,
+      timeLimits: toPackedU128(block.timestamp, block.timestamp + 1 days),
+      amountInLimits: toPackedU128(0, type(uint128).max),
+      maxFees: toPackedU128(maxSrcFee, maxDstFee),
+      priceLimits: toPackedU128(0, type(uint128).max)
+    });
+
+    KSConditionalSwapHook.SwapCondition[] memory conditions =
+      new KSConditionalSwapHook.SwapCondition[](1);
+    conditions[0] = condition;
+
+    _setUpLeaves(
+      [overflowLeafIndex].toMemoryArray(),
+      conditions,
+      [tokenIn].toMemoryArray(),
+      [tokenOut].toMemoryArray()
+    );
+
+    KSConditionalSwapHook.SwapHookData memory hookData;
+    hookData.root = root;
+    hookData.recipient = mainAddress;
+
+    IntentCoreData memory coreData = IntentCoreData({
+      mainAddress: mainAddress,
+      signatureVerifier: address(0),
+      delegatedKey: delegatedPublicKey,
+      actionContracts: [address(mockActionContract), swapRouter].toMemoryArray(),
+      actionSelectors: [MockActionContract.swap.selector, IKSSwapRouterV2.swap.selector]
+      .toMemoryArray(),
+      hook: address(conditionalSwapHook),
+      hookIntentData: abi.encode(hookData)
+    });
+
+    TokenData memory tokenData;
+    tokenData.erc20Data = new ERC20Data[](1);
+    tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
+
+    IntentData memory intentData =
+      IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+
+    _setUpMainAddress(intentData, false);
+
+    bytes32[] memory _memLeaves = leaves;
+    ActionData memory actionData = _getActionData(
+      intentData.tokenData,
+      '',
+      true,
+      overflowLeafIndex,
+      MerkleUtils.getProof(_memLeaves, 0),
+      condition
+    );
+
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(mode, intentData, actionData);
+
+    vm.startPrank(caller);
+    vm.expectRevert(KSConditionalSwapHook.MaxLeafIndex.selector);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
   function _setUpLeaves(
     uint256[] memory leafIndexes,
     KSConditionalSwapHook.SwapCondition[] memory conditions,
