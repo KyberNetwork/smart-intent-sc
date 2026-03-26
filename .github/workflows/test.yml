@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
 
 env:
-  SEPOLIA_NODE_URL: ${{ secrets.SEPOLIA_NODE_URL }}
-  OP_NODE_URL: ${{ secrets.OP_NODE_URL }}
   RPC_1: ${{ secrets.RPC_1 }}
   RPC_56: ${{ secrets.RPC_56 }}
+  RPC_11155111: ${{ secrets.RPC_11155111 }}
+  RPC_10: ${{ secrets.RPC_10 }}
 
 jobs:
   test:
@@ -37,11 +37,14 @@ jobs:
       - name: Run tests
         run: forge test --nmt "testMockActionExecuteSuccessP256|testMockActionExecuteSuccessWebAuthn"
         id: test
+        if: always()
 
       - name: Run tests P256
         run: forge test --mt testMockActionExecuteSuccessP256 --evm-version osaka
         id: test-p256
+        if: always()
 
       - name: Run tests WebAuthn
         run: forge test --mt testMockActionExecuteSuccessWebAuthn --evm-version osaka
         id: test-webauthn
+        if: always()

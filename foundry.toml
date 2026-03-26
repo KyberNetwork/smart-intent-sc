@@ -29,6 +29,8 @@ runs = 20
 [rpc_endpoints]
 mainnet = "${RPC_1}"
 bsc_mainnet = "${RPC_56}"
+sepolia = "${RPC_11155111}"
+optimism_mainnet = "${RPC_10}"
 
 [etherscan]
 mainnet = { key = "${ETHERSCAN_API_KEY}" }
