@@ -2,14 +2,16 @@
 pragma solidity ^0.8.0;
 
 import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
-import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
-import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
-
+import {OracleLib} from '../../libraries/OracleLib.sol';
 import {ActionData} from '../../types/ActionData.sol';
 import {IntentData} from '../../types/IntentData.sol';
+import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
+import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
 contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;
+  using CalldataDecoder for bytes;
 
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
   error AmountInMismatch(uint256 amountIn, uint256 actualAmountIn);
@@ -38,7 +40,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    * @param timeLimits The limits of the swap time (minTime 128bits, maxTime 128bits)
    * @param amountInLimits The limits of the swap amount (minAmountIn 128bits, maxAmountIn 128bits)
    * @param maxFees The max fees (srcFee 128bits, dstFee 128bits)
-   * @param priceLimits The limits of price (tokenOut/tokenIn denominated by 1e18) (minPrice 128bits, maxPrice 128bits)
+   * @param priceLimits The limits of the realized price (tokenOut/tokenIn denominated by 1e18) (minPrice 128bits, maxPrice 128bits)
+   * @param oracle The per-token oracle config (each leg Chainlink or Pyth), carrying the
+   *        per-token market-price bands and the staleness/slippage params
    */
   struct SwapCondition {
     uint8 swapLimit;
@@ -46,10 +50,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 amountInLimits;
     uint256 maxFees;
     uint256 priceLimits;
+    OracleLib.OracleConfig oracle;
   }
 
   struct SwapValidationData {
-    SwapCondition[] swapConditions;
     bytes32 intentHash;
     uint256 intentIndex;
     address tokenIn;
@@ -75,6 +79,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
 
+  receive() external payable {}
+
   modifier checkTokenLengths(ActionData calldata actionData) override {
     require(actionData.erc20Ids.length == 1, InvalidTokenData());
     require(actionData.erc721Ids.length == 0, InvalidTokenData());
@@ -94,8 +100,13 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
     SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
-    (uint256 index, uint256 intentSrcFee, uint256 intentDstFee) =
-      _decodeAndValidateHookActionData(actionData.hookActionData, swapHookData);
+    (
+      uint256 index,
+      uint256 intentSrcFee,
+      uint256 intentDstFee,
+      uint256 oracleUpdateIndex,
+      bytes[] calldata updateData
+    ) = _decodeHookActionData(actionData.hookActionData);
 
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
     address tokenOut = swapHookData.dstTokens[index];
@@ -106,11 +117,14 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       InvalidTokenIn(tokenIn, swapHookData.srcTokens[index])
     );
 
+    if (updateData.length != 0) {
+      OracleLib.refresh(swapHookData.swapConditions[index][oracleUpdateIndex].oracle, updateData);
+    }
+
     fees = new uint256[](1);
     fees[0] = (amountIn * intentSrcFee) / PRECISION;
     beforeExecutionData = abi.encode(
       SwapValidationData({
-        swapConditions: swapHookData.swapConditions[index],
         intentHash: intentHash,
         intentIndex: index,
         tokenIn: tokenIn,
@@ -161,13 +175,17 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
     uint256 price = (amountOut * DENOMINATOR) / amountIn;
 
+    SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
+
     _validateSwapCondition(
-      validationData.swapConditions,
+      swapHookData.swapConditions[validationData.intentIndex],
       swapRecord[validationData.intentHash][validationData.intentIndex],
       price,
       amountIn,
       validationData.srcFeePercent,
-      validationData.dstFeePercent
+      validationData.dstFeePercent,
+      tokenIn,
+      tokenOut
     );
 
     if (validationData.dstFeePercent == 0) {
@@ -212,7 +230,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 price,
     uint256 amountIn,
     uint256 srcFeePercent,
-    uint256 dstFeePercent
+    uint256 dstFeePercent,
+    address tokenIn,
+    address tokenOut
   ) internal {
     for (uint256 i; i < swapCondition.length; ++i) {
       SwapCondition calldata condition = swapCondition[i];
@@ -235,6 +255,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       }
 
       if (price < condition.priceLimits >> 128 || price > uint128(condition.priceLimits)) {
+        continue;
+      }
+
+      if (!OracleLib.validate(condition.oracle, tokenIn, tokenOut, price)) {
         continue;
       }
 
@@ -287,17 +311,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     return tokenOut.balanceOf(recipient);
   }
 
-  // @dev: equivalent to abi.decode(data, (SwapCondition))
-  function _decodeSwapCondition(bytes calldata data)
-    internal
-    pure
-    returns (SwapCondition calldata swapCondition)
-  {
-    assembly ('memory-safe') {
-      swapCondition := data.offset
-    }
-  }
-
   // @dev: equivalent to abi.decode(data, (SwapHookData))
   function _decodeHookData(bytes calldata data)
     internal
@@ -309,20 +322,29 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
   }
 
-  // @dev: equivalent to abi.decode(data, (uint256, uint256, uint256, uint256))
-  function _decodeAndValidateHookActionData(bytes calldata data, SwapHookData calldata swapHookData)
+  // @dev: equivalent to abi.encode(index, packedFees, oracleUpdateIndex, bytes[] updateData).
+  function _decodeHookActionData(bytes calldata data)
     internal
-    view
-    returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee)
+    pure
+    returns (
+      uint256 index,
+      uint256 intentSrcFee,
+      uint256 intentDstFee,
+      uint256 oracleUpdateIndex,
+      bytes[] calldata updateData
+    )
   {
-    uint256 packedFees;
+    index = data.decodeUint256(0);
+    intentSrcFee = data.decodeUint256(1);
+    oracleUpdateIndex = data.decodeUint256(2);
+    (uint256 length, uint256 offset) = data.decodeLengthOffset(3);
     assembly ('memory-safe') {
-      index := calldataload(data.offset)
-      packedFees := calldataload(add(data.offset, 0x20))
+      updateData.length := length
+      updateData.offset := offset
     }
 
-    intentSrcFee = packedFees >> 128;
-    intentDstFee = uint128(packedFees);
+    intentDstFee = uint128(intentSrcFee);
+    intentSrcFee = intentSrcFee >> 128;
   }
 
   // @dev: equivalent to abi.decode(data, (SwapValidationData))
@@ -332,7 +354,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     returns (SwapValidationData calldata validationData)
   {
     assembly ('memory-safe') {
-      validationData := add(data.offset, calldataload(data.offset))
+      validationData := data.offset
     }
   }
 }
