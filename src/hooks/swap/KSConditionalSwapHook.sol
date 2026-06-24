@@ -5,6 +5,7 @@ import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol'
 import {OracleLib} from '../../libraries/OracleLib.sol';
 import {ActionData} from '../../types/ActionData.sol';
 import {IntentData} from '../../types/IntentData.sol';
+import {PackedU128, PackedU128Library} from '../../types/PackedU128.sol';
 import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
 import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
@@ -46,10 +47,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    */
   struct SwapCondition {
     uint8 swapLimit;
-    uint256 timeLimits;
-    uint256 amountInLimits;
-    uint256 maxFees;
-    uint256 priceLimits;
+    PackedU128 timeLimits;
+    PackedU128 amountInLimits;
+    PackedU128 maxFees;
+    PackedU128 priceLimits;
     OracleLib.OracleConfig oracle;
   }
 
@@ -94,50 +95,44 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     ActionData calldata actionData
   )
     external
+    view
     override
     onlyWhitelistedRouter
     checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
-    SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
-    (
-      uint256 index,
-      uint256 intentSrcFee,
-      uint256 intentDstFee,
-      uint256 oracleUpdateIndex,
-      bytes[] calldata updateData
-    ) = _decodeHookActionData(actionData.hookActionData);
+    (uint256 index, uint256 intentSrcFee, uint256 intentDstFee) =
+      _decodeHookActionData(actionData.hookActionData);
 
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
-    address tokenOut = swapHookData.dstTokens[index];
-    uint256 amountIn = actionData.erc20Amounts[0];
+    address tokenOut;
+    address recipient;
+    // prevent stack too deep
+    {
+      SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
+      tokenOut = swapHookData.dstTokens[index];
+      recipient = swapHookData.recipient;
 
-    require(
-      tokenIn == swapHookData.srcTokens[index],
-      InvalidTokenIn(tokenIn, swapHookData.srcTokens[index])
-    );
-
-    if (updateData.length != 0) {
-      OracleLib.refresh(swapHookData.swapConditions[index][oracleUpdateIndex].oracle, updateData);
+      require(
+        tokenIn == swapHookData.srcTokens[index],
+        InvalidTokenIn(tokenIn, swapHookData.srcTokens[index])
+      );
     }
+    uint256 amountIn = actionData.erc20Amounts[0];
 
     fees = new uint256[](1);
     fees[0] = (amountIn * intentSrcFee) / PRECISION;
     beforeExecutionData = abi.encode(
-      SwapValidationData({
-        intentHash: intentHash,
-        intentIndex: index,
-        tokenIn: tokenIn,
-        tokenOut: tokenOut,
-        amountIn: amountIn,
-        srcFeePercent: intentSrcFee,
-        dstFeePercent: intentDstFee,
-        recipientBalanceBefore: _getRecipientBalance(
-          tokenOut, swapHookData.recipient, intentDstFee
-        ), // if dstFee is 0, transfer directly to the recipient
-        swapperBalanceBefore: tokenIn.balanceOf(intentData.coreData.mainAddress),
-        recipient: swapHookData.recipient
-      })
+      intentHash,
+      index,
+      tokenIn,
+      tokenOut,
+      amountIn,
+      _getRecipientBalance(tokenOut, recipient, intentDstFee),
+      tokenIn.balanceOf(intentData.coreData.mainAddress),
+      intentSrcFee,
+      intentDstFee,
+      recipient
     );
 
     return (fees, beforeExecutionData);
@@ -237,24 +232,23 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     for (uint256 i; i < swapCondition.length; ++i) {
       SwapCondition calldata condition = swapCondition[i];
 
-      if (
-        block.timestamp < condition.timeLimits >> 128
-          || block.timestamp > uint128(condition.timeLimits)
-      ) {
+      (uint128 minTime, uint128 maxTime) = condition.timeLimits.unpack();
+      if (block.timestamp < minTime || block.timestamp > maxTime) {
         continue;
       }
 
-      if (
-        amountIn < condition.amountInLimits >> 128 || amountIn > uint128(condition.amountInLimits)
-      ) {
+      (uint128 minAmountIn, uint128 maxAmountIn) = condition.amountInLimits.unpack();
+      if (amountIn < minAmountIn || amountIn > maxAmountIn) {
         continue;
       }
 
-      if (srcFeePercent > condition.maxFees >> 128 || dstFeePercent > uint128(condition.maxFees)) {
+      (uint128 maxSrcFee, uint128 maxDstFee) = condition.maxFees.unpack();
+      if (srcFeePercent > maxSrcFee || dstFeePercent > maxDstFee) {
         continue;
       }
 
-      if (price < condition.priceLimits >> 128 || price > uint128(condition.priceLimits)) {
+      (uint128 minPrice, uint128 maxPrice) = condition.priceLimits.unpack();
+      if (price < minPrice || price > maxPrice) {
         continue;
       }
 
@@ -322,29 +316,16 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
   }
 
-  // @dev: equivalent to abi.encode(index, packedFees, oracleUpdateIndex, bytes[] updateData).
+  // @dev: equivalent to abi.encode(index, packedFees).
   function _decodeHookActionData(bytes calldata data)
     internal
     pure
-    returns (
-      uint256 index,
-      uint256 intentSrcFee,
-      uint256 intentDstFee,
-      uint256 oracleUpdateIndex,
-      bytes[] calldata updateData
-    )
+    returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee)
   {
     index = data.decodeUint256(0);
-    intentSrcFee = data.decodeUint256(1);
-    oracleUpdateIndex = data.decodeUint256(2);
-    (uint256 length, uint256 offset) = data.decodeLengthOffset(3);
-    assembly ('memory-safe') {
-      updateData.length := length
-      updateData.offset := offset
-    }
-
-    intentDstFee = uint128(intentSrcFee);
-    intentSrcFee = intentSrcFee >> 128;
+    (uint128 srcFee, uint128 dstFee) = PackedU128.wrap(data.decodeUint256(1)).unpack();
+    intentSrcFee = srcFee;
+    intentDstFee = dstFee;
   }
 
   // @dev: equivalent to abi.decode(data, (SwapValidationData))

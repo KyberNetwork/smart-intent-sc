@@ -6,10 +6,10 @@ import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 import {AggregatorV3Interface} from '../interfaces/oracle/external/AggregatorV3Interface.sol';
 import {IPyth} from '../interfaces/oracle/external/IPyth.sol';
+import {PackedU128, PackedU128Library} from '../types/PackedU128.sol';
 
 library OracleLib {
-  uint256 internal constant PRICE_PRECISION = 1e18;
-  uint256 internal constant BPS_DENOMINATOR = 10_000;
+  uint256 internal constant PRECISION = 1e18;
 
   enum OracleType {
     NONE,
@@ -28,44 +28,29 @@ library OracleLib {
     OracleType oracleType;
     address source;
     bytes32 priceId;
-    uint256 priceLimits;
+    PackedU128 priceLimits;
   }
 
   /**
    * @param oracleIn Input-token oracle.
    * @param oracleOut Output-token oracle.
-   * @param oracleParams maxStaleness 128bits | maxDeviationBps 128bits (0 disables slippage guard).
+   * @param oracleParams maxStaleness 128bits | maxDeviation 128bits, scaled by 1e18 (0 disables slippage guard).
    */
   struct OracleConfig {
     TokenOracle oracleIn;
     TokenOracle oracleOut;
-    uint256 oracleParams;
+    PackedU128 oracleParams;
   }
 
   error InvalidOraclePrice();
+  error InvalidMaxDeviation();
   error StaleOraclePrice();
 
   /**
-   * @notice Pushes the Pyth update
-   */
-  function refresh(OracleConfig memory config, bytes[] calldata updateData) internal {
-    if (updateData.length == 0) return;
-    address pythIn =
-      config.oracleIn.oracleType == OracleType.PYTH ? config.oracleIn.source : address(0);
-    address pythOut =
-      config.oracleOut.oracleType == OracleType.PYTH ? config.oracleOut.source : address(0);
-    if (pythIn != address(0)) {
-      _pythUpdate(pythIn, updateData);
-    }
-    if (pythOut != address(0) && pythOut != pythIn) {
-      _pythUpdate(pythOut, updateData);
-    }
-  }
-
-  /**
    * @notice Validates a swap. Each configured leg's oracle price must sit in its band; an
-   *         unconfigured leg is skipped. The slippage guard (realized within `maxDeviationBps` of
-   *         the oracle ratio) applies only when both legs are set. True if no leg is set.
+   *         unconfigured leg is skipped. The slippage guard ensures the realized price does not
+   *         fall more than `maxDeviation` below the oracle ratio; better execution is allowed.
+   *         It applies only when both legs are set. True if no leg is set.
    * @param realizedPrice Realized swap price, raw basis (`amountOut_raw * 1e18 / amountIn_raw`).
    */
   function validate(
@@ -74,40 +59,39 @@ library OracleLib {
     address tokenOut,
     uint256 realizedPrice
   ) internal view returns (bool) {
+    (uint128 maxStaleness, uint128 maxDeviation) = config.oracleParams.unpack();
+    require(maxDeviation <= PRECISION, InvalidMaxDeviation());
+
     bool hasIn = config.oracleIn.source != address(0);
     bool hasOut = config.oracleOut.source != address(0);
     if (!hasIn && !hasOut) return true; // no oracle configured
 
-    uint256 maxStaleness = config.oracleParams >> 128;
     uint256 priceIn;
     uint256 priceOut;
 
     // market-price trigger: only configured legs are read and bounded
     if (hasIn) {
       priceIn = _usdPrice(config.oracleIn, maxStaleness);
-      if (
-        priceIn < config.oracleIn.priceLimits >> 128
-          || priceIn > uint128(config.oracleIn.priceLimits)
-      ) {
+      (uint128 minPriceIn, uint128 maxPriceIn) = config.oracleIn.priceLimits.unpack();
+      if (priceIn < minPriceIn || priceIn > maxPriceIn) {
         return false;
       }
     }
     if (hasOut) {
       priceOut = _usdPrice(config.oracleOut, maxStaleness);
-      if (
-        priceOut < config.oracleOut.priceLimits >> 128
-          || priceOut > uint128(config.oracleOut.priceLimits)
-      ) {
+      (uint128 minPriceOut, uint128 maxPriceOut) = config.oracleOut.priceLimits.unpack();
+      if (priceOut < minPriceOut || priceOut > maxPriceOut) {
         return false;
       }
     }
 
     // slippage guard: needs both legs to derive the ratio
-    uint256 maxDeviationBps = uint128(config.oracleParams);
-    if (maxDeviationBps != 0 && hasIn && hasOut) {
+    if (maxDeviation != 0 && hasIn && hasOut) {
       uint256 ratio = _ratio(priceIn, priceOut, tokenIn, tokenOut);
-      uint256 diff = realizedPrice > ratio ? realizedPrice - ratio : ratio - realizedPrice;
-      if (diff * BPS_DENOMINATOR > maxDeviationBps * ratio) return false;
+      if (maxDeviation < PRECISION) {
+        uint256 minRealizedPrice = Math.mulDiv(ratio, PRECISION - maxDeviation, PRECISION);
+        if (realizedPrice < minRealizedPrice) return false;
+      }
     }
 
     return true;
@@ -119,7 +103,7 @@ library OracleLib {
     view
     returns (uint256 priceIn, uint256 priceOut, uint256 ratio)
   {
-    uint256 maxStaleness = config.oracleParams >> 128;
+    (uint128 maxStaleness,) = config.oracleParams.unpack();
     priceIn = _usdPrice(config.oracleIn, maxStaleness);
     priceOut = _usdPrice(config.oracleOut, maxStaleness);
     ratio = _ratio(priceIn, priceOut, tokenIn, tokenOut);
@@ -134,15 +118,9 @@ library OracleLib {
     uint8 decimalsIn = IERC20Metadata(tokenIn).decimals();
     uint8 decimalsOut = IERC20Metadata(tokenOut).decimals();
     if (decimalsOut >= decimalsIn) {
-      return
-        Math.mulDiv(priceIn, PRICE_PRECISION * (10 ** uint256(decimalsOut - decimalsIn)), priceOut);
+      return Math.mulDiv(priceIn, PRECISION * (10 ** uint256(decimalsOut - decimalsIn)), priceOut);
     }
-    return
-      Math.mulDiv(priceIn, PRICE_PRECISION, priceOut * (10 ** uint256(decimalsIn - decimalsOut)));
-  }
-
-  function _pythUpdate(address pyth, bytes[] calldata updateData) private {
-    IPyth(pyth).updatePriceFeeds{value: IPyth(pyth).getUpdateFee(updateData)}(updateData);
+    return Math.mulDiv(priceIn, PRECISION, priceOut * (10 ** uint256(decimalsIn - decimalsOut)));
   }
 
   /// @dev Token oracle price, USD-per-whole-token (1e18).
@@ -155,16 +133,16 @@ library OracleLib {
       (, int256 answer,, uint256 updatedAt,) =
         AggregatorV3Interface(oracle.source).latestRoundData();
       if (answer <= 0) revert InvalidOraclePrice();
-      if (maxStaleness != 0 && block.timestamp - updatedAt > maxStaleness) {
+      if (block.timestamp - updatedAt > maxStaleness) {
         revert StaleOraclePrice();
       }
       uint8 feedDecimals = AggregatorV3Interface(oracle.source).decimals();
-      return Math.mulDiv(uint256(answer), PRICE_PRECISION, 10 ** feedDecimals);
+      return Math.mulDiv(uint256(answer), PRECISION, 10 ** feedDecimals);
     }
 
     // PYTH: price = pyth.price * 10^(expo + 18)
-    uint256 age = maxStaleness == 0 ? type(uint256).max : maxStaleness;
-    IPyth.Price memory price = IPyth(oracle.source).getPriceNoOlderThan(oracle.priceId, age);
+    IPyth.Price memory price =
+      IPyth(oracle.source).getPriceNoOlderThan(oracle.priceId, maxStaleness);
     if (price.price <= 0) revert InvalidOraclePrice();
 
     int256 exponent = int256(price.expo) + 18;
