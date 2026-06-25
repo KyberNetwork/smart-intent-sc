@@ -6,7 +6,7 @@ import './Base.t.sol';
 import 'src/hooks/swap/KSConditionalSwapHook.sol';
 
 import {IPyth} from 'src/interfaces/oracle/external/IPyth.sol';
-import {OracleLib} from 'src/libraries/OracleLib.sol';
+import {OracleConfig, OracleLib, OracleType, TokenOracle} from 'src/libraries/OracleLib.sol';
 import {PackedU128, toPackedU128} from 'src/types/PackedU128.sol';
 
 import {MockChainlinkFeed} from './mocks/MockChainlinkFeed.sol';
@@ -38,6 +38,10 @@ contract ConditionalSwapTest is BaseTest {
   uint256 internal constant BTC_USD = 100_000e18; // $100k
   // Derived swap ratio (amountOut_raw * 1e18 / amountIn_raw) for the mock prices: 1e15.
   uint256 internal constant ORACLE_RATIO = 1e15;
+  // WBTC per whole USD/USDT, scaled by 1e18.
+  uint256 internal constant WBTC_PER_USD = 1e13;
+  uint256 internal constant WBTC_PER_USDT = WBTC_PER_USD;
+  uint256 internal constant USDT_PER_WBTC = 100_000e18;
   uint256 internal constant PYTH_FEE = 0.001 ether;
   uint256 internal constant PYTH_MAX_STALENESS = 30 minutes;
   uint256 internal constant REAL_ORACLE_MAX_STALENESS = 15 hours;
@@ -47,7 +51,7 @@ contract ConditionalSwapTest is BaseTest {
   bytes32 internal constant USDT_ID = keccak256('USDT/USD');
   bytes32 internal constant WBTC_ID = keccak256('WBTC/USD');
 
-  // --- Real mainnet oracle infrastructure (fork tests) ---
+  // --- Real mainnet oracle ---
   address internal constant CHAINLINK_USDT_USD = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
   // WBTC tracks BTC; use the canonical BTC/USD aggregator for the WBTC leg.
   address internal constant CHAINLINK_WBTC_USD = 0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c;
@@ -59,6 +63,8 @@ contract ConditionalSwapTest is BaseTest {
 
   MockChainlinkFeed internal feedIn;
   MockChainlinkFeed internal feedOut;
+  MockChainlinkFeed internal feedDirect;
+  MockChainlinkFeed internal feedDirectInverse;
   MockPyth internal pyth;
 
   function _selectFork() public virtual override {
@@ -78,42 +84,67 @@ contract ConditionalSwapTest is BaseTest {
     // mock oracles
     feedIn = new MockChainlinkFeed(8, 1e8); // USDT/USD = $1
     feedOut = new MockChainlinkFeed(8, int256(100_000e8)); // WBTC/USD = $100k
+    feedDirect = new MockChainlinkFeed(8, 1000); // WBTC/USDT = 0.00001
+    feedDirectInverse = new MockChainlinkFeed(8, int256(USDT_PER_WBTC / 1e10)); // USDT/WBTC
     pyth = new MockPyth(PYTH_FEE);
     pyth.setPrice(USDT_ID, int64(1e8), int32(-8), vm.getBlockTimestamp());
     pyth.setPrice(WBTC_ID, int64(int256(100_000e8)), int32(-8), vm.getBlockTimestamp());
     _updateForkPythPrices();
   }
 
-  function _emptyLeg() internal pure returns (OracleLib.TokenOracle memory) {
-    return
-      OracleLib.TokenOracle(OracleLib.OracleType.NONE, address(0), bytes32(0), toPackedU128(0, 0));
+  function _emptyLeg() internal pure returns (TokenOracle memory) {
+    return TokenOracle(OracleType.NONE, address(0), bytes32(0), toPackedU128(0, 0), false);
   }
 
   function _chainlinkLeg(address feed, PackedU128 priceLimits)
     internal
     pure
-    returns (OracleLib.TokenOracle memory)
+    returns (TokenOracle memory)
   {
-    return OracleLib.TokenOracle(OracleLib.OracleType.CHAINLINK, feed, bytes32(0), priceLimits);
+    return _chainlinkLeg(feed, priceLimits, false);
+  }
+
+  function _chainlinkLeg(address feed, PackedU128 priceLimits, bool inverse)
+    internal
+    pure
+    returns (TokenOracle memory)
+  {
+    return TokenOracle(OracleType.CHAINLINK, feed, bytes32(0), priceLimits, inverse);
   }
 
   function _pythLeg(address pyth_, bytes32 priceId, PackedU128 priceLimits)
     internal
     pure
-    returns (OracleLib.TokenOracle memory)
+    returns (TokenOracle memory)
   {
-    return OracleLib.TokenOracle(OracleLib.OracleType.PYTH, pyth_, priceId, priceLimits);
+    return _pythLeg(pyth_, priceId, priceLimits, false);
+  }
+
+  function _pythLeg(address pyth_, bytes32 priceId, PackedU128 priceLimits, bool inverse)
+    internal
+    pure
+    returns (TokenOracle memory)
+  {
+    return TokenOracle(OracleType.PYTH, pyth_, priceId, priceLimits, inverse);
   }
 
   function _config(
-    OracleLib.TokenOracle memory oracleIn,
-    OracleLib.TokenOracle memory oracleOut,
+    TokenOracle memory oracleIn,
+    TokenOracle memory oracleOut,
     PackedU128 oracleParams
-  ) internal pure returns (OracleLib.OracleConfig memory) {
-    return OracleLib.OracleConfig(oracleIn, oracleOut, oracleParams);
+  ) internal pure returns (OracleConfig memory) {
+    return OracleConfig(oracleIn, oracleOut, oracleParams);
   }
 
-  function _noOracle() internal pure returns (OracleLib.OracleConfig memory) {
+  function _directConfig(TokenOracle memory directOracle, PackedU128 oracleParams)
+    internal
+    pure
+    returns (OracleConfig memory)
+  {
+    return _config(directOracle, _emptyLeg(), oracleParams);
+  }
+
+  function _noOracle() internal pure returns (OracleConfig memory) {
     return _config(_emptyLeg(), _emptyLeg(), toPackedU128(0, 0));
   }
 
@@ -404,9 +435,9 @@ contract ConditionalSwapTest is BaseTest {
 
   function test_Chainlink_MarketTrigger_Pass(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _chainlinkLeg(address(feedOut), _band(BTC_USD, 100, 100)),
+      _chainlinkLeg(address(feedOut), _band(WBTC_PER_USD, 100, 100), true),
       _params(0, 0)
     );
     _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -415,9 +446,9 @@ contract ConditionalSwapTest is BaseTest {
   function test_Chainlink_MarketTrigger_Revert(uint256 mode) public {
     mode = bound(mode, 0, 2);
     // tokenOut band sits entirely above the live BTC price -> never met
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _chainlinkLeg(address(feedOut), toPackedU128(BTC_USD * 2, type(uint128).max)),
+      _chainlinkLeg(address(feedOut), toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
       _params(0, 0)
     );
     _expectSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -425,9 +456,9 @@ contract ConditionalSwapTest is BaseTest {
 
   function test_Chainlink_SlippageGuard_Pass(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _fullBand()),
-      _chainlinkLeg(address(feedOut), _fullBand()),
+      _chainlinkLeg(address(feedOut), _fullBand(), true),
       _params(0, 1e17) // 10% tolerance
     );
     _expectSwapOk(mode, cfg, _amountOutFor((ORACLE_RATIO * 105) / 100)); // +5%
@@ -435,9 +466,9 @@ contract ConditionalSwapTest is BaseTest {
 
   function test_Chainlink_SlippageGuard_MinRevert(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _fullBand()),
-      _chainlinkLeg(address(feedOut), _fullBand()),
+      _chainlinkLeg(address(feedOut), _fullBand(), true),
       _params(0, 1e16) // 1% tolerance
     );
     _expectSwapRevert(mode, cfg, _amountOutFor((ORACLE_RATIO * 95) / 100)); // -5%
@@ -445,9 +476,9 @@ contract ConditionalSwapTest is BaseTest {
 
   function testRevert_Chainlink_SlippageGuard_InvalidMaxDeviation(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _fullBand()),
-      _chainlinkLeg(address(feedOut), _fullBand()),
+      _chainlinkLeg(address(feedOut), _fullBand(), true),
       _params(0, 1e18 + 1)
     );
 
@@ -456,20 +487,65 @@ contract ConditionalSwapTest is BaseTest {
     _expectExecuteRevert(mode, intentData, actionData, OracleLib.InvalidMaxDeviation.selector);
   }
 
-  function test_Chainlink_SingleLeg_Out(uint256 mode) public {
+  function test_Chainlink_DirectPair_OutSlotInverse_Pass(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    // only the output token is constrained; the input leg is left unconfigured
-    OracleLib.OracleConfig memory cfg = _config(
-      _emptyLeg(), _chainlinkLeg(address(feedOut), _band(BTC_USD, 100, 100)), _params(0, 0)
+    OracleConfig memory cfg = _config(
+      _emptyLeg(),
+      _chainlinkLeg(address(feedDirectInverse), _band(WBTC_PER_USDT, 100, 100), true),
+      _params(0, 1e16)
+    );
+    _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
+  }
+
+  function test_Chainlink_DirectPair_MarketTrigger_Pass(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _directConfig(
+      _chainlinkLeg(address(feedDirect), _band(WBTC_PER_USDT, 100, 100)), _params(0, 0)
+    );
+    _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
+  }
+
+  function test_Chainlink_DirectPair_MarketTrigger_Revert(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _directConfig(
+      _chainlinkLeg(address(feedDirect), toPackedU128(WBTC_PER_USDT * 2, type(uint128).max)),
+      _params(0, 0)
+    );
+    _expectSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
+  }
+
+  function test_Chainlink_DirectPair_SlippageGuard_Pass(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _directConfig(
+      _chainlinkLeg(address(feedDirect), _fullBand()),
+      _params(0, 1e17) // 10% tolerance
+    );
+    _expectSwapOk(mode, cfg, _amountOutFor((ORACLE_RATIO * 105) / 100)); // +5%
+  }
+
+  function test_Chainlink_DirectPair_SlippageGuard_MinRevert(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _directConfig(
+      _chainlinkLeg(address(feedDirect), _fullBand()),
+      _params(0, 1e16) // 1% tolerance
+    );
+    _expectSwapRevert(mode, cfg, _amountOutFor((ORACLE_RATIO * 95) / 100)); // -5%
+  }
+
+  function test_Chainlink_DirectPair_Inverse_Pass(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _directConfig(
+      _chainlinkLeg(address(feedDirectInverse), _band(WBTC_PER_USDT, 100, 100), true),
+      _params(0, 1e16)
     );
     _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
 
   function test_Pyth_Validate(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _pythLeg(address(pyth), USDT_ID, _band(USDT_USD, 100, 100)),
-      _pythLeg(address(pyth), WBTC_ID, _band(BTC_USD, 100, 100)),
+      _pythLeg(address(pyth), WBTC_ID, _band(WBTC_PER_USD, 100, 100), true),
       _params(3600, 0)
     );
 
@@ -485,9 +561,9 @@ contract ConditionalSwapTest is BaseTest {
 
   function test_Pyth_StalePrice_Revert(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _pythLeg(address(pyth), USDT_ID, _fullBand()),
-      _pythLeg(address(pyth), WBTC_ID, _fullBand()),
+      _pythLeg(address(pyth), WBTC_ID, _fullBand(), true),
       _params(100, 0) // 100s staleness bound
     );
     // seeded price is too old by the time getPriceNoOlderThan is called in afterExecution
@@ -513,7 +589,7 @@ contract ConditionalSwapTest is BaseTest {
     conditions[0] = _oracleCondition(
       _config(
         _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-        _chainlinkLeg(address(feedOut), toPackedU128(BTC_USD * 2, type(uint128).max)),
+        _chainlinkLeg(address(feedOut), toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
         _params(0, 0)
       )
     );
@@ -521,7 +597,7 @@ contract ConditionalSwapTest is BaseTest {
     conditions[1] = _oracleCondition(
       _config(
         _pythLeg(address(pyth), USDT_ID, _band(USDT_USD, 100, 100)),
-        _pythLeg(address(pyth), WBTC_ID, _band(BTC_USD, 100, 100)),
+        _pythLeg(address(pyth), WBTC_ID, _band(WBTC_PER_USD, 100, 100), true),
         _params(3600, 0)
       )
     );
@@ -543,8 +619,7 @@ contract ConditionalSwapTest is BaseTest {
     (uint256 priceIn, uint256 priceOut, uint256 ratio) =
       _readReal(_realChainlink(_fullBand(), _fullBand()));
 
-    OracleLib.OracleConfig memory cfg =
-      _realChainlink(_band(priceIn, 100, 100), _band(priceOut, 100, 100));
+    OracleConfig memory cfg = _realChainlink(_band(priceIn, 100, 100), _band(priceOut, 100, 100));
     _expectSwapOk(mode, cfg, _amountOutFor(ratio));
   }
 
@@ -552,7 +627,7 @@ contract ConditionalSwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     (, uint256 priceOut, uint256 ratio) = _readReal(_realChainlink(_fullBand(), _fullBand()));
 
-    OracleLib.OracleConfig memory cfg =
+    OracleConfig memory cfg =
       _realChainlink(_fullBand(), toPackedU128(priceOut * 2, type(uint128).max));
     _expectSwapRevert(mode, cfg, _amountOutFor(ratio));
   }
@@ -561,7 +636,7 @@ contract ConditionalSwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     (,, uint256 ratio) = _readReal(_realChainlink(_fullBand(), _fullBand()));
 
-    OracleLib.OracleConfig memory cfg = _realChainlink(_fullBand(), _fullBand());
+    OracleConfig memory cfg = _realChainlink(_fullBand(), _fullBand());
     cfg.oracleParams = _params(REAL_ORACLE_MAX_STALENESS, 2e16); // 2% tolerance
     _expectSwapRevert(mode, cfg, _amountOutFor((ratio * 90) / 100)); // -10%
   }
@@ -571,9 +646,135 @@ contract ConditionalSwapTest is BaseTest {
     (uint256 priceIn, uint256 priceOut, uint256 ratio) =
       _readReal(_realPyth(_fullBand(), _fullBand()));
 
-    OracleLib.OracleConfig memory cfg =
-      _realPyth(_band(priceIn, 200, 200), _band(priceOut, 200, 200));
+    OracleConfig memory cfg = _realPyth(_band(priceIn, 200, 200), _band(priceOut, 200, 200));
     _expectSwapOk(mode, cfg, _amountOutFor(ratio));
+  }
+
+  function test_Fork_ChainlinkReal_InverseOut_DirectValidate(uint256 amountIn) public view {
+    amountIn = bound(amountIn, 1e6, 1_000_000e6);
+    OracleConfig memory cfg = _config(
+      _emptyLeg(),
+      _chainlinkLeg(CHAINLINK_WBTC_USD, _fullBand(), true),
+      _params(REAL_ORACLE_MAX_STALENESS, 1e16)
+    );
+
+    (, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+
+    assertGt(priceOut, 0);
+    assertLt(priceOut, 1e18);
+    assertEq(ratio, priceOut * 100);
+
+    uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
+    assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
+    assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
+  }
+
+  function test_Fork_PythReal_InverseOut_DirectValidate(uint256 amountIn) public view {
+    amountIn = bound(amountIn, 1e6, 1_000_000e6);
+    OracleConfig memory cfg = _config(
+      _emptyLeg(),
+      _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, _fullBand(), true),
+      _params(PYTH_MAX_STALENESS, 1e16)
+    );
+
+    (, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+
+    assertGt(priceOut, 0);
+    assertLt(priceOut, 1e18);
+    assertEq(ratio, priceOut * 100);
+
+    uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
+    assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
+    assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
+  }
+
+  function test_Fork_ChainlinkReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn)
+    public
+    view
+  {
+    amountIn = bound(amountIn, 1e6, 1_000_000e6);
+    OracleConfig memory cfg = _config(
+      _chainlinkLeg(CHAINLINK_USDT_USD, _fullBand()),
+      _chainlinkLeg(CHAINLINK_WBTC_USD, _fullBand(), true),
+      _params(REAL_ORACLE_MAX_STALENESS, 1e16)
+    );
+
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+
+    assertGt(priceIn, 0);
+    assertGt(priceOut, 0);
+    assertLt(priceOut, 1e18);
+    assertEq(ratio, ((priceIn * priceOut) / 1e18) * 100);
+
+    uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
+    assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
+    assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
+  }
+
+  function test_Fork_PythReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn) public view {
+    amountIn = bound(amountIn, 1e6, 1_000_000e6);
+    OracleConfig memory cfg = _config(
+      _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, _fullBand()),
+      _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, _fullBand(), true),
+      _params(PYTH_MAX_STALENESS, 1e16)
+    );
+
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+
+    assertGt(priceIn, 0);
+    assertGt(priceOut, 0);
+    assertLt(priceOut, 1e18);
+    assertEq(ratio, ((priceIn * priceOut) / 1e18) * 100);
+
+    uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
+    assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
+    assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
+  }
+
+  function test_Fork_ChainlinkPythReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn)
+    public
+    view
+  {
+    amountIn = bound(amountIn, 1e6, 1_000_000e6);
+    OracleConfig memory cfg = _config(
+      _chainlinkLeg(CHAINLINK_USDT_USD, _fullBand()),
+      _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, _fullBand(), true),
+      _params(REAL_ORACLE_MAX_STALENESS, 1e16)
+    );
+
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+
+    assertGt(priceIn, 0);
+    assertGt(priceOut, 0);
+    assertLt(priceOut, 1e18);
+    assertEq(ratio, ((priceIn * priceOut) / 1e18) * 100);
+
+    uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
+    assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
+    assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
+  }
+
+  function test_Fork_PythChainlinkReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn)
+    public
+    view
+  {
+    amountIn = bound(amountIn, 1e6, 1_000_000e6);
+    OracleConfig memory cfg = _config(
+      _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, _fullBand()),
+      _chainlinkLeg(CHAINLINK_WBTC_USD, _fullBand(), true),
+      _params(REAL_ORACLE_MAX_STALENESS, 1e16)
+    );
+
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+
+    assertGt(priceIn, 0);
+    assertGt(priceOut, 0);
+    assertLt(priceOut, 1e18);
+    assertEq(ratio, ((priceIn * priceOut) / 1e18) * 100);
+
+    uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
+    assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
+    assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
   }
 
   function test_Fork_RealSwap_ChainlinkChainlink_Pass(uint256 mode) public {
@@ -592,20 +793,28 @@ contract ConditionalSwapTest is BaseTest {
     _runRealSwapOracle(mode, true, true, false);
   }
 
-  function test_Fork_RealSwap_ChainlinkPyth_Pass(uint256 mode) public {
+  function test_Fork_FullFlow_ChainlinkPyth_InverseOut_Pass(uint256 mode) public {
     _runRealSwapOracle(mode, false, true, true);
   }
 
-  function test_Fork_RealSwap_ChainlinkPyth_Fail(uint256 mode) public {
+  function test_Fork_FullFlow_ChainlinkPyth_InverseOut_Fail(uint256 mode) public {
     _runRealSwapOracle(mode, false, true, false);
   }
 
-  function test_Fork_RealSwap_PythChainlink_Pass(uint256 mode) public {
+  function test_Fork_FullFlow_ChainlinkPyth_InverseOut_MaxDeviationFail(uint256 mode) public {
+    _runRealSwapOracleMaxDeviationFail(mode, false, true);
+  }
+
+  function test_Fork_FullFlow_PythChainlink_InverseOut_Pass(uint256 mode) public {
     _runRealSwapOracle(mode, true, false, true);
   }
 
-  function test_Fork_RealSwap_PythChainlink_Fail(uint256 mode) public {
+  function test_Fork_FullFlow_PythChainlink_InverseOut_Fail(uint256 mode) public {
     _runRealSwapOracle(mode, true, false, false);
+  }
+
+  function test_Fork_FullFlow_PythChainlink_InverseOut_MaxDeviationFail(uint256 mode) public {
+    _runRealSwapOracleMaxDeviationFail(mode, true, false);
   }
 
   function _runRealSwapOracle(uint256 mode, bool inPyth, bool outPyth, bool ok) internal {
@@ -613,6 +822,21 @@ contract ConditionalSwapTest is BaseTest {
     (IntentData memory intentData, ActionData memory actionData) =
       _buildRealSwapOracle(inPyth, outPyth, ok);
     _assertRealSwapOracle(mode, intentData, actionData, ok);
+  }
+
+  function _runRealSwapOracleMaxDeviationFail(uint256 mode, bool inPyth, bool outPyth) internal {
+    mode = bound(mode, 0, 2);
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(
+      _config(_legIn(inPyth, _fullBand()), _legOut(outPyth, _fullBand()), _realOracleParams(0))
+    );
+
+    OracleConfig memory cfg = _config(
+      _legIn(inPyth, _band(priceIn, 100, 100)),
+      _legOut(outPyth, _band(priceOut, 100, 100)),
+      _realOracleParams(1e16) // 1% slippage tolerance
+    );
+
+    _expectSwapRevert(mode, cfg, _amountOutFor((ratio * 95) / 100)); // -5%
   }
 
   function _buildRealSwapOracle(bool inPyth, bool outPyth, bool ok)
@@ -627,7 +851,7 @@ contract ConditionalSwapTest is BaseTest {
     PackedU128 bandOut =
       ok ? _band(priceOut, 100, 100) : toPackedU128(priceOut * 2, type(uint128).max);
 
-    OracleLib.OracleConfig memory cfg = _config(
+    OracleConfig memory cfg = _config(
       _legIn(inPyth, _band(priceIn, 100, 100)),
       _legOut(outPyth, bandOut),
       _realOracleParams(1e17) // 10% slippage tolerance (live price vs the captured route)
@@ -666,24 +890,15 @@ contract ConditionalSwapTest is BaseTest {
     assertGt(IERC20(tokenOut).balanceOf(mainAddress), balBefore);
   }
 
-  function _legIn(bool pyth_, PackedU128 band)
-    internal
-    pure
-    returns (OracleLib.TokenOracle memory)
-  {
-    return pyth_
-      ? _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, band)
-      : _chainlinkLeg(CHAINLINK_USDT_USD, band);
+  function _legIn(bool pyth_, PackedU128 band) internal pure returns (TokenOracle memory) {
+    return
+      pyth_ ? _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, band) : _chainlinkLeg(CHAINLINK_USDT_USD, band);
   }
 
-  function _legOut(bool pyth_, PackedU128 band)
-    internal
-    pure
-    returns (OracleLib.TokenOracle memory)
-  {
+  function _legOut(bool pyth_, PackedU128 band) internal pure returns (TokenOracle memory) {
     return pyth_
-      ? _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, band)
-      : _chainlinkLeg(CHAINLINK_WBTC_USD, band);
+      ? _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, band, true)
+      : _chainlinkLeg(CHAINLINK_WBTC_USD, band, true);
   }
 
   /// @dev Chainlink and Pyth agree on the live BTC price within 1%.
@@ -701,11 +916,11 @@ contract ConditionalSwapTest is BaseTest {
   function _realChainlink(PackedU128 bandIn, PackedU128 bandOut)
     internal
     pure
-    returns (OracleLib.OracleConfig memory)
+    returns (OracleConfig memory)
   {
     return _config(
       _chainlinkLeg(CHAINLINK_USDT_USD, bandIn),
-      _chainlinkLeg(CHAINLINK_WBTC_USD, bandOut),
+      _chainlinkLeg(CHAINLINK_WBTC_USD, bandOut, true),
       _params(REAL_ORACLE_MAX_STALENESS, 0)
     );
   }
@@ -713,11 +928,11 @@ contract ConditionalSwapTest is BaseTest {
   function _realPyth(PackedU128 bandIn, PackedU128 bandOut)
     internal
     pure
-    returns (OracleLib.OracleConfig memory)
+    returns (OracleConfig memory)
   {
     return _config(
       _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, bandIn),
-      _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, bandOut),
+      _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, bandOut, true),
       _params(PYTH_MAX_STALENESS, 0)
     );
   }
@@ -734,15 +949,41 @@ contract ConditionalSwapTest is BaseTest {
     IPyth(PYTH_MAINNET).updatePriceFeeds{value: fee}(updateData);
   }
 
-  function _readReal(OracleLib.OracleConfig memory cfg)
+  function _readReal(OracleConfig memory cfg)
     internal
+    view
+    returns (uint256 priceIn, uint256 priceOut, uint256 ratio)
+  {
+    return this.readReal(cfg);
+  }
+
+  function readReal(OracleConfig calldata cfg)
+    external
     view
     returns (uint256 priceIn, uint256 priceOut, uint256 ratio)
   {
     return OracleLib.getPrices(cfg, tokenIn, tokenOut);
   }
 
-  function _oracleCondition(OracleLib.OracleConfig memory oracle)
+  function _validateOracle(
+    OracleConfig memory cfg,
+    address tokenIn_,
+    address tokenOut_,
+    uint256 realizedPrice
+  ) internal view returns (bool) {
+    return this.validateOracle(cfg, tokenIn_, tokenOut_, realizedPrice);
+  }
+
+  function validateOracle(
+    OracleConfig calldata cfg,
+    address tokenIn_,
+    address tokenOut_,
+    uint256 realizedPrice
+  ) external view returns (bool) {
+    return OracleLib.validate(cfg, tokenIn_, tokenOut_, realizedPrice);
+  }
+
+  function _oracleCondition(OracleConfig memory oracle)
     internal
     pure
     returns (KSConditionalSwapHook.SwapCondition memory)
@@ -757,7 +998,7 @@ contract ConditionalSwapTest is BaseTest {
     });
   }
 
-  function _single(OracleLib.OracleConfig memory oracle)
+  function _single(OracleConfig memory oracle)
     internal
     pure
     returns (KSConditionalSwapHook.SwapCondition[] memory conditions)
@@ -784,6 +1025,11 @@ contract ConditionalSwapTest is BaseTest {
   /// @dev amountOut that yields a realized price of `realizedPrice` for amountIn == swapAmount.
   function _amountOutFor(uint256 realizedPrice) internal view returns (uint256) {
     return (realizedPrice * swapAmount) / 1e18;
+  }
+
+  function _realizedPriceFor(uint256 ratio, uint256 amountIn) internal pure returns (uint256) {
+    uint256 amountOut = (ratio * amountIn) / 1e18;
+    return (amountOut * 1e18) / amountIn;
   }
 
   function _mockSwapAction() internal view returns (ActionData memory actionData) {
@@ -842,9 +1088,7 @@ contract ConditionalSwapTest is BaseTest {
     actionData.hookActionData = abi.encode(uint256(0), uint256(0));
   }
 
-  function _expectSwapOk(uint256 mode, OracleLib.OracleConfig memory cfg, uint256 amountOut)
-    internal
-  {
+  function _expectSwapOk(uint256 mode, OracleConfig memory cfg, uint256 amountOut) internal {
     (IntentData memory intentData, ActionData memory actionData) =
       _buildIntentAndAction(_single(cfg), amountOut);
     uint256 balBefore = IERC20(tokenOut).balanceOf(mainAddress);
@@ -852,9 +1096,7 @@ contract ConditionalSwapTest is BaseTest {
     assertGt(IERC20(tokenOut).balanceOf(mainAddress), balBefore);
   }
 
-  function _expectSwapRevert(uint256 mode, OracleLib.OracleConfig memory cfg, uint256 amountOut)
-    internal
-  {
+  function _expectSwapRevert(uint256 mode, OracleConfig memory cfg, uint256 amountOut) internal {
     (IntentData memory intentData, ActionData memory actionData) =
       _buildIntentAndAction(_single(cfg), amountOut);
     (address caller, bytes memory dk, bytes memory gd) =

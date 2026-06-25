@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
-import {OracleLib} from '../../libraries/OracleLib.sol';
+import {OracleConfig, OracleLib} from '../../libraries/OracleLib.sol';
 import {ActionData} from '../../types/ActionData.sol';
 import {IntentData} from '../../types/IntentData.sol';
 import {PackedU128, PackedU128Library} from '../../types/PackedU128.sol';
@@ -42,8 +42,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    * @param amountInLimits The limits of the swap amount (minAmountIn 128bits, maxAmountIn 128bits)
    * @param maxFees The max fees (srcFee 128bits, dstFee 128bits)
    * @param priceLimits The limits of the realized price (tokenOut/tokenIn denominated by 1e18) (minPrice 128bits, maxPrice 128bits)
-   * @param oracle The per-token oracle config (each leg Chainlink or Pyth), carrying the
-   *        per-token market-price bands and the staleness/slippage params
+   * @param oracle The oracle config, where oracleIn/oracleOut are price edges and an empty edge
+   *        is identity price 1, carrying market-price bands and staleness/slippage params
    */
   struct SwapCondition {
     uint8 swapLimit;
@@ -51,7 +51,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     PackedU128 amountInLimits;
     PackedU128 maxFees;
     PackedU128 priceLimits;
-    OracleLib.OracleConfig oracle;
+    OracleConfig oracle;
   }
 
   struct SwapValidationData {
