@@ -133,7 +133,16 @@ contract ConditionalSwapTest is BaseTest {
     TokenOracle memory oracleOut,
     PackedU128 oracleParams
   ) internal pure returns (OracleConfig memory) {
-    return OracleConfig(oracleIn, oracleOut, oracleParams);
+    return _config(oracleIn, oracleOut, oracleParams, _fullBand());
+  }
+
+  function _config(
+    TokenOracle memory oracleIn,
+    TokenOracle memory oracleOut,
+    PackedU128 oracleParams,
+    PackedU128 oracleRatioLimits
+  ) internal pure returns (OracleConfig memory) {
+    return OracleConfig(oracleIn, oracleOut, oracleParams, oracleRatioLimits);
   }
 
   function _directConfig(TokenOracle memory directOracle, PackedU128 oracleParams)
@@ -472,6 +481,28 @@ contract ConditionalSwapTest is BaseTest {
       _params(0, 1e16) // 1% tolerance
     );
     _expectSwapRevert(mode, cfg, _amountOutFor((ORACLE_RATIO * 95) / 100)); // -5%
+  }
+
+  function test_Chainlink_OracleRatioLimit_Pass(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _config(
+      _chainlinkLeg(address(feedIn), _fullBand()),
+      _chainlinkLeg(address(feedOut), _fullBand(), true),
+      _params(0, 0),
+      _band(ORACLE_RATIO, 100, 100)
+    );
+    _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
+  }
+
+  function test_Chainlink_OracleRatioLimit_Revert(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _config(
+      _chainlinkLeg(address(feedIn), _fullBand()),
+      _chainlinkLeg(address(feedOut), _fullBand(), true),
+      _params(0, 0),
+      toPackedU128(ORACLE_RATIO * 2, type(uint128).max)
+    );
+    _expectSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
 
   function testRevert_Chainlink_SlippageGuard_InvalidMaxDeviation(uint256 mode) public {

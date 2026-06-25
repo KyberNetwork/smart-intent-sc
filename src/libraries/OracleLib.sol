@@ -37,11 +37,13 @@ struct TokenOracle {
  * @param oracleIn First price edge.
  * @param oracleOut Second price edge.
  * @param oracleParams maxStaleness 128bits | maxDeviation 128bits, scaled by 1e18 (0 disables slippage guard).
+ * @param oracleRatioLimits Derived B/A oracle ratio band in raw swap-price units.
  */
 struct OracleConfig {
   TokenOracle oracleIn;
   TokenOracle oracleOut;
   PackedU128 oracleParams;
+  PackedU128 oracleRatioLimits;
 }
 
 library OracleLib {
@@ -68,8 +70,11 @@ library OracleLib {
     (uint256 priceOut, bool validOut) = config.oracleOut.getPriceAndValidate(maxStaleness);
     if (!validOut) return false;
 
+    uint256 ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
+    (uint128 minOracleRatio, uint128 maxOracleRatio) = config.oracleRatioLimits.unpack();
+    if (ratio < minOracleRatio || ratio > maxOracleRatio) return false;
+
     if (maxDeviation != 0 && maxDeviation < PRECISION) {
-      uint256 ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
       uint256 minRealizedPrice = Math.mulDiv(ratio, PRECISION - maxDeviation, PRECISION);
       if (realizedPrice < minRealizedPrice) return false;
     }
