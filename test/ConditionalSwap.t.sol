@@ -7,6 +7,7 @@ import 'src/hooks/swap/KSConditionalSwapHook.sol';
 
 import {IPyth} from 'src/interfaces/oracle/external/IPyth.sol';
 import {OracleConfig, OracleLib, OracleType, TokenOracle} from 'src/libraries/OracleLib.sol';
+import {toBoolAddress} from 'src/types/BoolAddress.sol';
 import {PackedU128, toPackedU128} from 'src/types/PackedU128.sol';
 
 import {MockChainlinkFeed} from './mocks/MockChainlinkFeed.sol';
@@ -93,7 +94,8 @@ contract ConditionalSwapTest is BaseTest {
   }
 
   function _emptyLeg() internal pure returns (TokenOracle memory) {
-    return TokenOracle(OracleType.NONE, address(0), bytes32(0), toPackedU128(0, 0), false);
+    return
+      TokenOracle(OracleType.NONE, toBoolAddress(false, address(0)), bytes32(0), toPackedU128(0, 0));
   }
 
   function _chainlinkLeg(address feed, PackedU128 priceLimits)
@@ -109,7 +111,7 @@ contract ConditionalSwapTest is BaseTest {
     pure
     returns (TokenOracle memory)
   {
-    return TokenOracle(OracleType.CHAINLINK, feed, bytes32(0), priceLimits, inverse);
+    return TokenOracle(OracleType.CHAINLINK, toBoolAddress(inverse, feed), bytes32(0), priceLimits);
   }
 
   function _pythLeg(address pyth_, bytes32 priceId, PackedU128 priceLimits)
@@ -125,7 +127,7 @@ contract ConditionalSwapTest is BaseTest {
     pure
     returns (TokenOracle memory)
   {
-    return TokenOracle(OracleType.PYTH, pyth_, priceId, priceLimits, inverse);
+    return TokenOracle(OracleType.PYTH, toBoolAddress(inverse, pyth_), priceId, priceLimits);
   }
 
   function _config(

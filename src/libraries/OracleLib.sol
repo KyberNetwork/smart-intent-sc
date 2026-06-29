@@ -6,6 +6,7 @@ import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 import {AggregatorV3Interface} from '../interfaces/oracle/external/AggregatorV3Interface.sol';
 import {IPyth} from '../interfaces/oracle/external/IPyth.sol';
+import {BoolAddress} from '../types/BoolAddress.sol';
 import {PackedU128, PackedU128Library} from '../types/PackedU128.sol';
 
 using OracleLib for TokenOracle global;
@@ -20,17 +21,15 @@ enum OracleType {
 /**
  * @notice Oracle for a single token or a direct pair.
  * @param oracleType type of the oracle.
- * @param source Chainlink feed or Pyth contract. Zero = no oracle for this slot.
+ * @param source Packed inverse flag and Chainlink feed or Pyth contract. Zero address = no oracle for this slot.
  * @param priceId Pyth price id (unused for Chainlink).
  * @param priceLimits Normalized price band per whole base token, 1e18-scaled (min 128bits | max 128bits).
- * @param inverse True if the raw oracle price is the inverse of the expected price.
  */
 struct TokenOracle {
   OracleType oracleType;
-  address source;
+  BoolAddress source;
   bytes32 priceId;
   PackedU128 priceLimits;
-  bool inverse;
 }
 
 /**
@@ -89,7 +88,7 @@ library OracleLib {
     view
     returns (uint256 price, bool)
   {
-    if (oracle.source == address(0)) return (PRECISION, true);
+    if (oracle.source.addressValue() == address(0)) return (PRECISION, true);
     price = oracle.getPrice(maxStaleness);
     (uint128 min, uint128 max) = oracle.priceLimits.unpack();
     if (price < min || price > max) {
@@ -105,10 +104,12 @@ library OracleLib {
     returns (uint256 priceIn, uint256 priceOut, uint256 ratio)
   {
     (uint128 maxStaleness,) = config.oracleParams.unpack();
-    priceIn =
-      config.oracleIn.source == address(0) ? PRECISION : config.oracleIn.getPrice(maxStaleness);
-    priceOut =
-      config.oracleOut.source == address(0) ? PRECISION : config.oracleOut.getPrice(maxStaleness);
+    priceIn = config.oracleIn.source.addressValue() == address(0)
+      ? PRECISION
+      : config.oracleIn.getPrice(maxStaleness);
+    priceOut = config.oracleOut.source.addressValue() == address(0)
+      ? PRECISION
+      : config.oracleOut.getPrice(maxStaleness);
     ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
   }
 
@@ -135,18 +136,17 @@ library OracleLib {
     view
     returns (uint256 price)
   {
+    (bool inverse, address source) = oracle.source.unpack();
     if (oracle.oracleType == OracleType.CHAINLINK) {
-      (, int256 answer,, uint256 updatedAt,) =
-        AggregatorV3Interface(oracle.source).latestRoundData();
+      (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(source).latestRoundData();
       if (answer <= 0) revert InvalidOraclePrice();
       if (block.timestamp - updatedAt > maxStaleness) {
         revert StaleOraclePrice();
       }
-      uint8 feedDecimals = AggregatorV3Interface(oracle.source).decimals();
+      uint8 feedDecimals = AggregatorV3Interface(source).decimals();
       price = Math.mulDiv(uint256(answer), PRECISION, 10 ** feedDecimals);
     } else if (oracle.oracleType == OracleType.PYTH) {
-      IPyth.Price memory pythPrice =
-        IPyth(oracle.source).getPriceNoOlderThan(oracle.priceId, maxStaleness);
+      IPyth.Price memory pythPrice = IPyth(source).getPriceNoOlderThan(oracle.priceId, maxStaleness);
       if (pythPrice.price <= 0) revert InvalidOraclePrice();
 
       int256 exponent = int256(pythPrice.expo) + 18;
@@ -159,7 +159,7 @@ library OracleLib {
       revert InvalidOraclePrice();
     }
 
-    if (oracle.inverse) {
+    if (inverse) {
       return Math.mulDiv(PRECISION, PRECISION, price);
     }
     return price;
