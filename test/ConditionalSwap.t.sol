@@ -13,6 +13,8 @@ import {PackedU128, toPackedU128} from 'src/types/PackedU128.sol';
 import {MockChainlinkFeed} from './mocks/MockChainlinkFeed.sol';
 import {MockPyth} from './mocks/MockPyth.sol';
 
+import {IMulticall3} from 'forge-std/interfaces/IMulticall3.sol';
+
 contract ConditionalSwapTest is BaseTest {
   using SafeERC20 for IERC20;
   using TokenHelper for address;
@@ -57,6 +59,7 @@ contract ConditionalSwapTest is BaseTest {
   // WBTC tracks BTC; use the canonical BTC/USD aggregator for the WBTC leg.
   address internal constant CHAINLINK_WBTC_USD = 0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c;
   address internal constant PYTH_MAINNET = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
+  address internal constant MULTICALL3 = 0xcA11bde05977b3631167028862bE2a173976CA11;
   bytes32 internal constant PYTH_USDT_USD =
     0x2b89b9dc8fdf9f34709a5b106b472f0f39bb6ca9ce04b0fd7f2e971688e2e53b;
   bytes32 internal constant PYTH_BTC_USD =
@@ -90,12 +93,12 @@ contract ConditionalSwapTest is BaseTest {
     pyth = new MockPyth(PYTH_FEE);
     pyth.setPrice(USDT_ID, int64(1e8), int32(-8), vm.getBlockTimestamp());
     pyth.setPrice(WBTC_ID, int64(int256(100_000e8)), int32(-8), vm.getBlockTimestamp());
-    _updateForkPythPrices();
   }
 
   function _emptyLeg() internal pure returns (TokenOracle memory) {
-    return
-      TokenOracle(OracleType.NONE, toBoolAddress(false, address(0)), bytes32(0), toPackedU128(0, 0));
+    return TokenOracle(
+      OracleType.NONE, toBoolAddress(false, address(0)), toPackedU128(0, 0), abi.encode(bytes32(0))
+    );
   }
 
   function _chainlinkLeg(address feed, PackedU128 priceLimits)
@@ -111,7 +114,9 @@ contract ConditionalSwapTest is BaseTest {
     pure
     returns (TokenOracle memory)
   {
-    return TokenOracle(OracleType.CHAINLINK, toBoolAddress(inverse, feed), bytes32(0), priceLimits);
+    return TokenOracle(
+      OracleType.CHAINLINK, toBoolAddress(inverse, feed), priceLimits, abi.encode(bytes32(0))
+    );
   }
 
   function _pythLeg(address pyth_, bytes32 priceId, PackedU128 priceLimits)
@@ -127,7 +132,9 @@ contract ConditionalSwapTest is BaseTest {
     pure
     returns (TokenOracle memory)
   {
-    return TokenOracle(OracleType.PYTH, toBoolAddress(inverse, pyth_), priceId, priceLimits);
+    return TokenOracle(
+      OracleType.PYTH, toBoolAddress(inverse, pyth_), priceLimits, abi.encode(priceId)
+    );
   }
 
   function _config(
@@ -676,11 +683,19 @@ contract ConditionalSwapTest is BaseTest {
 
   function test_Fork_PythReal_Read_Pass(uint256 mode) public {
     mode = bound(mode, 0, 2);
-    (uint256 priceIn, uint256 priceOut, uint256 ratio) =
-      _readReal(_realPyth(_fullBand(), _fullBand()));
+    OracleConfig memory cfg = _realPyth(_fullBand(), _fullBand());
 
-    OracleConfig memory cfg = _realPyth(_band(priceIn, 200, 200), _band(priceOut, 200, 200));
-    _expectSwapOk(mode, cfg, _amountOutFor(ratio));
+    (IntentData memory intentData, ActionData memory actionData) =
+      _buildIntentAndAction(_single(cfg), _amountOutFor(ORACLE_RATIO));
+
+    uint256 balBefore = IERC20(tokenOut).balanceOf(mainAddress);
+    _executeWithForkPythUpdateMulticall(mode, intentData, actionData, false);
+    assertGt(IERC20(tokenOut).balanceOf(mainAddress), balBefore);
+
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(cfg);
+    assertGt(priceIn, 0);
+    assertGt(priceOut, 0);
+    assertGt(ratio, 0);
   }
 
   function test_Fork_ChainlinkReal_InverseOut_DirectValidate(uint256 amountIn) public view {
@@ -702,7 +717,8 @@ contract ConditionalSwapTest is BaseTest {
     assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
   }
 
-  function test_Fork_PythReal_InverseOut_DirectValidate(uint256 amountIn) public view {
+  function test_Fork_PythReal_InverseOut_DirectValidate(uint256 amountIn) public {
+    _updateForkPythPrices();
     amountIn = bound(amountIn, 1e6, 1_000_000e6);
     OracleConfig memory cfg = _config(
       _emptyLeg(),
@@ -744,7 +760,8 @@ contract ConditionalSwapTest is BaseTest {
     assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
   }
 
-  function test_Fork_PythReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn) public view {
+  function test_Fork_PythReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn) public {
+    _updateForkPythPrices();
     amountIn = bound(amountIn, 1e6, 1_000_000e6);
     OracleConfig memory cfg = _config(
       _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, _fullBand()),
@@ -764,10 +781,8 @@ contract ConditionalSwapTest is BaseTest {
     assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
   }
 
-  function test_Fork_ChainlinkPythReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn)
-    public
-    view
-  {
+  function test_Fork_ChainlinkPythReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn) public {
+    _updateForkPythPrices();
     amountIn = bound(amountIn, 1e6, 1_000_000e6);
     OracleConfig memory cfg = _config(
       _chainlinkLeg(CHAINLINK_USDT_USD, _fullBand()),
@@ -787,10 +802,8 @@ contract ConditionalSwapTest is BaseTest {
     assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
   }
 
-  function test_Fork_PythChainlinkReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn)
-    public
-    view
-  {
+  function test_Fork_PythChainlinkReal_BothLegs_InverseOut_DirectValidate(uint256 amountIn) public {
+    _updateForkPythPrices();
     amountIn = bound(amountIn, 1e6, 1_000_000e6);
     OracleConfig memory cfg = _config(
       _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, _fullBand()),
@@ -854,38 +867,41 @@ contract ConditionalSwapTest is BaseTest {
     mode = bound(mode, 0, 2);
     (IntentData memory intentData, ActionData memory actionData) =
       _buildRealSwapOracle(inPyth, outPyth, ok);
-    _assertRealSwapOracle(mode, intentData, actionData, ok);
+    _assertRealSwapOracle(mode, intentData, actionData, ok, inPyth || outPyth);
   }
 
   function _runRealSwapOracleMaxDeviationFail(uint256 mode, bool inPyth, bool outPyth) internal {
     mode = bound(mode, 0, 2);
-    (uint256 priceIn, uint256 priceOut, uint256 ratio) = _readReal(
-      _config(_legIn(inPyth, _fullBand()), _legOut(outPyth, _fullBand()), _realOracleParams(0))
-    );
+    (uint256 priceIn, uint256 priceOut, uint256 ratio) =
+      _readReal(_realChainlink(_fullBand(), _fullBand()));
 
     OracleConfig memory cfg = _config(
-      _legIn(inPyth, _band(priceIn, 100, 100)),
-      _legOut(outPyth, _band(priceOut, 100, 100)),
+      _legIn(inPyth, inPyth ? _fullBand() : _band(priceIn, 100, 100)),
+      _legOut(outPyth, outPyth ? _fullBand() : _band(priceOut, 100, 100)),
       _realOracleParams(1e16) // 1% slippage tolerance
     );
 
-    _expectSwapRevert(mode, cfg, _amountOutFor((ratio * 95) / 100)); // -5%
+    if (inPyth || outPyth) {
+      _expectSwapRevertWithForkPythUpdateMulticall(mode, cfg, _amountOutFor((ratio * 95) / 100));
+    } else {
+      _expectSwapRevert(mode, cfg, _amountOutFor((ratio * 95) / 100)); // -5%
+    }
   }
 
   function _buildRealSwapOracle(bool inPyth, bool outPyth, bool ok)
     internal
     returns (IntentData memory intentData, ActionData memory actionData)
   {
-    // read the live per-leg USD prices (read-only; Pyth legs are already on-chain at the fork)
-    (uint256 priceIn, uint256 priceOut,) = _readReal(
-      _config(_legIn(inPyth, _fullBand()), _legOut(outPyth, _fullBand()), _realOracleParams(0))
-    );
+    (uint256 priceIn, uint256 priceOut,) = _readReal(_realChainlink(_fullBand(), _fullBand()));
 
-    PackedU128 bandOut =
-      ok ? _band(priceOut, 100, 100) : toPackedU128(priceOut * 2, type(uint128).max);
+    PackedU128 bandOut = ok
+      ? (outPyth ? _fullBand() : _band(priceOut, 100, 100))
+      : (outPyth
+          ? toPackedU128(type(uint128).max - 1, type(uint128).max)
+          : toPackedU128(priceOut * 2, type(uint128).max));
 
     OracleConfig memory cfg = _config(
-      _legIn(inPyth, _band(priceIn, 100, 100)),
+      _legIn(inPyth, inPyth ? _fullBand() : _band(priceIn, 100, 100)),
       _legOut(outPyth, bandOut),
       _realOracleParams(1e17) // 10% slippage tolerance (live price vs the captured route)
     );
@@ -904,12 +920,20 @@ contract ConditionalSwapTest is BaseTest {
     uint256 mode,
     IntentData memory intentData,
     ActionData memory actionData,
-    bool ok
+    bool ok,
+    bool updatePyth
   ) internal {
     (address caller, bytes memory dk, bytes memory gd) =
       _getCallerAndSignatures(mode, intentData, actionData);
 
     if (!ok) {
+      if (updatePyth) {
+        IMulticall3.Result[] memory results =
+          _executeWithForkPythUpdateMulticall(mode, intentData, actionData, true);
+        assertFalse(results[1].success);
+        assertEq(_revertSelector(results[1].returnData), KSConditionalSwapHook.InvalidSwap.selector);
+        return;
+      }
       vm.startPrank(caller);
       vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
       router.execute(intentData, dk, guardian, gd, actionData);
@@ -917,9 +941,13 @@ contract ConditionalSwapTest is BaseTest {
     }
 
     uint256 balBefore = IERC20(tokenOut).balanceOf(mainAddress);
-    vm.startPrank(caller);
-    router.execute(intentData, dk, guardian, gd, actionData);
-    vm.stopPrank();
+    if (updatePyth) {
+      _executeWithForkPythUpdateMulticall(mode, intentData, actionData, false);
+    } else {
+      vm.startPrank(caller);
+      router.execute(intentData, dk, guardian, gd, actionData);
+      vm.stopPrank();
+    }
     assertGt(IERC20(tokenOut).balanceOf(mainAddress), balBefore);
   }
 
@@ -935,7 +963,8 @@ contract ConditionalSwapTest is BaseTest {
   }
 
   /// @dev Chainlink and Pyth agree on the live BTC price within 1%.
-  function test_Fork_RealOracles_Agree() public view {
+  function test_Fork_RealOracles_Agree() public {
+    _updateForkPythPrices();
     (,, uint256 clRatio) = _readReal(_realChainlink(_fullBand(), _fullBand()));
     (,, uint256 pythRatio) = _readReal(_realPyth(_fullBand(), _fullBand()));
     uint256 diff = clRatio > pythRatio ? clRatio - pythRatio : pythRatio - clRatio;
@@ -975,11 +1004,15 @@ contract ConditionalSwapTest is BaseTest {
   }
 
   function _updateForkPythPrices() internal {
-    bytes[] memory updateData = new bytes[](1);
-    updateData[0] = PYTH_UPDATE_DATA;
+    bytes[] memory updateData = _forkPythUpdateData();
     uint256 fee = IPyth(PYTH_MAINNET).getUpdateFee(updateData);
     vm.deal(address(this), address(this).balance + fee);
     IPyth(PYTH_MAINNET).updatePriceFeeds{value: fee}(updateData);
+  }
+
+  function _forkPythUpdateData() internal pure returns (bytes[] memory updateData) {
+    updateData = new bytes[](1);
+    updateData[0] = PYTH_UPDATE_DATA;
   }
 
   function _readReal(OracleConfig memory cfg)
@@ -1139,6 +1172,19 @@ contract ConditionalSwapTest is BaseTest {
     router.execute(intentData, dk, guardian, gd, actionData);
   }
 
+  function _expectSwapRevertWithForkPythUpdateMulticall(
+    uint256 mode,
+    OracleConfig memory cfg,
+    uint256 amountOut
+  ) internal {
+    (IntentData memory intentData, ActionData memory actionData) =
+      _buildIntentAndAction(_single(cfg), amountOut);
+    IMulticall3.Result[] memory results =
+      _executeWithForkPythUpdateMulticall(mode, intentData, actionData, true);
+    assertFalse(results[1].success);
+    assertEq(_revertSelector(results[1].returnData), KSConditionalSwapHook.InvalidSwap.selector);
+  }
+
   function _executeSwap(uint256 mode, IntentData memory intentData, ActionData memory actionData)
     internal
   {
@@ -1147,6 +1193,53 @@ contract ConditionalSwapTest is BaseTest {
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     vm.stopPrank();
+  }
+
+  function _executeWithForkPythUpdateMulticall(
+    uint256 mode,
+    IntentData memory intentData,
+    ActionData memory actionData,
+    bool allowRouterFailure
+  ) internal returns (IMulticall3.Result[] memory results) {
+    (address caller,,) = _getCallerAndSignatures(mode, intentData, actionData);
+    bytes memory dkSignature = _getDKSignature(intentData, actionData);
+    bytes memory gdSignature = _getGDSignature(intentData, actionData);
+
+    bytes[] memory updateData = _forkPythUpdateData();
+    uint256 fee = IPyth(PYTH_MAINNET).getUpdateFee(updateData);
+
+    IMulticall3.Call3Value[] memory calls = new IMulticall3.Call3Value[](2);
+    calls[0] = IMulticall3.Call3Value({
+      target: PYTH_MAINNET,
+      allowFailure: false,
+      value: fee,
+      callData: abi.encodeCall(IPyth.updatePriceFeeds, (updateData))
+    });
+    calls[1] = IMulticall3.Call3Value({
+      target: address(router),
+      allowFailure: allowRouterFailure,
+      value: 0,
+      callData: abi.encodeCall(
+        router.execute, (intentData, dkSignature, guardian, gdSignature, actionData)
+      )
+    });
+
+    vm.deal(caller, caller.balance + fee);
+    vm.startPrank(caller);
+    results = IMulticall3(MULTICALL3).aggregate3Value{value: fee}(calls);
+    vm.stopPrank();
+
+    assertTrue(results[0].success);
+    if (!allowRouterFailure) {
+      assertTrue(results[1].success);
+    }
+  }
+
+  function _revertSelector(bytes memory revertData) internal pure returns (bytes4 selector) {
+    assertGe(revertData.length, 4);
+    assembly ('memory-safe') {
+      selector := mload(add(revertData, 0x20))
+    }
   }
 
   function _expectExecuteRevert(

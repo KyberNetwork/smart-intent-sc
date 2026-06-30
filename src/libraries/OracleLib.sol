@@ -8,6 +8,7 @@ import {AggregatorV3Interface} from '../interfaces/oracle/external/AggregatorV3I
 import {IPyth} from '../interfaces/oracle/external/IPyth.sol';
 import {BoolAddress} from '../types/BoolAddress.sol';
 import {PackedU128, PackedU128Library} from '../types/PackedU128.sol';
+import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
 
 using OracleLib for TokenOracle global;
 using OracleLib for OracleConfig global;
@@ -22,14 +23,14 @@ enum OracleType {
  * @notice Oracle for a single token or a direct pair.
  * @param oracleType type of the oracle.
  * @param source Packed inverse flag and Chainlink feed or Pyth contract. Zero address = no oracle for this slot.
- * @param priceId Pyth price id (unused for Chainlink).
  * @param priceLimits Normalized price band per whole base token, 1e18-scaled (min 128bits | max 128bits).
+ * @param additionalData Oracle-specific data.
  */
 struct TokenOracle {
   OracleType oracleType;
   BoolAddress source;
-  bytes32 priceId;
   PackedU128 priceLimits;
+  bytes additionalData;
 }
 
 /**
@@ -46,10 +47,14 @@ struct OracleConfig {
 }
 
 library OracleLib {
-  uint256 internal constant PRECISION = 1e18;
+  using CalldataDecoder for *;
+
   error InvalidOraclePrice();
+  error InvalidOracleType();
   error InvalidMaxDeviation();
   error StaleOraclePrice();
+
+  uint256 internal constant PRECISION = 1e18;
 
   /**
    * @notice Validates oracle price bands and minimum realized swap price.
@@ -146,7 +151,8 @@ library OracleLib {
       uint8 feedDecimals = AggregatorV3Interface(source).decimals();
       price = Math.mulDiv(uint256(answer), PRECISION, 10 ** feedDecimals);
     } else if (oracle.oracleType == OracleType.PYTH) {
-      IPyth.Price memory pythPrice = IPyth(source).getPriceNoOlderThan(oracle.priceId, maxStaleness);
+      IPyth.Price memory pythPrice =
+        IPyth(source).getPriceNoOlderThan(oracle.additionalData.decodeBytes32(), maxStaleness);
       if (pythPrice.price <= 0) revert InvalidOraclePrice();
 
       int256 exponent = int256(pythPrice.expo) + 18;
@@ -156,7 +162,7 @@ library OracleLib {
         price = uint256(uint64(pythPrice.price)) / (10 ** uint256(-exponent));
       }
     } else {
-      revert InvalidOraclePrice();
+      revert InvalidOracleType();
     }
 
     if (inverse) {

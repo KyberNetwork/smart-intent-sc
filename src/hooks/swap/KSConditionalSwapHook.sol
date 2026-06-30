@@ -167,15 +167,17 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 amountOut = _getRecipientBalance(
       tokenOut, validationData.recipient, validationData.dstFeePercent
     ) - validationData.recipientBalanceBefore;
+    uint256 dstFee = (amountOut * validationData.dstFeePercent) / PRECISION;
+    uint256 netAmountOut = amountOut - dstFee;
 
-    uint256 price = (amountOut * DENOMINATOR) / amountIn;
+    uint256 netExecutionPrice = (netAmountOut * DENOMINATOR) / amountIn;
 
     SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
 
     _validateSwapCondition(
       swapHookData.swapConditions[validationData.intentIndex],
       swapRecord[validationData.intentHash][validationData.intentIndex],
-      price,
+      netExecutionPrice,
       amountIn,
       validationData.srcFeePercent,
       validationData.dstFeePercent,
@@ -191,10 +193,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     tokens[0] = tokenOut;
 
     fees = new uint256[](1);
-    fees[0] = (amountOut * validationData.dstFeePercent) / PRECISION;
+    fees[0] = dstFee;
 
     amounts = new uint256[](1);
-    amounts[0] = amountOut - fees[0];
+    amounts[0] = netAmountOut;
 
     recipient = validationData.recipient;
 
