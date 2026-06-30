@@ -1,2 +1,3 @@
 forge-std/=lib/ks-common-sc/lib/forge-std/src/
-ks-common-sc/=lib/ks-common-sc
+ks-common-sc/=lib/ks-common-sc/
+ks-zap-aggregation-public-sc/=lib/ks-zap-aggregation-public-sc/
