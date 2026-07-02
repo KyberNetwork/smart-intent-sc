@@ -87,8 +87,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
 
-  receive() external payable {}
-
   modifier checkTokenLengths(ActionData calldata actionData) override {
     require(actionData.erc20Ids.length == 1, InvalidTokenData());
     require(actionData.erc721Ids.length == 0, InvalidTokenData());
