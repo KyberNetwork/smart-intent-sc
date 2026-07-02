@@ -15,7 +15,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   using CalldataDecoder for bytes;
 
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
-  error AmountInMismatch(uint256 amountIn, uint256 actualAmountIn);
   error InvalidSwap();
 
   uint256 public constant DENOMINATOR = 1e18;
@@ -62,8 +61,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 amountIn;
     uint256 recipientBalanceBefore;
     uint256 swapperBalanceBefore;
-    uint256 srcFeePercent;
-    uint256 dstFeePercent;
+    uint256 srcFeeRate;
+    uint256 dstFeeRate;
     address recipient;
   }
 
@@ -101,7 +100,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
-    (uint256 index, uint256 intentSrcFee, uint256 intentDstFee) =
+    (uint256 index, uint256 intentSrcFeeRate, uint256 intentDstFeeRate) =
       _decodeHookActionData(actionData.hookActionData);
 
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
@@ -121,17 +120,18 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 amountIn = actionData.erc20Amounts[0];
 
     fees = new uint256[](1);
-    fees[0] = (amountIn * intentSrcFee) / PRECISION;
+    fees[0] = (amountIn * intentSrcFeeRate) / PRECISION;
+    // order must match SwapValidationData
     beforeExecutionData = abi.encode(
       intentHash,
       index,
       tokenIn,
       tokenOut,
       amountIn,
-      _getRecipientBalance(tokenOut, recipient, intentDstFee),
+      _getRecipientBalance(tokenOut, recipient, intentDstFeeRate),
       tokenIn.balanceOf(intentData.coreData.mainAddress),
-      intentSrcFee,
-      intentDstFee,
+      intentSrcFeeRate,
+      intentDstFeeRate,
       recipient
     );
 
@@ -160,14 +160,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenOut = validationData.tokenOut;
     uint256 amountIn = validationData.amountIn;
 
-    uint256 swappedAmount =
-      validationData.swapperBalanceBefore - tokenIn.balanceOf(intentData.coreData.mainAddress);
-    require(swappedAmount <= amountIn, AmountInMismatch(amountIn, swappedAmount));
-
     uint256 amountOut = _getRecipientBalance(
-      tokenOut, validationData.recipient, validationData.dstFeePercent
+      tokenOut, validationData.recipient, validationData.dstFeeRate
     ) - validationData.recipientBalanceBefore;
-    uint256 dstFee = (amountOut * validationData.dstFeePercent) / PRECISION;
+    uint256 dstFee = (amountOut * validationData.dstFeeRate) / PRECISION;
     uint256 netAmountOut = amountOut - dstFee;
 
     uint256 netExecutionPrice = (netAmountOut * DENOMINATOR) / amountIn;
@@ -179,13 +175,13 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       swapRecord[validationData.intentHash][validationData.intentIndex],
       netExecutionPrice,
       amountIn,
-      validationData.srcFeePercent,
-      validationData.dstFeePercent,
+      validationData.srcFeeRate,
+      validationData.dstFeeRate,
       tokenIn,
       tokenOut
     );
 
-    if (validationData.dstFeePercent == 0) {
+    if (validationData.dstFeeRate == 0) {
       return (tokens, fees, amounts, recipient);
     }
 
@@ -296,12 +292,12 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     return true;
   }
 
-  function _getRecipientBalance(address tokenOut, address recipient, uint256 feePercent)
+  function _getRecipientBalance(address tokenOut, address recipient, uint256 intentDstFee)
     internal
     view
     returns (uint256)
   {
-    if (feePercent != 0) {
+    if (intentDstFee != 0) {
       return tokenOut.balanceOf(msg.sender);
     }
     return tokenOut.balanceOf(recipient);
