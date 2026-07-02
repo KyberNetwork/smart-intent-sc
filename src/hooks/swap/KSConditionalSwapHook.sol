@@ -15,7 +15,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   using CalldataDecoder for bytes;
 
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
-  error InvalidSwap();
   error InvalidSwapTime(uint256 timestamp, uint128 minTime, uint128 maxTime);
   error InvalidSwapAmountIn(uint256 amountIn, uint128 minAmountIn, uint128 maxAmountIn);
   error InvalidSwapFee(
