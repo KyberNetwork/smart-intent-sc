@@ -16,6 +16,14 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   error InvalidTokenIn(address tokenIn, address actualTokenIn);
   error InvalidSwap();
+  error InvalidSwapTime(uint256 timestamp, uint128 minTime, uint128 maxTime);
+  error InvalidSwapAmountIn(uint256 amountIn, uint128 minAmountIn, uint128 maxAmountIn);
+  error InvalidSwapFee(
+    uint256 srcFeePercent, uint256 dstFeePercent, uint128 maxSrcFee, uint128 maxDstFee
+  );
+  error InvalidSwapPrice(uint256 price, uint128 minPrice, uint128 maxPrice);
+  error MaxConditionIndex();
+  error SwapLimitExceeded(uint256 conditionIndex, uint8 swapLimit);
 
   uint256 public constant DENOMINATOR = 1e18;
   uint256 public constant PRECISION = 1_000_000;
@@ -56,6 +64,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   struct SwapValidationData {
     bytes32 intentHash;
     uint256 intentIndex;
+    uint256 conditionIndex;
     address tokenIn;
     address tokenOut;
     uint256 amountIn;
@@ -100,7 +109,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     checkTokenLengths(actionData)
     returns (uint256[] memory fees, bytes memory beforeExecutionData)
   {
-    (uint256 index, uint256 intentSrcFeeRate, uint256 intentDstFeeRate) =
+    (uint256 index, uint256 conditionIndex, uint256 intentSrcFeeRate, uint256 intentDstFeeRate) =
       _decodeHookActionData(actionData.hookActionData);
 
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
@@ -125,6 +134,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     beforeExecutionData = abi.encode(
       intentHash,
       index,
+      conditionIndex,
       tokenIn,
       tokenOut,
       amountIn,
@@ -171,8 +181,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     SwapHookData calldata swapHookData = _decodeHookData(intentData.coreData.hookIntentData);
 
     _validateSwapCondition(
-      swapHookData.swapConditions[validationData.intentIndex],
+      swapHookData.swapConditions[validationData.intentIndex][validationData.conditionIndex],
       swapRecord[validationData.intentHash][validationData.intentIndex],
+      validationData.conditionIndex,
       netExecutionPrice,
       amountIn,
       validationData.srcFeeRate,
@@ -218,8 +229,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   }
 
   function _validateSwapCondition(
-    SwapCondition[] calldata swapCondition,
+    SwapCondition calldata condition,
     mapping(uint256 swapIndexes => uint256 swapCounts) storage record,
+    uint256 conditionIndex,
     uint256 price,
     uint256 amountIn,
     uint256 srcFeePercent,
@@ -227,69 +239,62 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenIn,
     address tokenOut
   ) internal {
-    for (uint256 i; i < swapCondition.length; ++i) {
-      SwapCondition calldata condition = swapCondition[i];
-
-      (uint128 minTime, uint128 maxTime) = condition.timeLimits.unpack();
-      if (block.timestamp < minTime || block.timestamp > maxTime) {
-        continue;
-      }
-
-      (uint128 minAmountIn, uint128 maxAmountIn) = condition.amountInLimits.unpack();
-      if (amountIn < minAmountIn || amountIn > maxAmountIn) {
-        continue;
-      }
-
-      (uint128 maxSrcFee, uint128 maxDstFee) = condition.maxFees.unpack();
-      if (srcFeePercent > maxSrcFee || dstFeePercent > maxDstFee) {
-        continue;
-      }
-
-      (uint128 minPrice, uint128 maxPrice) = condition.priceLimits.unpack();
-      if (price < minPrice || price > maxPrice) {
-        continue;
-      }
-
-      if (!OracleLib.validate(condition.oracle, tokenIn, tokenOut, price)) {
-        continue;
-      }
-
-      if (!_increaseByOne(record, uint8(i), condition.swapLimit)) {
-        continue;
-      }
-      return;
+    (uint128 minTime, uint128 maxTime) = condition.timeLimits.unpack();
+    if (block.timestamp < minTime || block.timestamp > maxTime) {
+      revert InvalidSwapTime(block.timestamp, minTime, maxTime);
     }
 
-    revert InvalidSwap();
+    (uint128 minAmountIn, uint128 maxAmountIn) = condition.amountInLimits.unpack();
+    if (amountIn < minAmountIn || amountIn > maxAmountIn) {
+      revert InvalidSwapAmountIn(amountIn, minAmountIn, maxAmountIn);
+    }
+
+    (uint128 maxSrcFee, uint128 maxDstFee) = condition.maxFees.unpack();
+    if (srcFeePercent > maxSrcFee || dstFeePercent > maxDstFee) {
+      revert InvalidSwapFee(srcFeePercent, dstFeePercent, maxSrcFee, maxDstFee);
+    }
+
+    (uint128 minPrice, uint128 maxPrice) = condition.priceLimits.unpack();
+    if (price < minPrice || price > maxPrice) {
+      revert InvalidSwapPrice(price, minPrice, maxPrice);
+    }
+    if (
+      condition.oracle.oracleIn.source.addressValue() != address(0)
+        || condition.oracle.oracleOut.source.addressValue() != address(0)
+    ) {
+      OracleLib.validate(condition.oracle, tokenIn, tokenOut, price);
+    }
+
+    _increaseByOne(record, conditionIndex, condition.swapLimit);
   }
 
   /**
    * @notice Increments swap count for a specific condition index
-   * @dev Uses bit manipulation to efficiently store counts in packed format
+   * @dev Uses bit manipulation to efficiently store counts in packed format.
+   *      Each uint256 slot holds 32 uint8 counters; the slot is selected by index/32
+   *      and the byte position within that slot by index%32.
    * @param record Storage mapping containing packed swap counts
    * @param index The condition index to increment
-   * @param limit Maximum allowed swaps for this condition
-   * @return success True if increment was successful (within limit), false otherwise
+   * @param limit Maximum allowed swaps for this condition. Zero skips tracking and limit checks.
    */
   function _increaseByOne(
     mapping(uint256 packedIndexes => uint256 packedValues) storage record,
-    uint8 index,
+    uint256 index,
     uint8 limit
-  ) internal returns (bool) {
-    uint256 packedValue = record[index / 32];
-    uint256 bytePosition = index % 32;
+  ) internal {
+    if (limit == 0) return;
+    require(index <= type(uint8).max, MaxConditionIndex());
+    uint256 slotKey = index / 32;
+    uint256 shift = (index % 32) * 8;
+    uint256 packedValue = record[slotKey];
 
-    uint8 swapCount = uint8(packedValue >> (bytePosition * 8)) + 1;
+    uint8 swapCount = uint8(packedValue >> shift) + 1;
 
     if (swapCount > limit) {
-      return false;
+      revert SwapLimitExceeded(index, limit);
     }
 
-    packedValue += 1 << (bytePosition * 8);
-
-    record[index / 32] = packedValue;
-
-    return true;
+    record[slotKey] = packedValue + (1 << shift);
   }
 
   function _getRecipientBalance(address tokenOut, address recipient, uint256 intentDstFee)
@@ -318,12 +323,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   function _decodeHookActionData(bytes calldata data)
     internal
     pure
-    returns (uint256 index, uint256 intentSrcFee, uint256 intentDstFee)
+    returns (uint256 index, uint256 conditionIndex, uint256 intentSrcFee, uint256 intentDstFee)
   {
-    index = data.decodeUint256(0);
-    (uint128 srcFee, uint128 dstFee) = PackedU128.wrap(data.decodeUint256(1)).unpack();
-    intentSrcFee = srcFee;
-    intentDstFee = dstFee;
+    (index, conditionIndex) = PackedU128.wrap(data.decodeUint256(0)).unpack();
+    (intentSrcFee, intentDstFee) = PackedU128.wrap(data.decodeUint256(1)).unpack();
   }
 
   // @dev: equivalent to abi.decode(data, (SwapValidationData))

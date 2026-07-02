@@ -52,12 +52,15 @@ library OracleLib {
   error InvalidOraclePrice();
   error InvalidOracleType();
   error InvalidMaxDeviation();
+  error OraclePriceOutOfRange(uint256 price, uint128 minPrice, uint128 maxPrice);
+  error OracleRatioOutOfRange(uint256 ratio, uint128 minRatio, uint128 maxRatio);
+  error RealizedPriceBelowOracle(uint256 realizedPrice, uint256 minRealizedPrice);
   error StaleOraclePrice();
 
   uint256 internal constant PRECISION = 1e18;
 
   /**
-   * @notice Validates oracle price bands and minimum realized swap price.
+   * @notice Validates oracle price bands and minimum realized swap price, reverting on failure.
    * @param realizedPrice Raw swap price: `amountOut_raw * 1e18 / amountIn_raw`.
    */
   function validate(
@@ -65,41 +68,41 @@ library OracleLib {
     address tokenIn,
     address tokenOut,
     uint256 realizedPrice
-  ) internal view returns (bool) {
+  ) internal view {
     (uint128 maxStaleness, uint128 maxDeviation) = config.oracleParams.unpack();
     require(maxDeviation <= PRECISION, InvalidMaxDeviation());
 
-    (uint256 priceIn, bool validIn) = config.oracleIn.getPriceAndValidate(maxStaleness);
-    if (!validIn) return false;
-    (uint256 priceOut, bool validOut) = config.oracleOut.getPriceAndValidate(maxStaleness);
-    if (!validOut) return false;
+    uint256 priceIn = config.oracleIn.getPriceAndValidate(maxStaleness);
+    uint256 priceOut = config.oracleOut.getPriceAndValidate(maxStaleness);
 
     uint256 ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
     (uint128 minOracleRatio, uint128 maxOracleRatio) = config.oracleRatioLimits.unpack();
-    if (ratio < minOracleRatio || ratio > maxOracleRatio) return false;
+    if (ratio < minOracleRatio || ratio > maxOracleRatio) {
+      revert OracleRatioOutOfRange(ratio, minOracleRatio, maxOracleRatio);
+    }
 
     if (maxDeviation != 0 && maxDeviation < PRECISION) {
       uint256 minRealizedPrice = Math.mulDiv(ratio, PRECISION - maxDeviation, PRECISION);
-      if (realizedPrice < minRealizedPrice) return false;
+      if (realizedPrice < minRealizedPrice) {
+        revert RealizedPriceBelowOracle(realizedPrice, minRealizedPrice);
+      }
     }
-
-    return true;
   }
 
-  /// @notice Returns the oracle price and whether it is inside its configured band.
-  /// @dev Empty oracle slots return identity price 1e18 and are always valid.
+  /// @notice Returns the oracle price, reverting if it is outside its configured band.
+  /// @dev Empty oracle slots return identity price 1e18.
   function getPriceAndValidate(TokenOracle calldata oracle, uint256 maxStaleness)
     internal
     view
-    returns (uint256 price, bool)
+    returns (uint256 price)
   {
-    if (oracle.source.addressValue() == address(0)) return (PRECISION, true);
+    if (oracle.source.addressValue() == address(0)) return PRECISION;
     price = oracle.getPrice(maxStaleness);
     (uint128 min, uint128 max) = oracle.priceLimits.unpack();
     if (price < min || price > max) {
-      return (price, false);
+      revert OraclePriceOutOfRange(price, min, max);
     }
-    return (price, true);
+    return price;
   }
 
   /// @notice Oracle edge prices (1e18) and the derived raw-basis ratio.

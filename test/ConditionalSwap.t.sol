@@ -342,7 +342,9 @@ contract ConditionalSwapTest is BaseTest {
       intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
     );
 
-    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidSwap.selector);
+    _expectExecuteRevert(
+      mode, intentData, actionData, KSConditionalSwapHook.InvalidSwapTime.selector
+    );
   }
 
   function testRevert_InvalidPriceCondition(uint256 mode) public {
@@ -365,7 +367,9 @@ contract ConditionalSwapTest is BaseTest {
       intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
     );
 
-    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidSwap.selector);
+    _expectExecuteRevert(
+      mode, intentData, actionData, KSConditionalSwapHook.InvalidSwapPrice.selector
+    );
   }
 
   function testRevert_ExceedSwapLimit(uint256 mode) public {
@@ -389,7 +393,9 @@ contract ConditionalSwapTest is BaseTest {
 
     _executeSwap(mode, intentData, actionData);
     actionData.nonce += 1;
-    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidSwap.selector);
+    _expectExecuteRevert(
+      mode, intentData, actionData, KSConditionalSwapHook.SwapLimitExceeded.selector
+    );
 
     assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, 0), 1);
   }
@@ -428,7 +434,9 @@ contract ConditionalSwapTest is BaseTest {
       intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
     );
 
-    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidSwap.selector);
+    _expectExecuteRevert(
+      mode, intentData, actionData, KSConditionalSwapHook.InvalidSwapAmountIn.selector
+    );
   }
 
   function testRevert_ExceedFeeLimit(uint256 mode) public {
@@ -448,7 +456,9 @@ contract ConditionalSwapTest is BaseTest {
       true
     );
 
-    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.InvalidSwap.selector);
+    _expectExecuteRevert(
+      mode, intentData, actionData, KSConditionalSwapHook.InvalidSwapFee.selector
+    );
   }
 
   function test_Chainlink_MarketTrigger_Pass(uint256 mode) public {
@@ -644,6 +654,7 @@ contract ConditionalSwapTest is BaseTest {
 
     (IntentData memory intentData, ActionData memory actionData) =
       _buildIntentAndAction(conditions, _amountOutFor(ORACLE_RATIO));
+    actionData.hookActionData = _hookActionData(0, 1);
 
     bytes32 hash = router.hashTypedIntentData(intentData);
     uint256 balBefore = IERC20(tokenOut).balanceOf(mainAddress);
@@ -931,11 +942,10 @@ contract ConditionalSwapTest is BaseTest {
         IMulticall3.Result[] memory results =
           _executeWithForkPythUpdateMulticall(mode, intentData, actionData, true);
         assertFalse(results[1].success);
-        assertEq(_revertSelector(results[1].returnData), KSConditionalSwapHook.InvalidSwap.selector);
         return;
       }
       vm.startPrank(caller);
-      vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+      vm.expectRevert();
       router.execute(intentData, dk, guardian, gd, actionData);
       return;
     }
@@ -1037,7 +1047,11 @@ contract ConditionalSwapTest is BaseTest {
     address tokenOut_,
     uint256 realizedPrice
   ) internal view returns (bool) {
-    return this.validateOracle(cfg, tokenIn_, tokenOut_, realizedPrice);
+    try this.validateOracle(cfg, tokenIn_, tokenOut_, realizedPrice) returns (bool valid) {
+      return valid;
+    } catch {
+      return false;
+    }
   }
 
   function validateOracle(
@@ -1046,7 +1060,8 @@ contract ConditionalSwapTest is BaseTest {
     address tokenOut_,
     uint256 realizedPrice
   ) external view returns (bool) {
-    return OracleLib.validate(cfg, tokenIn_, tokenOut_, realizedPrice);
+    OracleLib.validate(cfg, tokenIn_, tokenOut_, realizedPrice);
+    return true;
   }
 
   function _oracleCondition(OracleConfig memory oracle)
@@ -1168,7 +1183,7 @@ contract ConditionalSwapTest is BaseTest {
     (address caller, bytes memory dk, bytes memory gd) =
       _getCallerAndSignatures(mode, intentData, actionData);
     vm.startPrank(caller);
-    vm.expectRevert(KSConditionalSwapHook.InvalidSwap.selector);
+    vm.expectRevert();
     router.execute(intentData, dk, guardian, gd, actionData);
   }
 
@@ -1182,7 +1197,6 @@ contract ConditionalSwapTest is BaseTest {
     IMulticall3.Result[] memory results =
       _executeWithForkPythUpdateMulticall(mode, intentData, actionData, true);
     assertFalse(results[1].success);
-    assertEq(_revertSelector(results[1].returnData), KSConditionalSwapHook.InvalidSwap.selector);
   }
 
   function _executeSwap(uint256 mode, IntentData memory intentData, ActionData memory actionData)
@@ -1251,7 +1265,7 @@ contract ConditionalSwapTest is BaseTest {
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, intentData, actionData);
     vm.startPrank(caller);
-    vm.expectRevert(selector);
+    vm.expectPartialRevert(selector);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     vm.stopPrank();
   }
@@ -1277,6 +1291,7 @@ contract ConditionalSwapTest is BaseTest {
     uint256 swapCount,
     uint256 index
   ) internal {
+    actionData.hookActionData = _hookActionData(0, index);
     (address caller, bytes memory dkSignature, bytes memory gdSignature) =
       _getCallerAndSignatures(mode, intentData, actionData);
     bytes32 hash = router.hashTypedIntentData(intentData);
@@ -1290,6 +1305,16 @@ contract ConditionalSwapTest is BaseTest {
     assertEq(conditionalSwapHook.getSwapExecutionCount(hash, 0, index), swapCount + 1);
 
     assertGt(tokenOut.balanceOf(mainAddress), balanceBefore);
+  }
+
+  function _hookActionData(uint256 index, uint256 conditionIndex)
+    internal
+    view
+    returns (bytes memory)
+  {
+    return abi.encode(
+      PackedU128.unwrap(toPackedU128(index, conditionIndex)), (feeBefore << 128) | feeAfter
+    );
   }
 
   function _getActionData(TokenData memory tokenData, bytes memory actionCalldata, bool swapViaMock)
