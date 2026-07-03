@@ -67,7 +67,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenIn;
     address tokenOut;
     uint256 amountIn;
-    uint256 recipientBalanceBefore;
+    uint256 holderBalanceBefore;
     uint256 swapperBalanceBefore;
     uint256 srcFeeRate;
     uint256 dstFeeRate;
@@ -135,7 +135,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       tokenIn,
       tokenOut,
       amountIn,
-      _getRecipientBalance(tokenOut, recipient, intentDstFeeRate),
+      tokenOut.balanceOf(_settlementHolder(recipient, intentDstFeeRate)),
       tokenIn.balanceOf(intentData.coreData.mainAddress),
       intentSrcFeeRate,
       intentDstFeeRate,
@@ -167,9 +167,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenOut = validationData.tokenOut;
     uint256 amountIn = validationData.amountIn;
 
-    uint256 amountOut = _getRecipientBalance(
-      tokenOut, validationData.recipient, validationData.dstFeeRate
-    ) - validationData.recipientBalanceBefore;
+    uint256 amountOut = tokenOut.balanceOf(
+      _settlementHolder(validationData.recipient, validationData.dstFeeRate)
+    ) - validationData.holderBalanceBefore;
     uint256 dstFee = (amountOut * validationData.dstFeeRate) / PRECISION;
     uint256 netAmountOut = amountOut - dstFee;
 
@@ -262,7 +262,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       OracleLib.validate(condition.oracle, tokenIn, tokenOut, price);
     }
 
-    _increaseByOne(record, conditionIndex, condition.swapLimit);
+    if (condition.swapLimit != 0) {
+      _increaseByOne(record, conditionIndex, condition.swapLimit);
+    }
   }
 
   /**
@@ -279,7 +281,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 index,
     uint8 limit
   ) internal {
-    if (limit == 0) return;
     require(index <= type(uint8).max, MaxConditionIndex());
     uint256 slotKey = index / 32;
     uint256 shift = (index % 32) * 8;
@@ -294,15 +295,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     record[slotKey] = packedValue + (1 << shift);
   }
 
-  function _getRecipientBalance(address tokenOut, address recipient, uint256 intentDstFee)
-    internal
-    view
-    returns (uint256)
-  {
-    if (intentDstFee != 0) {
-      return tokenOut.balanceOf(msg.sender);
-    }
-    return tokenOut.balanceOf(recipient);
+  function _settlementHolder(address recipient, uint256 feeRate) internal view returns (address) {
+    return feeRate != 0 ? msg.sender : recipient;
   }
 
   // @dev: equivalent to abi.decode(data, (SwapHookData))
