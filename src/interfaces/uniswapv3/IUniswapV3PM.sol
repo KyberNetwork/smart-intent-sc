@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IERC721} from 'openzeppelin-contracts/contracts/token/ERC721/IERC721.sol';
+import {
+  IERC721Enumerable
+} from 'openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol';
 
-interface IUniswapV3PM is IERC721 {
+interface IUniswapV3PM is IERC721Enumerable {
   function multicall(bytes[] calldata data) external payable returns (bytes[] memory results);
 
   /// @notice Unwraps the contract's WETH9 balance and sends it to recipient as ETH.
@@ -78,4 +80,23 @@ interface IUniswapV3PM is IERC721 {
     returns (uint256 amount0, uint256 amount1);
 
   function factory() external view returns (address);
+
+  struct MintParams {
+    address token0;
+    address token1;
+    uint24 fee;
+    int24 tickLower;
+    int24 tickUpper;
+    uint256 amount0Desired;
+    uint256 amount1Desired;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    address recipient;
+    uint256 deadline;
+  }
+
+  function mint(MintParams calldata params)
+    external
+    payable
+    returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
 }

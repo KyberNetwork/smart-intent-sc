@@ -44,14 +44,71 @@ jobs:
         - name: Quick Scan
           if: steps.extract.outputs.should_scan == 'true'
           run: |
-            curl -X POST \
-              -H "Content-Type: application/json" \
-              -H "X-Api-Key: $AUDIT_AGENT_TOKEN" \
-              -d '{
-                "githubUrl": "${{ github.event.repository.html_url }}",
-                "branchName": "${{ github.event.pull_request.head.ref }}",
-                "issueNumber": ${{ github.event.number }},
-                "commitHash": "${{ github.event.pull_request.head.sha }}",
-                "contractFiles": ${{ steps.extract.outputs.files }}
-              }' \
-              https://api.auditagent.nethermind.io/api/v1/scanner/quick-scan/launch
+            set -e
+            API_URL="https://api.auditagent.nethermind.io"
+            HTTP_CODE=$(curl -s -w "%{http_code}" -o launch_response.json -X POST -H "Content-Type: application/json" -H "X-Api-Key: $AUDIT_AGENT_TOKEN" -d '{
+              "githubUrl": "${{ github.event.repository.html_url }}",
+              "baseBranchName": "${{ github.event.pull_request.base.ref }}",
+              "branchName": "${{ github.event.pull_request.head.ref }}",
+              "issueNumber": ${{ github.event.number }},
+              "baseCommitHash": "${{ github.event.pull_request.base.sha }}",
+              "commitHash": "${{ github.event.pull_request.head.sha }}",
+              "contractFiles": ${{ steps.extract.outputs.files }},
+              "language": "solidity"
+            }' "$API_URL/api/v1/scanner/quick-scan/diff-scan")
+            if [ "$HTTP_CODE" != "202" ]; then
+              echo "Launch failed. Expected 202, got $HTTP_CODE."
+              cat launch_response.json
+              exit 1
+            fi
+            SCAN_ID=$(cat launch_response.json | tr -d '\000-\037' | jq -r '.data.scan_id // empty')
+            if [ -z "$SCAN_ID" ]; then
+              echo "No relevant changes found. No scan needed."
+              exit 0
+            fi
+            echo "Scan started: $SCAN_ID"
+            while true; do
+              RESULT_JSON=$(curl -s -f -H "X-Api-Key: $AUDIT_AGENT_TOKEN" "$API_URL/api/v1/scans/ci-result/$SCAN_ID")
+              STATUS=$(echo "$RESULT_JSON" | tr -d '\000-\037' | jq -r '.data.scan.status // empty')
+              if [ "$STATUS" = "completed" ]; then
+                echo "Scan completed successfully."
+                exit 0
+              fi
+              if [ "$STATUS" = "failed" ]; then
+                echo "Scan failed."
+                exit 1
+              fi
+              echo "Scan status: $STATUS (waiting...)"
+              sleep 60
+            done
+    merge-context:
+      if: ${{ github.event.action == 'closed' && github.event.pull_request.merged == true }}
+      runs-on: ubuntu-latest
+      env:
+        AUDIT_AGENT_TOKEN: ${{ secrets.AUDIT_AGENT_TOKEN }}
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+        - name: Fetch latest target branch and get new commit hash
+          id: merged_commit
+          run: |
+            git fetch origin main:origin/main
+            NEW_COMMIT_HASH=$(git rev-parse origin/main)
+            echo "hash=$NEW_COMMIT_HASH" >> $GITHUB_OUTPUT
+        - name: Merge Context
+          run: |
+            RESPONSE=$(curl -s -w "%{http_code}" -o response.json -X POST -H "Content-Type: application/json" -H "X-Api-Key: $AUDIT_AGENT_TOKEN" -d '{
+                  "githubUrl": "${{ github.event.repository.html_url }}",
+                  "baseBranchName": "${{ github.event.pull_request.base.ref }}",
+                  "baseCommitHash": "${{ steps.merged_commit.outputs.hash }}",
+                  "branchName": "${{ github.event.pull_request.head.ref }}",
+                  "issueNumber": ${{ github.event.number }},
+                  "commitHash": "${{ github.event.pull_request.head.sha }}"
+                }' https://api.auditagent.nethermind.io/api/v1/scanner/quick-scan/merge)
+            STATUS_CODE="${RESPONSE: -3}"
+            if [ "$STATUS_CODE" != "202" ]; then
+              echo "API call failed. Expected 202, got $STATUS_CODE."
+              cat response.json
+              exit 1
+            fi
