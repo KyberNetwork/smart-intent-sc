@@ -112,8 +112,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       uint256 intentDstFeeRate
     ) = _decodeHookActionData(actionData.hookActionData);
 
-    // tokenIn is taken from the intent rather than the action data, so a token the holder never
-    // committed to simply fails the proof below.
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
 
     bytes32 leaf = keccak256(abi.encode(leafIndex, tokenIn, tokenOut, condition));
