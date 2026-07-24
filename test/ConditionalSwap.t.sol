@@ -133,7 +133,10 @@ contract ConditionalSwapTest is BaseTest {
     returns (TokenOracle memory)
   {
     return TokenOracle(
-      OracleType.PYTH, toBoolAddress(inverse, pyth_), priceLimits, abi.encode(priceId)
+      OracleType.PYTH,
+      toBoolAddress(inverse, pyth_),
+      priceLimits,
+      abi.encode(priceId, type(uint256).max)
     );
   }
 
@@ -707,6 +710,44 @@ contract ConditionalSwapTest is BaseTest {
     assertGt(priceIn, 0);
     assertGt(priceOut, 0);
     assertGt(ratio, 0);
+  }
+
+  function test_Fork_FullFlow_PythConfidence_Revert(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    _updateForkPythPrices();
+
+    IPyth.Price memory p =
+      IPyth(PYTH_MAINNET).getPriceNoOlderThan(PYTH_USDT_USD, PYTH_MAX_STALENESS);
+
+    TokenOracle memory inLeg = TokenOracle(
+      OracleType.PYTH,
+      toBoolAddress(false, PYTH_MAINNET),
+      _fullBand(),
+      abi.encode(PYTH_USDT_USD, uint256(0))
+    );
+
+    TokenOracle memory outLeg = TokenOracle(
+      OracleType.PYTH, toBoolAddress(true, PYTH_MAINNET), _fullBand(), abi.encode(PYTH_BTC_USD, 0)
+    );
+    OracleConfig memory cfg = _config(inLeg, outLeg, _realOracleParams(1e17));
+
+    KSConditionalSwapHook.SwapCondition[] memory condition = _single(cfg);
+    IntentData memory intentData = _getIntentData(0, type(uint128).max, condition);
+    _setUpMainAddress(intentData, false);
+    ActionData memory actionData = _getActionData(
+      intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
+    );
+    actionData.hookActionData = abi.encode(uint256(0), (feeBefore << 128) | feeAfter);
+
+    (address caller, bytes memory dk, bytes memory gd) =
+      _getCallerAndSignatures(mode, intentData, actionData);
+    vm.startPrank(caller);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        OracleLib.OracleConfidenceTooWide.selector, uint256(p.conf), p.price, 0
+      )
+    );
+    router.execute(intentData, dk, guardian, gd, actionData);
   }
 
   function test_Fork_ChainlinkReal_InverseOut_DirectValidate(uint256 amountIn) public view {
