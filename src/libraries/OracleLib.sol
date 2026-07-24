@@ -24,7 +24,8 @@ enum OracleType {
  * @param oracleType type of the oracle.
  * @param source Packed inverse flag and Chainlink feed or Pyth contract. Zero address = no oracle for this slot.
  * @param priceLimits Normalized price band per whole base token, 1e18-scaled (min 128bits | max 128bits).
- * @param additionalData Oracle-specific data.
+ * @param additionalData Oracle-specific data. For PYTH: word 0 = feed id (bytes32),
+ *        word 1 = max confidence-to-price ratio, 1e18-scaled.
  */
 struct TokenOracle {
   OracleType oracleType;
@@ -52,6 +53,7 @@ library OracleLib {
   error InvalidOraclePrice();
   error InvalidOracleType();
   error InvalidMaxDeviation();
+  error OracleConfidenceTooWide(uint256 conf, uint256 price, uint256 maxConfRatio);
   error OraclePriceOutOfRange(uint256 price, uint128 minPrice, uint128 maxPrice);
   error OracleRatioOutOfRange(uint256 ratio, uint128 minRatio, uint128 maxRatio);
   error RealizedPriceBelowOracle(uint256 realizedPrice, uint256 minRealizedPrice);
@@ -158,11 +160,19 @@ library OracleLib {
         IPyth(source).getPriceNoOlderThan(oracle.additionalData.decodeBytes32(), maxStaleness);
       if (pythPrice.price <= 0) revert InvalidOraclePrice();
 
+      uint256 rawPrice = uint256(uint64(pythPrice.price));
+
+      uint256 maxConfRatio = oracle.additionalData.decodeUint256(1);
+      uint256 confRatio = Math.mulDiv(uint256(pythPrice.conf), PRECISION, rawPrice);
+      if (confRatio > maxConfRatio) {
+        revert OracleConfidenceTooWide(pythPrice.conf, rawPrice, maxConfRatio);
+      }
+
       int256 exponent = int256(pythPrice.expo) + 18;
       if (exponent >= 0) {
-        price = uint256(uint64(pythPrice.price)) * (10 ** uint256(exponent));
+        price = rawPrice * (10 ** uint256(exponent));
       } else {
-        price = uint256(uint64(pythPrice.price)) / (10 ** uint256(-exponent));
+        price = rawPrice / (10 ** uint256(-exponent));
       }
     } else {
       revert InvalidOracleType();
