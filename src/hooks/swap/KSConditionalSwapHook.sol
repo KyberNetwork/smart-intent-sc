@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {IKSSmartIntentHook} from '../../interfaces/hooks/IKSSmartIntentHook.sol';
-import {OracleConfig, OracleLib} from '../../libraries/OracleLib.sol';
 import {ActionData} from '../../types/ActionData.sol';
 import {IntentData} from '../../types/IntentData.sol';
+import {OracleConfig, OracleLib} from '../../types/OracleConfig.sol';
 import {PackedU128, PackedU128Library} from '../../types/PackedU128.sol';
 import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
