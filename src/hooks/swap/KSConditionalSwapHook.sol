@@ -22,7 +22,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 srcFeePercent, uint256 dstFeePercent, uint128 maxSrcFee, uint128 maxDstFee
   );
   error InvalidSwapPrice(uint256 price, uint128 minPrice, uint128 maxPrice);
-  error MaxLeafIndex();
+  error InvalidLeafIndex();
   error SwapLimitExceeded(uint256 leafIndex, uint8 swapLimit);
 
   uint256 public constant DENOMINATOR = 1e18;
@@ -75,11 +75,11 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   /**
    * @notice Tracks swap execution counts for each condition to enforce swap limits
-   * @dev Maps intentHash -> packedIndexes -> packedCounts
+   * @dev Maps intentHash -> leafIndexes -> packedCounts
    *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by leafIndex / 32
    *      Individual counts are extracted using bit shifts based on leafIndex % 32
    */
-  mapping(bytes32 intentHash => mapping(uint256 packedIndexes => uint256 swapCount)) public
+  mapping(bytes32 intentHash => mapping(uint256 leafIndexes => uint256 swapCount)) public
     swapRecord;
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
@@ -222,7 +222,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   function _validateSwapCondition(
     SwapCondition calldata condition,
-    mapping(uint256 packedIndexes => uint256 swapCounts) storage record,
+    mapping(uint256 leafIndexes => uint256 swapCounts) storage record,
     uint256 leafIndex,
     uint256 price,
     uint256 amountIn,
@@ -273,11 +273,11 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    *        limit is zero (unlimited), otherwise the first execution reverts SwapLimitExceeded.
    */
   function _increaseByOne(
-    mapping(uint256 packedIndexes => uint256 packedValues) storage record,
+    mapping(uint256 leafIndexes => uint256 packedValues) storage record,
     uint256 leafIndex,
     uint8 limit
   ) internal {
-    require(leafIndex <= type(uint8).max, MaxLeafIndex());
+    require(leafIndex <= type(uint8).max, InvalidLeafIndex());
     uint256 slotKey = leafIndex / 32;
     uint256 shift = (leafIndex % 32) * 8;
     uint256 packedValue = record[slotKey];
