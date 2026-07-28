@@ -492,7 +492,7 @@ contract ConditionalSwapTest is BaseTest {
 
   /// @dev swap counts are packed into a byte per index, so a leaf index past uint8 has nowhere to
   ///      be recorded and must be rejected rather than silently aliasing another index.
-  function testRevert_MaxConditionIndex(uint256 mode) public {
+  function testRevert_MaxLeafIndex(uint256 mode) public {
     mode = bound(mode, 0, 2);
     uint256 overflowLeafIndex = uint256(type(uint8).max) + 1;
 
@@ -522,9 +522,7 @@ contract ConditionalSwapTest is BaseTest {
       conditions[0]
     );
 
-    _expectExecuteRevert(
-      mode, intentData, actionData, KSConditionalSwapHook.MaxConditionIndex.selector
-    );
+    _expectExecuteRevert(mode, intentData, actionData, KSConditionalSwapHook.MaxLeafIndex.selector);
   }
 
   function test_Chainlink_MarketTrigger_Pass(uint256 mode) public {

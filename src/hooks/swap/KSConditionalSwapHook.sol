@@ -22,8 +22,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 srcFeePercent, uint256 dstFeePercent, uint128 maxSrcFee, uint128 maxDstFee
   );
   error InvalidSwapPrice(uint256 price, uint128 minPrice, uint128 maxPrice);
-  error MaxConditionIndex();
-  error SwapLimitExceeded(uint256 conditionIndex, uint8 swapLimit);
+  error MaxLeafIndex();
+  error SwapLimitExceeded(uint256 leafIndex, uint8 swapLimit);
 
   uint256 public constant DENOMINATOR = 1e18;
   uint256 public constant PRECISION = 1_000_000;
@@ -40,8 +40,9 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   }
 
   /**
-   * @notice The limit of swap executions that can be performed for a swap info
-   * @param swapLimit The maximum number of times the swap can be executed
+   * @notice The conditions a swap must satisfy to be executable against a committed leaf
+   * @param swapLimit The maximum number of times the swap can be executed. Zero means unlimited,
+   *        in which case no execution count is tracked
    * @param timeLimits The limits of the swap time (minTime 128bits, maxTime 128bits)
    * @param amountInLimits The limits of the swap amount (minAmountIn 128bits, maxAmountIn 128bits)
    * @param maxFees The max fees (srcFee 128bits, dstFee 128bits)
@@ -75,10 +76,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   /**
    * @notice Tracks swap execution counts for each condition to enforce swap limits
    * @dev Maps intentHash -> packedIndexes -> packedCounts
-   *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by swapIndexes / 32
-   *      Individual counts are extracted using bit shifts based on swapIndexes % 32
+   *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by leafIndex / 32
+   *      Individual counts are extracted using bit shifts based on leafIndex % 32
    */
-  mapping(bytes32 intentHash => mapping(uint256 swapIndexes => uint256 swapCount)) public
+  mapping(bytes32 intentHash => mapping(uint256 packedIndexes => uint256 swapCount)) public
     swapRecord;
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
@@ -205,24 +206,24 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   /**
    * @notice Gets the number of times a specific swap condition has been executed
    * @param intentHash The hash of the intent
-   * @param conditionIndex The index of the swap condition to check
+   * @param leafIndex The merkle leaf index of the swap condition to check
    * @return The number of times this condition has been executed
    */
-  function getSwapExecutionCount(bytes32 intentHash, uint256 conditionIndex)
+  function getSwapExecutionCount(bytes32 intentHash, uint256 leafIndex)
     public
     view
     returns (uint256)
   {
-    uint256 packedValue = swapRecord[intentHash][conditionIndex / 32];
-    uint256 bytePosition = conditionIndex % 32;
+    uint256 packedValue = swapRecord[intentHash][leafIndex / 32];
+    uint256 bytePosition = leafIndex % 32;
 
     return uint8(packedValue >> (bytePosition * 8));
   }
 
   function _validateSwapCondition(
     SwapCondition calldata condition,
-    mapping(uint256 swapIndexes => uint256 swapCounts) storage record,
-    uint256 conditionIndex,
+    mapping(uint256 packedIndexes => uint256 swapCounts) storage record,
+    uint256 leafIndex,
     uint256 price,
     uint256 amountIn,
     uint256 srcFeePercent,
@@ -257,33 +258,34 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
 
     if (condition.swapLimit != 0) {
-      _increaseByOne(record, conditionIndex, condition.swapLimit);
+      _increaseByOne(record, leafIndex, condition.swapLimit);
     }
   }
 
   /**
-   * @notice Increments swap count for a specific condition index
+   * @notice Increments swap count for a specific condition
    * @dev Uses bit manipulation to efficiently store counts in packed format.
-   *      Each uint256 slot holds 32 uint8 counters; the slot is selected by index/32
-   *      and the byte position within that slot by index%32.
+   *      Each uint256 slot holds 32 uint8 counters; the slot is selected by leafIndex/32
+   *      and the byte position within that slot by leafIndex%32.
    * @param record Storage mapping containing packed swap counts
-   * @param index The condition index to increment
-   * @param limit Maximum allowed swaps for this condition. Zero skips tracking and limit checks.
+   * @param leafIndex The merkle leaf index corresponding to the condition whose count is incremented
+   * @param limit Maximum allowed swaps for this condition. Callers must skip this function when the
+   *        limit is zero (unlimited), otherwise the first execution reverts SwapLimitExceeded.
    */
   function _increaseByOne(
     mapping(uint256 packedIndexes => uint256 packedValues) storage record,
-    uint256 index,
+    uint256 leafIndex,
     uint8 limit
   ) internal {
-    require(index <= type(uint8).max, MaxConditionIndex());
-    uint256 slotKey = index / 32;
-    uint256 shift = (index % 32) * 8;
+    require(leafIndex <= type(uint8).max, MaxLeafIndex());
+    uint256 slotKey = leafIndex / 32;
+    uint256 shift = (leafIndex % 32) * 8;
     uint256 packedValue = record[slotKey];
 
     uint8 swapCount = uint8(packedValue >> shift) + 1;
 
     if (swapCount > limit) {
-      revert SwapLimitExceeded(index, limit);
+      revert SwapLimitExceeded(leafIndex, limit);
     }
 
     record[slotKey] = packedValue + (1 << shift);
