@@ -817,7 +817,7 @@ contract ConditionalSwapTest is BaseTest {
     ActionData memory actionData = _getActionData(
       intentData.tokenData, _adjustRecipient(feeAfter == 0 ? swapdata2 : swapdata), false
     );
-    actionData.hookActionData = abi.encode(uint256(0), (feeBefore << 128) | feeAfter);
+    actionData.hookActionData = _hookActionData(0);
 
     (address caller, bytes memory dk, bytes memory gd) =
       _getCallerAndSignatures(mode, intentData, actionData);
