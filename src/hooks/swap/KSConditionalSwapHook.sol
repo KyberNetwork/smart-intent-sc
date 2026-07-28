@@ -75,11 +75,11 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   /**
    * @notice Tracks swap execution counts for each condition to enforce swap limits
-   * @dev Maps intentHash -> leafIndexes -> packedCounts
+   * @dev Maps intentHash -> packedLeafIndexes -> packedCounts
    *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by leafIndex / 32
    *      Individual counts are extracted using bit shifts based on leafIndex % 32
    */
-  mapping(bytes32 intentHash => mapping(uint256 leafIndexes => uint256 swapCount)) public
+  mapping(bytes32 intentHash => mapping(uint256 packedLeafIndexes => uint256 swapCount)) public
     swapRecord;
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
@@ -222,7 +222,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   function _validateSwapCondition(
     SwapCondition calldata condition,
-    mapping(uint256 leafIndexes => uint256 swapCounts) storage record,
+    mapping(uint256 packedLeafIndexes => uint256 swapCounts) storage record,
     uint256 leafIndex,
     uint256 price,
     uint256 amountIn,
@@ -273,7 +273,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    *        limit is zero (unlimited), otherwise the first execution reverts SwapLimitExceeded.
    */
   function _increaseByOne(
-    mapping(uint256 leafIndexes => uint256 packedValues) storage record,
+    mapping(uint256 packedLeafIndexes => uint256 packedValues) storage record,
     uint256 leafIndex,
     uint8 limit
   ) internal {
