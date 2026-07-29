@@ -5,6 +5,7 @@ import './Base.t.sol';
 
 import './mocks/MockHook.sol';
 
+import {Pausable} from 'ks-common-sc/src/base/ManagementPausable.sol';
 import 'openzeppelin-contracts/contracts/access/IAccessControl.sol';
 import 'openzeppelin-contracts/contracts/utils/Base64.sol';
 import 'openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol';
@@ -94,6 +95,26 @@ contract MockActionTest is BaseTest {
     vm.startPrank(caller);
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
     _checkAllowancesAfterExecution(intentHash, intentData.tokenData, newTokenData);
+  }
+
+  function test_ContractPaused() public {
+    vm.prank(admin);
+    router.pause();
+
+    IntentData memory intentData = _getIntentData(0);
+    TokenData memory newTokenData;
+    ActionData memory actionData = _getActionData(newTokenData, abi.encode(''), 0);
+
+    vm.expectRevert(Pausable.EnforcedPause.selector);
+    router.delegate(intentData);
+
+    vm.expectRevert(Pausable.EnforcedPause.selector);
+    router.execute(intentData, new bytes(0), guardian, new bytes(0), actionData);
+
+    vm.expectRevert(Pausable.EnforcedPause.selector);
+    router.executeWithSignedIntent(
+      intentData, new bytes(0), new bytes(0), guardian, new bytes(0), actionData
+    );
   }
 
   function testMockActionExecuteSuccessWebAuthn(uint256 seed, bool testOnSepolia) public {

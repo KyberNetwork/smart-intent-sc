@@ -46,6 +46,13 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseTickBasedRemoveLiquidityHook {
 
     _cacheValidationData(uniswapV4, validationData, actionData.hookActionData);
 
+    _validateERC721Data(
+      uniswapV4.removeLiqParams.positionInfo.nftAddress,
+      uniswapV4.removeLiqParams.positionInfo.nftId,
+      intentData.tokenData.erc721Data[actionData.erc721Ids[0]].token,
+      intentData.tokenData.erc721Data[actionData.erc721Ids[0]].tokenId
+    );
+
     _validateConditions(
       validationData.nodes[uniswapV4.removeLiqParams.index],
       uniswapV4.removeLiqParams.positionInfo.feesGenerated[0],

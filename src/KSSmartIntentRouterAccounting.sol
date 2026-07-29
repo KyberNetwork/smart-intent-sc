@@ -13,9 +13,14 @@ import {IKSGenericForwarder} from 'ks-common-sc/src/interfaces/IKSGenericForward
 import {PermitHelper} from 'ks-common-sc/src/libraries/token/PermitHelper.sol';
 import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 
+import {ManagementPausable} from 'ks-common-sc/src/base/ManagementPausable.sol';
 import {IERC721Receiver} from 'openzeppelin-contracts/contracts/interfaces/IERC721Receiver.sol';
 
-abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, ManagementRescuable {
+abstract contract KSSmartIntentRouterAccounting is
+  KSSmartIntentStorage,
+  ManagementRescuable,
+  ManagementPausable
+{
   using TokenHelper for address;
   using PermitHelper for address;
 
@@ -72,7 +77,7 @@ abstract contract KSSmartIntentRouterAccounting is KSSmartIntentStorage, Managem
         actionData.feeInfo.protocolRecipient
       );
     }
-    approvalFlags >>= tokenData.erc20Data.length;
+    approvalFlags >>= actionData.erc20Ids.length;
 
     for (uint256 i = 0; i < actionData.erc721Ids.length; i++) {
       address token = tokenData.erc721Data[actionData.erc721Ids[i]].token;
