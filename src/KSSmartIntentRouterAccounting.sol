@@ -25,6 +25,8 @@ abstract contract KSSmartIntentRouterAccounting is
   using PermitHelper for address;
 
   mapping(bytes32 => mapping(address => uint256)) public erc20Allowances;
+  uint256 internal constant ERC721_WILDCARD_TOKEN_ID = type(uint256).max;
+  uint256 internal constant ERC721_IDS_SEPARATOR = type(uint256).max;
 
   /// @notice Set the tokens' allowances for the intent
   function _approveTokens(bytes32 intentHash, TokenData calldata tokenData, address mainAddress)
@@ -79,13 +81,39 @@ abstract contract KSSmartIntentRouterAccounting is
     }
     approvalFlags >>= actionData.erc20Ids.length;
 
-    for (uint256 i = 0; i < actionData.erc721Ids.length; i++) {
-      address token = tokenData.erc721Data[actionData.erc721Ids[i]].token;
-      uint256 tokenId = tokenData.erc721Data[actionData.erc721Ids[i]].tokenId;
+    uint256 wildcardSeprator = _parseWildcardSeprator(actionData.erc721Ids);
+    uint256 wildcardCursor = wildcardSeprator + 1;
 
-      ERC721DataLibrary.collect(
-        token, tokenId, mainAddress, actionContract, _forwarder, _checkFlag(approvalFlags, i)
-      );
+    for (uint256 i = 0; i < wildcardSeprator; i++) {
+      ERC721Data calldata erc721Data = tokenData.erc721Data[actionData.erc721Ids[i]];
+      address token = erc721Data.token;
+      bool approvalFlag = _checkFlag(approvalFlags, i);
+
+      if (erc721Data.tokenId != ERC721_WILDCARD_TOKEN_ID) {
+        ERC721DataLibrary.collect(
+          token, erc721Data.tokenId, mainAddress, actionContract, _forwarder, approvalFlag
+        );
+      } else {
+        ERC721DataLibrary.collect(
+          token,
+          actionData.erc721Ids[wildcardCursor++],
+          mainAddress,
+          actionContract,
+          _forwarder,
+          approvalFlag
+        );
+      }
+    }
+  }
+
+  function _parseWildcardSeprator(uint256[] calldata erc721Ids)
+    internal
+    pure
+    returns (uint256 wildcardSeprator)
+  {
+    wildcardSeprator = erc721Ids.length;
+    for (uint256 i = 0; i < erc721Ids.length; i++) {
+      if (erc721Ids[i] == ERC721_IDS_SEPARATOR) return i;
     }
   }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import './Base.t.sol';
+import '../Base.t.sol';
 
 import 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import 'src/hooks/base/BaseConditionalHook.sol';

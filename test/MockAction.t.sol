@@ -15,6 +15,8 @@ contract MockActionTest is BaseTest {
   using ArraysHelper for *;
   using SafeERC20 for IERC20;
 
+  uint256 internal constant ERC721_IDS_SEPARATOR = type(uint256).max;
+
   uint256 nonce = 0;
   MockHook mockHook;
 
@@ -68,9 +70,9 @@ contract MockActionTest is BaseTest {
 
   function testMockActionExecuteSuccessP256(uint256 seed, bool testOnSepolia) public {
     if (testOnSepolia) {
-      vm.createSelectFork(vm.envString('SEPOLIA_NODE_URL'), 9_598_379);
+      vm.createSelectFork('sepolia', 9_598_379);
     } else {
-      vm.createSelectFork(vm.envString('OP_NODE_URL'), 143_581_448);
+      vm.createSelectFork('optimism_mainnet', 143_581_448);
     }
 
     _setupP256();
@@ -119,9 +121,9 @@ contract MockActionTest is BaseTest {
 
   function testMockActionExecuteSuccessWebAuthn(uint256 seed, bool testOnSepolia) public {
     if (testOnSepolia) {
-      vm.createSelectFork(vm.envString('SEPOLIA_NODE_URL'), 9_598_379);
+      vm.createSelectFork('sepolia', 9_598_379);
     } else {
-      vm.createSelectFork(vm.envString('OP_NODE_URL'), 143_581_448);
+      vm.createSelectFork('optimism_mainnet', 143_581_448);
     }
 
     _setupP256();
@@ -265,6 +267,150 @@ contract MockActionTest is BaseTest {
         ACTION_CONTRACT_ROLE
       )
     );
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteSuccess_ERC721Wildcard(uint256 tokenId0, uint256 tokenId1) public {
+    tokenId0 = bound(tokenId0, 1, type(uint256).max - 2);
+    tokenId1 = bound(tokenId1, 1, type(uint256).max - 2);
+    vm.assume(tokenId0 != tokenId1);
+
+    IntentData memory intentData = _getWildcardERC721IntentData('');
+    vm.startPrank(mainAddress);
+    erc721Mock.mint(mainAddress, tokenId0);
+    erc721Mock.mint(mainAddress, tokenId1);
+    erc721Mock.setApprovalForAll(address(router), true);
+    router.delegate(intentData);
+    vm.stopPrank();
+
+    ActionData memory actionData =
+      _getWildcardERC721ActionData(2, [tokenId0, tokenId1].toMemoryArray());
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+
+    vm.prank(caller);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+
+    assertEq(erc721Mock.ownerOf(tokenId0), address(forwarder));
+    assertEq(erc721Mock.ownerOf(tokenId1), address(forwarder));
+  }
+
+  function testMockActionExecuteRevert_ERC721WildcardMissingSuffix(
+    uint256 tokenId0,
+    uint256 tokenId1
+  ) public {
+    tokenId0 = bound(tokenId0, 1, type(uint256).max - 2);
+    tokenId1 = bound(tokenId1, 1, type(uint256).max - 2);
+    vm.assume(tokenId0 != tokenId1);
+
+    IntentData memory intentData = _getWildcardERC721IntentData('');
+    vm.startPrank(mainAddress);
+    erc721Mock.mint(mainAddress, tokenId0);
+    erc721Mock.mint(mainAddress, tokenId1);
+    erc721Mock.setApprovalForAll(address(router), true);
+    router.delegate(intentData);
+    vm.stopPrank();
+
+    ActionData memory actionData = _getWildcardERC721ActionData(1, new uint256[](0));
+    actionData.erc721Ids = [uint256(0)].toMemoryArray();
+
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+    vm.prank(caller);
+    vm.expectRevert();
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+  }
+
+  function testMockActionExecuteSuccess_ERC721WildcardSubsetSuffix(
+    uint256 tokenId0,
+    uint256 tokenId1
+  ) public {
+    tokenId0 = bound(tokenId0, 1, type(uint256).max - 2);
+    tokenId1 = bound(tokenId1, 1, type(uint256).max - 2);
+    vm.assume(tokenId0 != tokenId1);
+
+    IntentData memory intentData = _getWildcardERC721IntentData('');
+    vm.startPrank(mainAddress);
+    erc721Mock.mint(mainAddress, tokenId0);
+    erc721Mock.mint(mainAddress, tokenId1);
+    erc721Mock.setApprovalForAll(address(router), true);
+    router.delegate(intentData);
+    vm.stopPrank();
+
+    ActionData memory actionData = _getWildcardERC721ActionData(1, [tokenId0].toMemoryArray());
+
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+    vm.prank(caller);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+
+    assertEq(erc721Mock.ownerOf(tokenId0), address(forwarder));
+    assertEq(erc721Mock.ownerOf(tokenId1), mainAddress);
+  }
+
+  function testMockActionExecuteSuccess_ERC721SuffixWithoutWildcard(
+    uint256 tokenId0,
+    uint256 tokenId1
+  ) public {
+    tokenId0 = bound(tokenId0, 1, type(uint256).max - 1);
+    tokenId1 = bound(tokenId1, 1, type(uint256).max - 1);
+    vm.assume(tokenId0 != tokenId1);
+
+    IntentData memory intentData = _getIntentData(tokenId0);
+    vm.startPrank(mainAddress);
+    erc721Mock.mint(mainAddress, tokenId1);
+    erc721Mock.setApprovalForAll(address(router), true);
+    router.delegate(intentData);
+    vm.stopPrank();
+
+    ActionData memory actionData = _getActionData(intentData.tokenData, abi.encode(''), tokenId0);
+    actionData.erc721Ids = [uint256(0), ERC721_IDS_SEPARATOR, tokenId1].toMemoryArray();
+
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+    vm.prank(caller);
+    router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
+
+    assertEq(erc721Mock.ownerOf(tokenId0), address(forwarder));
+    assertEq(erc721Mock.ownerOf(tokenId1), mainAddress);
+  }
+
+  function testMockActionDelegateSuccess_ERC721WildcardWithPermit() public {
+    IntentData memory intentData = _getWildcardERC721IntentData(hex'01');
+
+    vm.prank(mainAddress);
+    router.delegate(intentData);
+  }
+
+  function testMockActionExecuteRevert_ERC721WildcardMismatchedSuffixFormat(
+    uint256 tokenId0,
+    uint256 tokenId1
+  ) public {
+    tokenId0 = bound(tokenId0, 1, type(uint256).max - 1);
+    tokenId1 = bound(tokenId1, 1, type(uint256).max - 1);
+    vm.assume(tokenId0 != tokenId1);
+
+    IntentData memory intentData = _getWildcardERC721IntentData('');
+    vm.startPrank(mainAddress);
+    erc721Mock.mint(mainAddress, tokenId0);
+    erc721Mock.mint(mainAddress, tokenId1);
+    erc721Mock.setApprovalForAll(address(router), true);
+    router.delegate(intentData);
+    vm.stopPrank();
+
+    ActionData memory actionData =
+      _getWildcardERC721ActionData(2, [tokenId0, tokenId1].toMemoryArray());
+    actionData.erc721Ids = new uint256[](5);
+    actionData.erc721Ids[0] = 0;
+    actionData.erc721Ids[1] = 0;
+    actionData.erc721Ids[2] = ERC721_IDS_SEPARATOR;
+    actionData.erc721Ids[3] = tokenId0;
+    actionData.erc721Ids[4] = ERC721_IDS_SEPARATOR;
+
+    (address caller, bytes memory dkSignature, bytes memory gdSignature) =
+      _getCallerAndSignatures(0, intentData, actionData);
+    vm.prank(caller);
+    vm.expectRevert();
     router.execute(intentData, dkSignature, guardian, gdSignature, actionData);
   }
 
@@ -614,6 +760,30 @@ contract MockActionTest is BaseTest {
     vm.stopPrank();
   }
 
+  function _getWildcardERC721IntentData(bytes memory permitData)
+    internal
+    view
+    returns (IntentData memory intentData)
+  {
+    IntentCoreData memory coreData = IntentCoreData({
+      mainAddress: mainAddress,
+      signatureVerifier: verifier,
+      delegatedKey: delegatedPublicKey,
+      actionContracts: [address(mockActionContract)].toMemoryArray(),
+      actionSelectors: [MockActionContract.execute.selector].toMemoryArray(),
+      hook: address(mockHook),
+      hookIntentData: ''
+    });
+
+    TokenData memory tokenData;
+    tokenData.erc20Data = new ERC20Data[](0);
+    tokenData.erc721Data = new ERC721Data[](1);
+    tokenData.erc721Data[0] =
+      ERC721Data({token: address(erc721Mock), tokenId: type(uint256).max, permitData: permitData});
+
+    intentData = IntentData({coreData: coreData, tokenData: tokenData, extraData: ''});
+  }
+
   function _getActionData(TokenData memory tokenData, bytes memory actionCalldata, uint256 seed)
     internal
     returns (ActionData memory actionData)
@@ -646,6 +816,44 @@ contract MockActionTest is BaseTest {
       approvalFlags: approvalFlags,
       actionSelectorId: 0,
       actionCalldata: actionCalldata,
+      hookActionData: '',
+      extraData: '',
+      deadline: block.timestamp + 1 days,
+      nonce: nonce++
+    });
+  }
+
+  function _getWildcardERC721ActionData(uint256 wildcardCopies, uint256[] memory actualTokenIds)
+    internal
+    returns (ActionData memory actionData)
+  {
+    uint256[] memory erc721Ids =
+      new uint256[](wildcardCopies + (actualTokenIds.length > 0 ? 1 + actualTokenIds.length : 0));
+    for (uint256 i = 0; i < wildcardCopies; i++) {
+      erc721Ids[i] = 0;
+    }
+    if (actualTokenIds.length > 0) {
+      uint256 cursor = wildcardCopies;
+      erc721Ids[cursor] = ERC721_IDS_SEPARATOR;
+      cursor++;
+      for (uint256 i = 0; i < actualTokenIds.length; i++) {
+        erc721Ids[cursor] = actualTokenIds[i];
+        cursor++;
+      }
+    }
+
+    FeeInfo memory feeInfo;
+    feeInfo.protocolRecipient = protocolRecipient;
+    feeInfo.partnerFeeConfigs = new FeeConfig[][](0);
+
+    actionData = ActionData({
+      erc20Ids: new uint256[](0),
+      erc20Amounts: new uint256[](0),
+      erc721Ids: erc721Ids,
+      feeInfo: feeInfo,
+      approvalFlags: 1,
+      actionSelectorId: 0,
+      actionCalldata: abi.encode(''),
       hookActionData: '',
       extraData: '',
       deadline: block.timestamp + 1 days,
