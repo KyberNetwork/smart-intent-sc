@@ -1,0 +1,23 @@
+name: Publish Smart Contract Docs
+
+concurrency:
+  group: publish-sc-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-docs:
+    uses: KyberNetwork/workflows-templates/.github/workflows/publish-sc-docs-v0.2.0.yml@main
+    with:
+      FOUNDRYUP_REF: 'refs/tags/v1.7.1'
+      FORGE_VERSION: 'v1.7.1'
+      DOCS_REPO: 'KyberNetwork/kyber-sc-docs'
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
