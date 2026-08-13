@@ -7,9 +7,11 @@ import 'src/hooks/swap/KSConditionalSwapHook.sol';
 import 'test/utils/MerkleUtils.sol';
 
 import {IPyth} from 'src/interfaces/oracle/external/IPyth.sol';
+import {ChainlinkOracleAdapter} from 'src/oracle-adapter/ChainlinkOracleAdapter.sol';
+import {PythOracleAdapter} from 'src/oracle-adapter/PythOracleAdapter.sol';
 import {toBoolAddress} from 'src/types/BoolAddress.sol';
 import {OracleConfig, OracleLib, TokenOracle} from 'src/types/OracleConfig.sol';
-import {OracleType, toOraclePackedParam} from 'src/types/OraclePackedParam.sol';
+import {toOracleSource} from 'src/types/OracleSource.sol';
 import {PackedU128, toPackedU128} from 'src/types/PackedU128.sol';
 
 import {MockChainlinkFeed} from './mocks/MockChainlinkFeed.sol';
@@ -80,6 +82,9 @@ contract ConditionalSwapTest is BaseTest {
   MockChainlinkFeed internal feedDirectInverse;
   MockPyth internal pyth;
 
+  ChainlinkOracleAdapter internal chainlinkAdapter;
+  PythOracleAdapter internal pythAdapter;
+
   function _selectFork() public virtual override {
     vm.createSelectFork('mainnet', 25_386_536);
   }
@@ -94,6 +99,10 @@ contract ConditionalSwapTest is BaseTest {
 
     conditionalSwapHook = new KSConditionalSwapHook(routers);
 
+    // oracle adapters, shared by every leg of the matching provider
+    chainlinkAdapter = new ChainlinkOracleAdapter();
+    pythAdapter = new PythOracleAdapter();
+
     // mock oracles
     feedIn = new MockChainlinkFeed(8, 1e8); // USDT/USD = $1
     feedOut = new MockChainlinkFeed(8, int256(100_000e8)); // WBTC/USD = $100k
@@ -106,8 +115,8 @@ contract ConditionalSwapTest is BaseTest {
 
   function _emptyLeg() internal pure returns (TokenOracle memory) {
     return TokenOracle(
-      toOraclePackedParam(OracleType.NONE, 0),
       toBoolAddress(false, address(0)),
+      toOracleSource(0, address(0)),
       toPackedU128(0, 0),
       abi.encode(bytes32(0))
     );
@@ -116,7 +125,7 @@ contract ConditionalSwapTest is BaseTest {
   /// @dev Mock Chainlink feeds report `block.timestamp`, so legs default to a zero staleness bound.
   function _chainlinkLeg(address feed, PackedU128 priceLimits)
     internal
-    pure
+    view
     returns (TokenOracle memory)
   {
     return _chainlinkLeg(feed, priceLimits, false, 0);
@@ -124,7 +133,7 @@ contract ConditionalSwapTest is BaseTest {
 
   function _chainlinkLeg(address feed, PackedU128 priceLimits, bool inverse)
     internal
-    pure
+    view
     returns (TokenOracle memory)
   {
     return _chainlinkLeg(feed, priceLimits, inverse, 0);
@@ -132,12 +141,12 @@ contract ConditionalSwapTest is BaseTest {
 
   function _chainlinkLeg(address feed, PackedU128 priceLimits, bool inverse, uint256 maxStaleness)
     internal
-    pure
+    view
     returns (TokenOracle memory)
   {
     return TokenOracle(
-      toOraclePackedParam(OracleType.CHAINLINK, maxStaleness),
-      toBoolAddress(inverse, feed),
+      toBoolAddress(inverse, address(chainlinkAdapter)),
+      toOracleSource(maxStaleness, feed),
       priceLimits,
       abi.encode(bytes32(0))
     );
@@ -145,7 +154,7 @@ contract ConditionalSwapTest is BaseTest {
 
   function _pythLeg(address pyth_, bytes32 priceId, PackedU128 priceLimits, uint256 maxStaleness)
     internal
-    pure
+    view
     returns (TokenOracle memory)
   {
     return _pythLeg(pyth_, priceId, priceLimits, false, maxStaleness);
@@ -157,10 +166,10 @@ contract ConditionalSwapTest is BaseTest {
     PackedU128 priceLimits,
     bool inverse,
     uint256 maxStaleness
-  ) internal pure returns (TokenOracle memory) {
+  ) internal view returns (TokenOracle memory) {
     return TokenOracle(
-      toOraclePackedParam(OracleType.PYTH, maxStaleness),
-      toBoolAddress(inverse, pyth_),
+      toBoolAddress(inverse, address(pythAdapter)),
+      toOracleSource(maxStaleness, pyth_),
       priceLimits,
       abi.encode(priceId, type(uint256).max)
     );
@@ -797,15 +806,15 @@ contract ConditionalSwapTest is BaseTest {
       IPyth(PYTH_MAINNET).getPriceNoOlderThan(PYTH_USDT_USD, PYTH_MAX_STALENESS);
 
     TokenOracle memory inLeg = TokenOracle(
-      toOraclePackedParam(OracleType.PYTH, REAL_ORACLE_MAX_STALENESS),
-      toBoolAddress(false, PYTH_MAINNET),
+      toBoolAddress(false, address(pythAdapter)),
+      toOracleSource(REAL_ORACLE_MAX_STALENESS, PYTH_MAINNET),
       _fullBand(),
       abi.encode(PYTH_USDT_USD, uint256(0))
     );
 
     TokenOracle memory outLeg = TokenOracle(
-      toOraclePackedParam(OracleType.PYTH, REAL_ORACLE_MAX_STALENESS),
-      toBoolAddress(true, PYTH_MAINNET),
+      toBoolAddress(true, address(pythAdapter)),
+      toOracleSource(REAL_ORACLE_MAX_STALENESS, PYTH_MAINNET),
       _fullBand(),
       abi.encode(PYTH_BTC_USD, 0)
     );
@@ -824,7 +833,7 @@ contract ConditionalSwapTest is BaseTest {
     vm.startPrank(caller);
     vm.expectRevert(
       abi.encodeWithSelector(
-        OracleLib.OracleConfidenceTooWide.selector, uint256(p.conf), p.price, 0
+        PythOracleAdapter.OracleConfidenceTooWide.selector, uint256(p.conf), p.price, 0
       )
     );
     router.execute(intentData, dk, guardian, gd, actionData);
@@ -1080,13 +1089,13 @@ contract ConditionalSwapTest is BaseTest {
     assertGt(IERC20(tokenOut).balanceOf(mainAddress), balBefore);
   }
 
-  function _legIn(bool pyth_, PackedU128 band) internal pure returns (TokenOracle memory) {
+  function _legIn(bool pyth_, PackedU128 band) internal view returns (TokenOracle memory) {
     return pyth_
       ? _pythLeg(PYTH_MAINNET, PYTH_USDT_USD, band, REAL_ORACLE_MAX_STALENESS)
       : _chainlinkLeg(CHAINLINK_USDT_USD, band, false, REAL_ORACLE_MAX_STALENESS);
   }
 
-  function _legOut(bool pyth_, PackedU128 band) internal pure returns (TokenOracle memory) {
+  function _legOut(bool pyth_, PackedU128 band) internal view returns (TokenOracle memory) {
     return pyth_
       ? _pythLeg(PYTH_MAINNET, PYTH_BTC_USD, band, true, REAL_ORACLE_MAX_STALENESS)
       : _chainlinkLeg(CHAINLINK_WBTC_USD, band, true, REAL_ORACLE_MAX_STALENESS);
@@ -1107,7 +1116,7 @@ contract ConditionalSwapTest is BaseTest {
 
   function _realChainlink(PackedU128 bandIn, PackedU128 bandOut)
     internal
-    pure
+    view
     returns (OracleConfig memory)
   {
     return _config(
@@ -1119,7 +1128,7 @@ contract ConditionalSwapTest is BaseTest {
 
   function _realPyth(PackedU128 bandIn, PackedU128 bandOut)
     internal
-    pure
+    view
     returns (OracleConfig memory)
   {
     return _config(
