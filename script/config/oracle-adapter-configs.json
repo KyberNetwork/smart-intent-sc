@@ -1,0 +1,10 @@
+{
+  "ChainlinkOracleAdapter": {
+    "constructorParams": [],
+    "exported": "chainlink-oracle-adapter"
+  },
+  "PythOracleAdapter": {
+    "constructorParams": [],
+    "exported": "pyth-oracle-adapter"
+  }
+}

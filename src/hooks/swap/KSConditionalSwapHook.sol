@@ -250,10 +250,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     if (price < minPrice || price > maxPrice) {
       revert InvalidSwapPrice(price, minPrice, maxPrice);
     }
-    if (
-      condition.oracle.oracleIn.source.addressValue() != address(0)
-        || condition.oracle.oracleOut.source.addressValue() != address(0)
-    ) {
+    if (condition.oracle.hasOracle()) {
       OracleLib.validate(condition.oracle, tokenIn, tokenOut, price);
     }
 
