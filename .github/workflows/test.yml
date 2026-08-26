@@ -8,10 +8,14 @@ on:
   workflow_dispatch:
 
 env:
-  ETH_NODE_URL: ${{ secrets.ETH_NODE_URL }}
-  BSC_NODE_URL: ${{ secrets.BSC_NODE_URL }}
-  SEPOLIA_NODE_URL: ${{ secrets.SEPOLIA_NODE_URL }}
-  OP_NODE_URL: ${{ secrets.OP_NODE_URL }}
+  RPC_1: ${{ secrets.RPC_1 }}
+  RPC_10: ${{ secrets.RPC_10 }}
+  RPC_56: ${{ secrets.RPC_56 }}
+  RPC_4663: ${{ secrets.RPC_4663 }}
+  RPC_143: ${{ secrets.RPC_143 }}
+  RPC_8453: ${{ secrets.RPC_8453 }}
+  RPC_11155111: ${{ secrets.RPC_11155111 }}
+  RPC_42161: ${{ secrets.RPC_42161 }}
 
 jobs:
   test:
@@ -26,7 +30,7 @@ jobs:
       - name: Install Foundry
         uses: KyberNetwork/foundry-toolchain@master
         with:
-          version: v1.4.4
+          version: v1.7.1
 
       - name: Build
         run: |
