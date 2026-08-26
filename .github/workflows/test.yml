@@ -12,7 +12,10 @@ env:
   RPC_10: ${{ secrets.RPC_10 }}
   RPC_56: ${{ secrets.RPC_56 }}
   RPC_4663: ${{ secrets.RPC_4663 }}
+  RPC_143: ${{ secrets.RPC_143 }}
+  RPC_8453: ${{ secrets.RPC_8453 }}
   RPC_11155111: ${{ secrets.RPC_11155111 }}
+  RPC_42161: ${{ secrets.RPC_42161 }}
 
 jobs:
   test:
