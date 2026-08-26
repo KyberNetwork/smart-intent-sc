@@ -27,8 +27,14 @@ sort_imports = true
 runs = 20
 
 [rpc_endpoints]
-mainnet = "${ETH_NODE_URL}"
-bsc_mainnet = "${BSC_NODE_URL}"
+mainnet = "${RPC_1}"
+optimism_mainnet = "${RPC_10}"
+bsc_mainnet = "${RPC_56}"
+base_mainnet = "${RPC_8453}"
+arbitrum_mainnet = "${RPC_42161}"
+robinhood_mainnet = "${RPC_4663}"
+sepolia_testnet = "${RPC_11155111}"
+
 
 [etherscan]
 mainnet = { key = "${ETHERSCAN_API_KEY}" }

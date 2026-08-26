@@ -68,9 +68,9 @@ contract MockActionTest is BaseTest {
 
   function testMockActionExecuteSuccessP256(uint256 seed, bool testOnSepolia) public {
     if (testOnSepolia) {
-      vm.createSelectFork(vm.envString('SEPOLIA_NODE_URL'), 9_598_379);
+      vm.createSelectFork('sepolia_testnet', 9_598_379);
     } else {
-      vm.createSelectFork(vm.envString('OP_NODE_URL'), 143_581_448);
+      vm.createSelectFork('optimism_mainnet', 143_581_448);
     }
 
     _setupP256();
@@ -119,9 +119,9 @@ contract MockActionTest is BaseTest {
 
   function testMockActionExecuteSuccessWebAuthn(uint256 seed, bool testOnSepolia) public {
     if (testOnSepolia) {
-      vm.createSelectFork(vm.envString('SEPOLIA_NODE_URL'), 9_598_379);
+      vm.createSelectFork(vm.envString('RPC_11155111'), 9_598_379);
     } else {
-      vm.createSelectFork(vm.envString('OP_NODE_URL'), 143_581_448);
+      vm.createSelectFork(vm.rpcUrl('optimism_mainnet'), 143_581_448);
     }
 
     _setupP256();
