@@ -30,4 +30,8 @@ interface IPositionManager is IERC721 {
   function poolManager() external view returns (IPoolManager);
 
   function modifyLiquidities(bytes calldata unlockData, uint256 deadline) external payable;
+
+  /// @notice Used to get the ID that will be used for the next minted liquidity position
+  /// @return uint256 The next token ID
+  function nextTokenId() external view returns (uint256);
 }
