@@ -75,6 +75,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
   bytes4 internal constant ATLAS_WBTC_USDT = 0x00000012;
   bytes2 internal constant ATLAS_MAGIC_MARKER = 0x7096;
   uint256 internal constant ATLAS_MAX_STALENESS = 5 minutes;
+  uint256 internal constant ATLAS_LEG_MAX_FUTURE_DRIFT = 60;
 
   function _selectFork() public virtual override {
     vm.createSelectFork('mainnet', 25_386_536);
