@@ -44,6 +44,7 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
   bytes4 internal constant ATLAS_UNKNOWN_FEED = 0x00000099;
   bytes2 internal constant ATLAS_MAGIC_MARKER = 0x7096;
   uint256 internal constant ATLAS_MAX_STALENESS = 5 minutes;
+  uint256 internal constant ATLAS_LEG_MAX_FUTURE_DRIFT = 60;
   // AtlasOracleAdapter defaults for payload timestamps.
   uint256 internal constant ATLAS_MAX_DELAY = 180;
   uint256 internal constant ATLAS_MAX_FUTURE_DRIFT = 60;
@@ -82,12 +83,32 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
     view
     returns (TokenOracle memory)
   {
+    return _atlasLeg(feedId, priceLimits, inverse, maxStaleness, ATLAS_LEG_MAX_FUTURE_DRIFT);
+  }
+
+  function _atlasLeg(
+    bytes4 feedId,
+    PackedU128 priceLimits,
+    bool inverse,
+    uint256 maxStaleness,
+    uint256 maxFutureDrift
+  ) internal view returns (TokenOracle memory) {
     return TokenOracle(
       toBoolAddress(inverse, address(atlasAdapter)),
       toOracleSource(maxStaleness, address(0)),
       priceLimits,
-      abi.encode(feedId)
+      abi.encode(feedId, maxFutureDrift, address(0))
     );
+  }
+
+  /// @dev A leg pinned to one Atlas signer; any other authorized signer is rejected.
+  function _atlasLegPinnedTo(bytes4 feedId, address expectedSigner)
+    internal
+    view
+    returns (TokenOracle memory leg)
+  {
+    leg = _atlasLeg(feedId, _fullBand());
+    leg.additionalData = abi.encode(feedId, ATLAS_LEG_MAX_FUTURE_DRIFT, expectedSigner);
   }
 
   /// @dev One package: feed id | 1e18 price (80 bits) | unix seconds (48 bits).
@@ -348,6 +369,88 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
 
     vm.expectRevert(IOracleAdapter.StaleOraclePrice.selector);
     this.pushAndReadAtlas(updateCall, ATLAS_MAX_STALENESS + 1, leg);
+  }
+
+  /// @dev the leg's own `maxFutureDrift`, checked by `getPrice` after a valid push
+  function testRevert_Atlas_GetPrice_FutureDrift() public {
+    uint256 future = vm.getBlockTimestamp() + ATLAS_MAX_FUTURE_DRIFT;
+    bytes memory updateCall = _atlasUpdateCall(_atlasPayload(future));
+    TokenOracle memory leg = _atlasLeg(
+      ATLAS_USDT_USD, _fullBand(), false, ATLAS_MAX_STALENESS, ATLAS_MAX_FUTURE_DRIFT - 1
+    );
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IPullOracleReferenceHooks.PriceFeedFutureDrift.selector,
+        ATLAS_USDT_USD,
+        future,
+        vm.getBlockTimestamp()
+      )
+    );
+    this.pushAndReadAtlas(updateCall, 0, leg);
+  }
+
+  /// @dev a future timestamp within the leg's own bound is accepted
+  function test_Atlas_GetPrice_FutureDriftWithinLegBound() public {
+    uint256 future = vm.getBlockTimestamp() + ATLAS_MAX_FUTURE_DRIFT;
+    bytes memory updateCall = _atlasUpdateCall(_atlasPayload(future));
+    TokenOracle memory leg =
+      _atlasLeg(ATLAS_USDT_USD, _fullBand(), false, ATLAS_MAX_STALENESS, ATLAS_MAX_FUTURE_DRIFT);
+
+    assertEq(this.pushAndReadAtlas(updateCall, 0, leg), USDT_USD);
+  }
+
+  /// @dev the leg must carry the feed id, the drift bound and the expected signer
+  function testRevert_Atlas_GetPrice_TruncatedAdditionalData() public {
+    bytes memory updateCall = _atlasUpdateCall(_atlasPayload());
+    TokenOracle memory leg = _atlasLeg(ATLAS_USDT_USD, _fullBand());
+    leg.additionalData = abi.encode(ATLAS_USDT_USD, ATLAS_LEG_MAX_FUTURE_DRIFT);
+
+    vm.expectRevert(AtlasOracleAdapter.InvalidOracleAdditionalData.selector);
+    this.pushAndReadAtlas(updateCall, 0, leg);
+  }
+
+  /// @dev an intent may pin its feed to one specific signer out of the authorized set
+  function test_Atlas_GetPrice_PinnedSigner() public {
+    bytes memory updateCall = _atlasUpdateCall(_atlasPayload());
+    TokenOracle memory leg = _atlasLegPinnedTo(ATLAS_USDT_USD, atlasSigner);
+
+    assertEq(this.pushAndReadAtlas(updateCall, 0, leg), USDT_USD);
+  }
+
+  /// @dev a push from another authorized signer does not satisfy a pinned intent
+  function testRevert_Atlas_GetPrice_PinnedSignerMismatch() public {
+    (address otherSigner, uint256 otherSignerKey) = makeAddrAndKey('atlasSigner2');
+    vm.prank(admin);
+    atlasAdapter.setSignerStatus(otherSigner, true);
+
+    bytes memory updateCall =
+      _atlasUpdateCall(_atlasPayload(otherSignerKey, vm.getBlockTimestamp()));
+    TokenOracle memory leg = _atlasLegPinnedTo(ATLAS_USDT_USD, atlasSigner);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        AtlasOracleAdapter.UnexpectedFeedSigner.selector, atlasSigner, otherSigner
+      )
+    );
+    this.pushAndReadAtlas(updateCall, 0, leg);
+  }
+
+  /// @dev an unpinned leg (zero signer) takes any authorized signer
+  function test_Atlas_GetPrice_UnpinnedSignerTakesAny() public {
+    (address otherSigner, uint256 otherSignerKey) = makeAddrAndKey('atlasSigner2');
+    vm.prank(admin);
+    atlasAdapter.setSignerStatus(otherSigner, true);
+
+    bytes memory updateCall =
+      _atlasUpdateCall(_atlasPayload(otherSignerKey, vm.getBlockTimestamp()));
+    assertEq(this.pushAndReadAtlas(updateCall, 0, _atlasLeg(ATLAS_USDT_USD, _fullBand())), USDT_USD);
+  }
+
+  /// @dev an empty feed list stays a no-op, payload or not
+  function test_Atlas_UpdatePrices_NoFeeds() public {
+    atlasAdapter.updatePrices(new bytes4[](0));
+    _pushAtlas(_atlasUpdateCall(new bytes4[](0), _atlasPayload()));
   }
 
   function testRevert_Atlas_NoPayload() public {

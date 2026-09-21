@@ -358,7 +358,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     return _atlasLeg(feedId, priceLimits, inverse, ATLAS_MAX_STALENESS);
   }
 
-  /// @dev The adapter ignores the `source` address; only the staleness bound applies.
+  /// @dev A zero `source` address leaves the leg open to any authorized Atlas signer.
   function _atlasLeg(bytes4 feedId, PackedU128 priceLimits, bool inverse, uint256 maxStaleness)
     internal
     view
@@ -368,7 +368,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
       toBoolAddress(inverse, address(atlasAdapter)),
       toOracleSource(maxStaleness, address(0)),
       priceLimits,
-      abi.encode(feedId)
+      abi.encode(feedId, ATLAS_LEG_MAX_FUTURE_DRIFT, address(0))
     );
   }
 

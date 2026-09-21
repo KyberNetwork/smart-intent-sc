@@ -9,20 +9,37 @@ import {TransientSlot} from 'openzeppelin-contracts/contracts/utils/TransientSlo
 import {
   PullOracleConsumerStandardStorage
 } from 'pull-oracle-consumer/src/PullOracleConsumerStandardStorage.sol';
+import {
+  IPullOracleReferenceHooks
+} from 'pull-oracle-consumer/src/interfaces/IPullOracleReferenceHooks.sol';
+import {PullOracleCodec} from 'pull-oracle-consumer/src/libraries/PullOracleCodec.sol';
+import {PullOracleSignature} from 'pull-oracle-consumer/src/libraries/PullOracleSignature.sol';
 import {TokenOracle} from 'src/types/OracleConfig.sol';
 
 contract AtlasOracleAdapter is IOracleAdapter, PullOracleConsumerStandardStorage, ManagementBase {
   using CalldataDecoder for bytes;
   using SlotDerivation for bytes32;
   using TransientSlot for bytes32;
+  using TransientSlot for TransientSlot.AddressSlot;
   using TransientSlot for TransientSlot.Uint256Slot;
 
   uint8 internal constant DEFAULT_MAX_PACKAGE_COUNT = type(uint8).max;
   uint48 internal constant DEFAULT_MAX_DELAY = 180;
   uint48 internal constant DEFAULT_MAX_FUTURE_DRIFT = 60;
 
-  /// @dev Offset of the timestamp within a feed's slots: [price, timestamp].
+  /// @dev Offsets within a feed's slots: [price, timestamp, signer].
   uint256 internal constant TIMESTAMP_OFFSET = 1;
+  uint256 internal constant SIGNER_OFFSET = 2;
+
+  /// @dev Length of a well formed `additionalData`: three words
+  ///      [feedId, maxFutureDrift, expectedSigner].
+  uint256 internal constant ADDITIONAL_DATA_LENGTH = 96;
+
+  /// @notice `oracle.additionalData` is not the full [feedId, maxFutureDrift, expectedSigner].
+  error InvalidOracleAdditionalData();
+
+  /// @notice The feed was signed by an authorized signer, but not the one the intent pinned.
+  error UnexpectedFeedSigner(address expected, address actual);
 
   /// @dev Transient namespace holding `feedId => [price, timestamp]`.
   bytes32 internal immutable PRICES_SLOT =
@@ -41,12 +58,17 @@ contract AtlasOracleAdapter is IOracleAdapter, PullOracleConsumerStandardStorage
    * @param feedIds The feeds to cache; each must be in the payload.
    */
   function updatePrices(bytes4[] calldata feedIds) external {
+    if (feedIds.length == 0) return;
+
     (uint256[] memory prices, uint256[] memory timestamps) = _getVerifiedFeedDataBatch(feedIds);
+
+    address signer = _recoverPayloadSigner();
 
     for (uint256 i = 0; i < feedIds.length; i++) {
       bytes32 slot = _feedSlot(feedIds[i]);
       slot.asUint256().tstore(prices[i]);
       slot.offset(TIMESTAMP_OFFSET).asUint256().tstore(timestamps[i]);
+      slot.offset(SIGNER_OFFSET).asAddress().tstore(signer);
     }
   }
 
@@ -72,15 +94,39 @@ contract AtlasOracleAdapter is IOracleAdapter, PullOracleConsumerStandardStorage
 
   /**
    * @inheritdoc IOracleAdapter
+   * @dev `oracle.additionalData` is
+   *      `abi.encode(bytes4 feedId, uint256 maxFutureDrift, address expectedSigner)`
    */
   function getPrice(TokenOracle calldata oracle) external view returns (uint256 price) {
-    bytes32 slot = _feedSlot(bytes4(oracle.additionalData.decodeBytes32()));
+    bytes calldata additionalData = oracle.additionalData;
+    if (additionalData.length < ADDITIONAL_DATA_LENGTH) revert InvalidOracleAdditionalData();
+
+    bytes4 feedId = bytes4(additionalData.decodeBytes32());
+    bytes32 slot = _feedSlot(feedId);
 
     price = slot.asUint256().tload();
     if (price == 0) revert InvalidOraclePrice();
 
     uint256 updatedAt = slot.offset(TIMESTAMP_OFFSET).asUint256().tload();
     if (updatedAt + oracle.source.maxStaleness() < block.timestamp) revert StaleOraclePrice();
+
+    if (
+      updatedAt > block.timestamp && updatedAt - block.timestamp > additionalData.decodeUint256(1)
+    ) {
+      revert IPullOracleReferenceHooks.PriceFeedFutureDrift(feedId, updatedAt, block.timestamp);
+    }
+
+    address expectedSigner = additionalData.decodeAddress(2);
+    if (expectedSigner != address(0)) {
+      address signer = slot.offset(SIGNER_OFFSET).asAddress().tload();
+      if (signer != expectedSigner) revert UnexpectedFeedSigner(expectedSigner, signer);
+    }
+  }
+
+  function _recoverPayloadSigner() private view returns (address) {
+    (uint256 payloadStart, uint256 payloadEnd) =
+      PullOracleCodec._parseMetadata(_getMaxPackageCount());
+    return PullOracleSignature._recoverSigner(payloadStart, payloadEnd);
   }
 
   function _feedSlot(bytes4 feedId) private view returns (bytes32) {
