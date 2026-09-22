@@ -110,9 +110,7 @@ contract AtlasOracleAdapter is IOracleAdapter, PullOracleConsumerStandardStorage
     uint256 updatedAt = slot.offset(TIMESTAMP_OFFSET).asUint256().tload();
     if (updatedAt + oracle.source.maxStaleness() < block.timestamp) revert StaleOraclePrice();
 
-    if (
-      updatedAt > block.timestamp && updatedAt - block.timestamp > additionalData.decodeUint256(1)
-    ) {
+    if (updatedAt > block.timestamp + additionalData.decodeUint256(1)) {
       revert IPullOracleReferenceHooks.PriceFeedFutureDrift(feedId, updatedAt, block.timestamp);
     }
 
