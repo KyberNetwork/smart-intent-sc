@@ -384,10 +384,11 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     view
     returns (ActionData memory actionData)
   {
-    FeeInfo memory feeInfo;
-    feeInfo.protocolRecipient = protocolRecipient;
-    feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
-    feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
+    // Assigned field by field: a struct literal keeps every field on the stack at once, which
+    // overflows it once via-IR inlines this into callers that also hold an IntentData.
+    actionData.feeInfo.protocolRecipient = protocolRecipient;
+    actionData.feeInfo.partnerFeeConfigs = new FeeConfig[][](1);
+    actionData.feeInfo.partnerFeeConfigs[0] = _buildPartnersConfigs(
       PartnersFeeConfigBuildParams({
         feeModes: [false].toMemoryArray(),
         partnerFees: [uint24(1e6)].toMemoryArray(),
@@ -395,30 +396,23 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
       })
     );
 
-    actionData = ActionData({
-      erc20Ids: [uint256(0)].toMemoryArray(),
-      erc20Amounts: [tokenData.erc20Data[0].amount].toMemoryArray(),
-      erc721Ids: new uint256[](0),
-      feeInfo: feeInfo,
-      approvalFlags: (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1,
-      actionSelectorId: swapViaMock ? 0 : 1,
-      actionCalldata: swapViaMock
-        ? (actionCalldata.length == 0
-            ? abi.encode(
-              tokenIn,
-              tokenOut,
-              swapAmount,
-              1000,
-              feeAfter == 0 ? mainAddress : address(router),
-              mainAddress
-            )
-            : actionCalldata)
-        : actionCalldata,
-      hookActionData: _hookActionData(0),
-      extraData: '',
-      deadline: vm.getBlockTimestamp() + 1 days,
-      nonce: 0
-    });
+    actionData.erc20Ids = [uint256(0)].toMemoryArray();
+    actionData.erc20Amounts = [tokenData.erc20Data[0].amount].toMemoryArray();
+    actionData.approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
+    actionData.actionSelectorId = swapViaMock ? 0 : 1;
+    if (swapViaMock && actionCalldata.length == 0) {
+      actionCalldata = abi.encode(
+        tokenIn,
+        tokenOut,
+        swapAmount,
+        1000,
+        feeAfter == 0 ? mainAddress : address(router),
+        mainAddress
+      );
+    }
+    actionData.actionCalldata = actionCalldata;
+    actionData.hookActionData = _hookActionData(0);
+    actionData.deadline = vm.getBlockTimestamp() + 1 days;
   }
 
   function _getIntentData(

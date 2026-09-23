@@ -13,6 +13,9 @@ import {
   IPullOracleReferenceHooks
 } from 'pull-oracle-consumer/src/interfaces/IPullOracleReferenceHooks.sol';
 import {PullOracleCodec} from 'pull-oracle-consumer/src/libraries/PullOracleCodec.sol';
+import {
+  PullOracleReferenceHooks
+} from 'pull-oracle-consumer/src/libraries/PullOracleReferenceHooks.sol';
 import {PullOracleSignature} from 'pull-oracle-consumer/src/libraries/PullOracleSignature.sol';
 import {TokenOracle} from 'src/types/OracleConfig.sol';
 
@@ -22,10 +25,6 @@ contract AtlasOracleAdapter is IOracleAdapter, PullOracleConsumerStandardStorage
   using TransientSlot for bytes32;
   using TransientSlot for TransientSlot.AddressSlot;
   using TransientSlot for TransientSlot.Uint256Slot;
-
-  uint8 internal constant DEFAULT_MAX_PACKAGE_COUNT = type(uint8).max;
-  uint48 internal constant DEFAULT_MAX_DELAY = 180;
-  uint48 internal constant DEFAULT_MAX_FUTURE_DRIFT = 60;
 
   /// @dev Offsets within a feed's slots: [price, timestamp, signer].
   uint256 internal constant TIMESTAMP_OFFSET = 1;
@@ -47,7 +46,10 @@ contract AtlasOracleAdapter is IOracleAdapter, PullOracleConsumerStandardStorage
 
   constructor(address initialAdmin, address[] memory initialSigners)
     PullOracleConsumerStandardStorage(
-      DEFAULT_MAX_PACKAGE_COUNT, DEFAULT_MAX_DELAY, DEFAULT_MAX_FUTURE_DRIFT, initialSigners
+      uint8(PullOracleReferenceHooks.DEFAULT_MAX_PACKAGE_COUNT),
+      uint48(PullOracleReferenceHooks.DEFAULT_MAX_DELAY),
+      uint48(PullOracleReferenceHooks.DEFAULT_MAX_FUTURE_DRIFT),
+      initialSigners
     )
     ManagementBase(0, initialAdmin)
   {}
