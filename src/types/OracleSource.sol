@@ -23,7 +23,7 @@ function toOracleSource(uint256 maxStaleness, address source) pure returns (Orac
 library OracleSourceLibrary {
   function maxStaleness(OracleSource self) internal pure returns (uint256 _maxStaleness) {
     assembly ('memory-safe') {
-      _maxStaleness := shr(MAX_STALENESS_OFFSET, self)
+      _maxStaleness := and(shr(MAX_STALENESS_OFFSET, self), MASK_96_BITS)
     }
   }
 
@@ -39,7 +39,7 @@ library OracleSourceLibrary {
     returns (uint256 _maxStaleness, address _source)
   {
     assembly ('memory-safe') {
-      _maxStaleness := shr(MAX_STALENESS_OFFSET, self)
+      _maxStaleness := and(shr(MAX_STALENESS_OFFSET, self), MASK_96_BITS)
       _source := and(self, MASK_160_BITS)
     }
   }
