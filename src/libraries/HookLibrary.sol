@@ -36,7 +36,8 @@ library HookLibrary {
   ) internal {
     (address[] memory tokens, uint256[] memory fees, uint256[] memory amounts, address recipient) = IKSSmartIntentHook(
         intentData.coreData.hook
-      ).afterExecution(intentHash, intentData, beforeExecutionData, actionResult);
+      )
+      .afterExecution(intentHash, intentData, beforeExecutionData, actionResult);
 
     if (tokens.length != fees.length) {
       revert ICommon.MismatchedArrayLengths();
