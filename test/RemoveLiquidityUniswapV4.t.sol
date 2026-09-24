@@ -99,7 +99,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
         pm
-      ).poolManager()
+      )
+      .poolManager()
       .computePositionValues(IPositionManager(pm), uniV4TokenId, fuzzStruct.liquidityToRemove);
 
     fee0 = unclaimedFee0;
@@ -177,7 +178,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
 
     (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
         pm
-      ).poolManager()
+      )
+      .poolManager()
       .computePositionValues(IPositionManager(pm), uniV4TokenId, fuzz.liquidityToRemove);
 
     fee0 = unclaimedFee0;
@@ -276,7 +278,9 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     uint256 liquidityToRemove = bound(seed, 0, liquidity);
     (uint256 liqAmount0, uint256 liqAmount1, uint256 unclaimedFee0, uint256 unclaimedFee1) = IPositionManager(
         pm
-      ).poolManager().computePositionValues(IPositionManager(pm), uniV4TokenId, liquidityToRemove);
+      )
+      .poolManager()
+      .computePositionValues(IPositionManager(pm), uniV4TokenId, liquidityToRemove);
 
     bytes[] memory multiCalldata;
     if (!unwrap) {
@@ -856,7 +860,8 @@ contract RemoveLiquidityUniswapV4Test is BaseTest {
     maxFeePercents = bound(maxFeePercents, 0, type(uint128).max);
     fuzzStruct.maxFeePercents = maxFeePercents;
 
-    (uint256 received0, uint256 received1,,) = IPositionManager(pm).poolManager()
+    (uint256 received0, uint256 received1,,) = IPositionManager(pm)
+      .poolManager()
       .computePositionValues(IPositionManager(pm), uniV4TokenId, liquidity);
 
     amount0 = received0;
