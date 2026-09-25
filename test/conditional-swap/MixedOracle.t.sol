@@ -258,7 +258,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
 
     OracleConfig memory cfg = _config(
       _legIn(inPyth, inPyth ? _fullBand() : _band(priceIn, 100, 100)),
-      _legOut(outPyth, outPyth ? _fullBand() : _band(priceOut, 100, 100)),
+      _legOut(outPyth, outPyth ? _fullBand() : _band(_inv(priceOut), 100, 100)),
       1e16 // 1% slippage tolerance
     );
 
@@ -276,10 +276,10 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     (uint256 priceIn, uint256 priceOut,) = _readReal(_realChainlink(_fullBand(), _fullBand()));
 
     PackedU128 bandOut = ok
-      ? (outPyth ? _fullBand() : _band(priceOut, 100, 100))
+      ? (outPyth ? _fullBand() : _band(_inv(priceOut), 100, 100))
       : (outPyth
           ? toPackedU128(type(uint128).max - 1, type(uint128).max)
-          : toPackedU128(priceOut * 2, type(uint128).max));
+          : toPackedU128(_inv(priceOut) * 2, type(uint128).max));
 
     OracleConfig memory cfg = _config(
       _legIn(inPyth, inPyth ? _fullBand() : _band(priceIn, 100, 100)),
@@ -477,7 +477,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     conditions[0] = _oracleCondition(
       _config(
         _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-        _chainlinkLeg(address(feedOut), toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
+        _chainlinkLeg(address(feedOut), toPackedU128(BTC_USD * 2, type(uint128).max), true),
         0
       )
     );
@@ -485,7 +485,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     conditions[1] = _oracleCondition(
       _config(
         _pythLeg(address(pyth), USDT_ID, _band(USDT_USD, 100, 100), 3600),
-        _pythLeg(address(pyth), WBTC_ID, _band(WBTC_PER_USD, 100, 100), true, 3600),
+        _pythLeg(address(pyth), WBTC_ID, _band(BTC_USD, 100, 100), true, 3600),
         0
       )
     );
@@ -599,7 +599,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _atlasLeg(ATLAS_WBTC_USD, _band(WBTC_PER_USD, 100, 100), true),
+      _atlasLeg(ATLAS_WBTC_USD, _band(BTC_USD, 100, 100), true),
       0
     );
     _expectAtlasSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -610,7 +610,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _atlasLeg(ATLAS_WBTC_USD, toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
+      _atlasLeg(ATLAS_WBTC_USD, toPackedU128(BTC_USD * 2, type(uint128).max), true),
       0
     );
     _expectAtlasSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -621,7 +621,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _pythLeg(address(pyth), USDT_ID, _band(USDT_USD, 100, 100), 3600),
-      _atlasLeg(ATLAS_WBTC_USD, _band(WBTC_PER_USD, 100, 100), true),
+      _atlasLeg(ATLAS_WBTC_USD, _band(BTC_USD, 100, 100), true),
       0
     );
     _expectAtlasSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -632,7 +632,7 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _atlasLeg(ATLAS_USDT_USD, _band(USDT_USD, 100, 100)),
-      _chainlinkLeg(address(feedOut), _band(WBTC_PER_USD, 100, 100), true),
+      _chainlinkLeg(address(feedOut), _band(BTC_USD, 100, 100), true),
       0
     );
     _expectAtlasSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -647,23 +647,21 @@ contract MixedOracleTest is ConditionalSwapBaseTest {
     conditions[0] = _oracleCondition(
       _config(
         _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-        _chainlinkLeg(address(feedOut), toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
+        _chainlinkLeg(address(feedOut), toPackedU128(BTC_USD * 2, type(uint128).max), true),
         0
       )
     );
     conditions[1] = _oracleCondition(
       _config(
         _pythLeg(address(pyth), USDT_ID, _band(USDT_USD, 100, 100), 3600),
-        _pythLeg(
-          address(pyth), WBTC_ID, toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true, 3600
-        ),
+        _pythLeg(address(pyth), WBTC_ID, toPackedU128(BTC_USD * 2, type(uint128).max), true, 3600),
         0
       )
     );
     conditions[2] = _oracleCondition(
       _config(
         _atlasLeg(ATLAS_USDT_USD, _band(USDT_USD, 100, 100)),
-        _atlasLeg(ATLAS_WBTC_USD, _band(WBTC_PER_USD, 100, 100), true),
+        _atlasLeg(ATLAS_WBTC_USD, _band(BTC_USD, 100, 100), true),
         0
       )
     );
