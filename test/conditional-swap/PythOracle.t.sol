@@ -155,7 +155,7 @@ contract PythOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _pythLeg(address(pyth), USDT_ID, _band(USDT_USD, 100, 100), 3600),
-      _pythLeg(address(pyth), WBTC_ID, _band(WBTC_PER_USD, 100, 100), true, 3600),
+      _pythLeg(address(pyth), WBTC_ID, _band(BTC_USD, 100, 100), true, 3600),
       0
     );
 

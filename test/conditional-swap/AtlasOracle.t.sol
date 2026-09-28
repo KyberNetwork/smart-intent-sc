@@ -258,7 +258,7 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _atlasLeg(ATLAS_USDT_USD, _band(USDT_USD, 100, 100)),
-      _atlasLeg(ATLAS_WBTC_USD, _band(WBTC_PER_USD, 100, 100), true),
+      _atlasLeg(ATLAS_WBTC_USD, _band(BTC_USD, 100, 100), true),
       0
     );
     _expectAtlasSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -269,7 +269,7 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
     // tokenOut band sits entirely above the signed BTC price -> never met
     OracleConfig memory cfg = _config(
       _atlasLeg(ATLAS_USDT_USD, _band(USDT_USD, 100, 100)),
-      _atlasLeg(ATLAS_WBTC_USD, toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
+      _atlasLeg(ATLAS_WBTC_USD, toPackedU128(BTC_USD * 2, type(uint128).max), true),
       0
     );
     _expectAtlasSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));

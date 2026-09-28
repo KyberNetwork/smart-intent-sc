@@ -96,6 +96,11 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     return toPackedU128(0, type(uint128).max);
   }
 
+  /// @dev Undo a 1e18 inversion to recover the raw adapter price that `priceLimits` bounds.
+  function _inv(uint256 price) internal pure returns (uint256) {
+    return 1e36 / price;
+  }
+
   function _readReal(OracleConfig memory cfg)
     internal
     view

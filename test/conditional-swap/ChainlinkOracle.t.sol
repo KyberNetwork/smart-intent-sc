@@ -96,7 +96,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _chainlinkLeg(address(feedOut), _band(WBTC_PER_USD, 100, 100), true),
+      _chainlinkLeg(address(feedOut), _band(BTC_USD, 100, 100), true),
       0
     );
     _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -107,7 +107,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     // tokenOut band sits entirely above the live BTC price -> never met
     OracleConfig memory cfg = _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _chainlinkLeg(address(feedOut), toPackedU128(WBTC_PER_USD * 2, type(uint128).max), true),
+      _chainlinkLeg(address(feedOut), toPackedU128(BTC_USD * 2, type(uint128).max), true),
       0
     );
     _expectSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -172,7 +172,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _config(
       _emptyLeg(),
-      _chainlinkLeg(address(feedDirectInverse), _band(WBTC_PER_USDT, 100, 100), true),
+      _chainlinkLeg(address(feedDirectInverse), _band(USDT_PER_WBTC, 100, 100), true),
       1e16
     );
     _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
@@ -214,7 +214,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
   function test_Chainlink_DirectPair_Inverse_Pass(uint256 mode) public {
     mode = bound(mode, 0, 2);
     OracleConfig memory cfg = _directConfig(
-      _chainlinkLeg(address(feedDirectInverse), _band(WBTC_PER_USDT, 100, 100), true), 1e16
+      _chainlinkLeg(address(feedDirectInverse), _band(USDT_PER_WBTC, 100, 100), true), 1e16
     );
     _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
@@ -224,7 +224,8 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     (uint256 priceIn, uint256 priceOut, uint256 ratio) =
       _readReal(_realChainlink(_fullBand(), _fullBand()));
 
-    OracleConfig memory cfg = _realChainlink(_band(priceIn, 100, 100), _band(priceOut, 100, 100));
+    OracleConfig memory cfg =
+      _realChainlink(_band(priceIn, 100, 100), _band(_inv(priceOut), 100, 100));
     _expectSwapOk(mode, cfg, _amountOutFor(ratio));
   }
 
@@ -233,7 +234,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     (, uint256 priceOut, uint256 ratio) = _readReal(_realChainlink(_fullBand(), _fullBand()));
 
     OracleConfig memory cfg =
-      _realChainlink(_fullBand(), toPackedU128(priceOut * 2, type(uint128).max));
+      _realChainlink(_fullBand(), toPackedU128(_inv(priceOut) * 2, type(uint128).max));
     _expectSwapRevert(mode, cfg, _amountOutFor(ratio));
   }
 

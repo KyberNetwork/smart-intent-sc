@@ -61,10 +61,7 @@ library OracleLib {
     uint256 maxDeviation = config.maxDeviation;
     require(maxDeviation <= PRECISION, InvalidMaxDeviation());
 
-    uint256 priceIn = config.oracleIn.getPriceAndValidate();
-    uint256 priceOut = config.oracleOut.getPriceAndValidate();
-
-    uint256 ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
+    (,, uint256 ratio) = config.getPrices(tokenIn, tokenOut);
     (uint128 minOracleRatio, uint128 maxOracleRatio) = config.oracleRatioLimits.unpack();
     if (ratio < minOracleRatio || ratio > maxOracleRatio) {
       revert OracleRatioOutOfRange(ratio, minOracleRatio, maxOracleRatio);
@@ -86,27 +83,34 @@ library OracleLib {
     return oracle.adapter.addressValue() == address(0);
   }
 
-  /// @notice Returns the oracle price, reverting if it is outside its configured band.
-  /// @dev Empty oracle slots return identity price 1e18.
-  function getPriceAndValidate(TokenOracle calldata oracle) internal view returns (uint256 price) {
-    if (oracle.isEmpty()) return PRECISION;
-    price = oracle.getPrice();
-    (uint128 min, uint128 max) = oracle.priceLimits.unpack();
-    if (price < min || price > max) {
-      revert OraclePriceOutOfRange(price, min, max);
-    }
-    return price;
-  }
-
-  /// @notice Oracle edge prices (1e18) and the derived raw-basis ratio.
+  /// @notice Oracle edge prices (1e18) and the derived raw-basis ratio, reverting if any edge is out of band.
   function getPrices(OracleConfig calldata config, address tokenIn, address tokenOut)
     internal
     view
     returns (uint256 priceIn, uint256 priceOut, uint256 ratio)
   {
-    priceIn = config.oracleIn.isEmpty() ? PRECISION : config.oracleIn.getPrice();
-    priceOut = config.oracleOut.isEmpty() ? PRECISION : config.oracleOut.getPrice();
+    priceIn = config.oracleIn.getPrice();
+    priceOut = config.oracleOut.getPrice();
     ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
+  }
+
+  /**
+   * @notice Returns the oracle price (1e18), reverting if the adapter price is outside `priceLimits`.
+   * @dev Empty oracle slots return identity price 1e18.
+   */
+  function getPrice(TokenOracle calldata oracle) internal view returns (uint256 price) {
+    if (oracle.isEmpty()) return PRECISION;
+
+    (bool inverse, address adapter) = oracle.adapter.unpack();
+    price = IOracleAdapter(adapter).getPrice(oracle);
+    if (price == 0) revert IOracleAdapter.InvalidOraclePrice();
+
+    (uint128 min, uint128 max) = oracle.priceLimits.unpack();
+    if (price < min || price > max) {
+      revert OraclePriceOutOfRange(price, min, max);
+    }
+
+    return inverse ? Math.mulDiv(PRECISION, PRECISION, price) : price;
   }
 
   /**
@@ -124,17 +128,5 @@ library OracleLib {
       return price * (10 ** uint256(decimalsOut - decimalsIn));
     }
     return price / (10 ** uint256(decimalsIn - decimalsOut));
-  }
-
-  function getPrice(TokenOracle calldata oracle) internal view returns (uint256 price) {
-    (bool inverse, address adapter) = oracle.adapter.unpack();
-
-    price = IOracleAdapter(adapter).getPrice(oracle);
-    if (price == 0) revert IOracleAdapter.InvalidOraclePrice();
-
-    if (inverse) {
-      return Math.mulDiv(PRECISION, PRECISION, price);
-    }
-    return price;
   }
 }
