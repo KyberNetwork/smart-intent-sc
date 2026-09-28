@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {IERC20Metadata} from 'openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol';
 import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
+import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
+
 import {IOracleAdapter} from '../interfaces/oracle/IOracleAdapter.sol';
 import {BoolAddress} from './BoolAddress.sol';
 import {OracleSource} from './OracleSource.sol';
@@ -122,11 +124,15 @@ library OracleLib {
     view
     returns (uint256)
   {
-    uint8 decimalsIn = IERC20Metadata(tokenIn).decimals();
-    uint8 decimalsOut = IERC20Metadata(tokenOut).decimals();
+    uint8 decimalsIn = _decimals(tokenIn);
+    uint8 decimalsOut = _decimals(tokenOut);
     if (decimalsOut >= decimalsIn) {
       return price * (10 ** uint256(decimalsOut - decimalsIn));
     }
     return price / (10 ** uint256(decimalsIn - decimalsOut));
+  }
+
+  function _decimals(address token) private view returns (uint8) {
+    return TokenHelper.isNative(token) ? 18 : IERC20Metadata(token).decimals();
   }
 }
