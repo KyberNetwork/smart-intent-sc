@@ -4,6 +4,35 @@ pragma solidity ^0.8.0;
 import './BaseDeploy.s.sol';
 
 contract DeployOracleAdapters is BaseDeployScript {
-  // Oracle adapters are stateless, so `_getConstructorArgs` is left at its no-args default
-  constructor() BaseDeployScript('260819', 'oracle-adapter-configs.json') {}
+  /// @dev Oracle adapter configs and deployed addresses live under script/config/oracle-adapters/
+  string constant CONFIG_DIR = 'oracle-adapters/';
+
+  constructor()
+    BaseDeployScript('260929', string.concat(CONFIG_DIR, 'oracle-adapter-configs.json'))
+  {}
+
+  function _getConstructorArgs(string[] memory paramSources)
+    internal
+    override
+    returns (bytes memory)
+  {
+    // Chainlink and Pyth adapters are stateless and take no arguments
+    if (paramSources.length == 0) {
+      return '';
+    }
+
+    // AtlasOracleAdapter(address initialAdmin, address[] initialSigners): the static and dynamic
+    // arguments must be encoded together, so the pair is resolved as a unit
+    if (
+      paramSources.length == 2 && keccak256(bytes(paramSources[0])) == keccak256('admin')
+        && keccak256(bytes(paramSources[1])) == keccak256('atlas-signers')
+    ) {
+      return abi.encode(
+        _readAddress('router-admin'),
+        _readAddressArray(string.concat(CONFIG_DIR, 'atlas-oracle-signers'))
+      );
+    }
+
+    revert('Unsupported constructor parameter sources');
+  }
 }

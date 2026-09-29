@@ -1,0 +1,17 @@
+{
+  "ChainlinkOracleAdapter": {
+    "constructorParams": [],
+    "exported": "oracle-adapters/chainlink-oracle-adapter"
+  },
+  "PythOracleAdapter": {
+    "constructorParams": [],
+    "exported": "oracle-adapters/pyth-oracle-adapter"
+  },
+  "AtlasOracleAdapter": {
+    "constructorParams": [
+      "admin",
+      "atlas-signers"
+    ],
+    "exported": "oracle-adapters/atlas-oracle-adapter"
+  }
+}
