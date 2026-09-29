@@ -10,6 +10,7 @@ import {BaseStatefulHook} from '../base/BaseStatefulHook.sol';
 import {CalldataDecoder} from 'ks-common-sc/src/libraries/calldata/CalldataDecoder.sol';
 import {TokenHelper} from 'ks-common-sc/src/libraries/token/TokenHelper.sol';
 import {MerkleProof} from 'openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol';
+import {Math} from 'openzeppelin-contracts/contracts/utils/math/Math.sol';
 
 contract KSConditionalSwapHook is BaseStatefulHook {
   using TokenHelper for address;
@@ -21,11 +22,13 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   error InvalidSwapFee(
     uint256 srcFeePercent, uint256 dstFeePercent, uint128 maxSrcFee, uint128 maxDstFee
   );
-  error InvalidSwapPrice(uint256 price, uint128 minPrice, uint128 maxPrice);
+  error InvalidSwapPrice(uint256 price, uint256 minPrice, uint256 maxPrice);
   error InvalidLeafIndex();
   error SwapLimitExceeded(uint256 leafIndex, uint8 swapLimit);
 
-  uint256 public constant DENOMINATOR = 1e18;
+  /// @notice Scale of the realized swap price (raw tokenOut per raw tokenIn)
+  uint256 public constant DENOMINATOR = 1e36;
+  /// @notice Fee-rate denominator (1e6 = 100%)
   uint256 public constant PRECISION = 1_000_000;
 
   /**
@@ -46,7 +49,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
    * @param timeLimits The limits of the swap time (minTime 128bits, maxTime 128bits)
    * @param amountInLimits The limits of the swap amount (minAmountIn 128bits, maxAmountIn 128bits)
    * @param maxFees The max fees (srcFee 128bits, dstFee 128bits)
-   * @param priceLimits The limits of the realized price (tokenOut/tokenIn denominated by 1e18) (minPrice 128bits, maxPrice 128bits)
+   * @param minPrice The min realized price (raw tokenOut per raw tokenIn, scaled by 1e36)
+   * @param maxPrice The max realized price (raw tokenOut per raw tokenIn, scaled by 1e36)
    * @param oracle The oracle config, where oracleIn/oracleOut are price edges and an empty edge
    *        is identity price 1, carrying market-price bands and staleness/slippage params
    */
@@ -55,7 +59,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     PackedU128 timeLimits;
     PackedU128 amountInLimits;
     PackedU128 maxFees;
-    PackedU128 priceLimits;
+    uint256 minPrice;
+    uint256 maxPrice;
     OracleConfig oracle;
   }
 
@@ -169,7 +174,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 dstFee = (amountOut * validationData.dstFeeRate) / PRECISION;
     uint256 netAmountOut = amountOut - dstFee;
 
-    uint256 netExecutionPrice = (netAmountOut * DENOMINATOR) / amountIn;
+    uint256 netExecutionPrice = Math.mulDiv(netAmountOut, DENOMINATOR, amountIn);
 
     _validateSwapCondition(
       validationData.swapCondition,
@@ -244,9 +249,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       revert InvalidSwapFee(srcFeePercent, dstFeePercent, maxSrcFee, maxDstFee);
     }
 
-    (uint128 minPrice, uint128 maxPrice) = condition.priceLimits.unpack();
-    if (price < minPrice || price > maxPrice) {
-      revert InvalidSwapPrice(price, minPrice, maxPrice);
+    if (price < condition.minPrice || price > condition.maxPrice) {
+      revert InvalidSwapPrice(price, condition.minPrice, condition.maxPrice);
     }
     if (condition.oracle.hasOracle()) {
       OracleLib.validate(condition.oracle, tokenIn, tokenOut, price);
