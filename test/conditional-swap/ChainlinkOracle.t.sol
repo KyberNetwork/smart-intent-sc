@@ -16,15 +16,21 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
   // Per-token USD prices, USD-per-whole-token scaled by 1e18:
   uint256 internal constant USDT_USD = 1e18; // $1
   uint256 internal constant BTC_USD = 100_000e18; // $100k
-  // Derived swap ratio (amountOut_raw * 1e18 / amountIn_raw) for the mock prices: 1e15.
-  uint256 internal constant ORACLE_RATIO = 1e15;
+  // Derived swap ratio (amountOut_raw * 1e36 / amountIn_raw) for the mock prices: 1e33.
+  uint256 internal constant ORACLE_RATIO = 1e33;
   // WBTC per whole USD/USDT, scaled by 1e18.
   uint256 internal constant WBTC_PER_USD = 1e13;
   uint256 internal constant WBTC_PER_USDT = WBTC_PER_USD;
   uint256 internal constant USDT_PER_WBTC = 100_000e18;
   uint256 internal constant REAL_ORACLE_MAX_STALENESS = 15 hours;
   uint256 internal constant ETH_PER_USD = 5e14;
-  uint256 internal constant NATIVE_ORACLE_RATIO = 5e26;
+  uint256 internal constant NATIVE_ORACLE_RATIO = 5e44;
+
+  // Extreme pair: PEPE (18 decimals) -> WBTC (8 decimals), 1 PEPE = 1e-10 BTC.
+  address internal constant PEPE = 0x6982508145454Ce325dDbE47a25d4ec3d2311933;
+  uint256 internal constant BTC_PER_PEPE = 1e8; // 1e-10, scaled by 1e18
+  // Raw price 1e-10 * 1e8 / 1e18 = 1e-20, scaled by 1e36.
+  uint256 internal constant PEPE_ORACLE_RATIO = 1e16;
 
   // --- Real mainnet Chainlink aggregators ---
   address internal constant CHAINLINK_USDT_USD = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
@@ -141,7 +147,8 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
       _chainlinkLeg(address(feedIn), _fullBand()),
       _chainlinkLeg(address(feedOut), _fullBand(), true),
       0,
-      _band(ORACLE_RATIO, 100, 100)
+      (ORACLE_RATIO * 99) / 100,
+      (ORACLE_RATIO * 101) / 100
     );
     _expectSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
@@ -152,7 +159,8 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
       _chainlinkLeg(address(feedIn), _fullBand()),
       _chainlinkLeg(address(feedOut), _fullBand(), true),
       0,
-      toPackedU128(ORACLE_RATIO * 2, type(uint128).max)
+      ORACLE_RATIO * 2,
+      type(uint256).max
     );
     _expectSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
@@ -302,7 +310,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
 
     assertGt(priceOut, 0);
     assertLt(priceOut, 1e18);
-    assertEq(ratio, priceOut * 100);
+    assertEq(ratio, priceOut * 1e20);
 
     uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
     assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
@@ -325,10 +333,86 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     assertGt(priceIn, 0);
     assertGt(priceOut, 0);
     assertLt(priceOut, 1e18);
-    assertEq(ratio, ((priceIn * priceOut) / 1e18) * 100);
+    assertEq(ratio, priceIn * priceOut * 100);
 
     uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
     assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
     assertFalse(_validateOracle(cfg, tokenIn, tokenOut, (ratio * 98) / 100));
+  }
+
+  /// @dev Swaps 1e9 PEPE (1e27 raw) for WBTC, priced by a direct PEPE/BTC feed.
+  function _pepeConfig(uint256 maxDeviation) internal returns (OracleConfig memory) {
+    tokenIn = PEPE;
+    swapAmount = 1e27;
+    deal(PEPE, mainAddress, 1e30);
+    MockChainlinkFeed feedPepeBtc = new MockChainlinkFeed(18, int256(BTC_PER_PEPE));
+    return _config(
+      _chainlinkLeg(address(feedPepeBtc), _band(BTC_PER_PEPE, 100, 100)),
+      _emptyLeg(),
+      maxDeviation,
+      (PEPE_ORACLE_RATIO * 99) / 100,
+      (PEPE_ORACLE_RATIO * 101) / 100
+    );
+  }
+
+  function test_Chainlink_Extreme_PepeToWbtc_Ratio() public {
+    OracleConfig memory cfg = _pepeConfig(0);
+    (uint256 priceIn,, uint256 ratio) = _readReal(cfg);
+    assertEq(priceIn, BTC_PER_PEPE);
+    assertEq(ratio, PEPE_ORACLE_RATIO);
+  }
+
+  function test_Chainlink_Extreme_PepeToWbtc_Pass(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _pepeConfig(1e16); // 1% tolerance
+    uint256 amountOut = _amountOutFor(PEPE_ORACLE_RATIO); // 0.1 WBTC
+
+    KSConditionalSwapHook.SwapCondition[] memory conditions = _single(cfg);
+    conditions[0].minPrice = (PEPE_ORACLE_RATIO * 99) / 100;
+
+    (IntentData memory intentData, ActionData memory actionData) =
+      _buildIntentAndAction(conditions, amountOut);
+    uint256 balBefore = IERC20(tokenOut).balanceOf(mainAddress);
+    _executeSwap(mode, intentData, actionData);
+    assertEq(IERC20(tokenOut).balanceOf(mainAddress) - balBefore, amountOut);
+  }
+
+  function test_Chainlink_Extreme_PepeToWbtc_MinPrice_Revert(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _pepeConfig(0);
+    uint256 minPrice = (PEPE_ORACLE_RATIO * 99) / 100;
+    uint256 realizedPrice = (PEPE_ORACLE_RATIO * 95) / 100; // -5%
+
+    KSConditionalSwapHook.SwapCondition[] memory conditions = _single(cfg);
+    conditions[0].minPrice = minPrice;
+
+    (IntentData memory intentData, ActionData memory actionData) =
+      _buildIntentAndAction(conditions, _amountOutFor(realizedPrice));
+    _expectExecuteRevert(
+      mode,
+      intentData,
+      actionData,
+      abi.encodeWithSelector(
+        KSConditionalSwapHook.InvalidSwapPrice.selector, realizedPrice, minPrice, type(uint256).max
+      )
+    );
+  }
+
+  function test_Chainlink_Extreme_PepeToWbtc_SlippageGuard_Revert(uint256 mode) public {
+    mode = bound(mode, 0, 2);
+    OracleConfig memory cfg = _pepeConfig(1e16); // 1% tolerance
+    uint256 minRealizedPrice = (PEPE_ORACLE_RATIO * 99) / 100;
+    uint256 realizedPrice = (PEPE_ORACLE_RATIO * 95) / 100; // -5%
+
+    (IntentData memory intentData, ActionData memory actionData) =
+      _buildIntentAndAction(_single(cfg), _amountOutFor(realizedPrice));
+    _expectExecuteRevert(
+      mode,
+      intentData,
+      actionData,
+      abi.encodeWithSelector(
+        OracleLib.RealizedPriceBelowOracle.selector, realizedPrice, minRealizedPrice
+      )
+    );
   }
 }

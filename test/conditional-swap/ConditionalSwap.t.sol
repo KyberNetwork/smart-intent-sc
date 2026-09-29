@@ -135,7 +135,8 @@ contract ConditionalSwapTest is ConditionalSwapBaseTest {
       timeLimits: toPackedU128(0, type(uint128).max),
       amountInLimits: toPackedU128(swapAmount, swapAmount),
       maxFees: toPackedU128(0, type(uint128).max),
-      priceLimits: toPackedU128(1_000_000_000_000 - 100, 1_000_000_000_000 + 100),
+      minPrice: (1_000_000_000_000 - 100) * 1e18,
+      maxPrice: (1_000_000_000_000 + 100) * 1e18,
       oracle: _noOracle()
     });
 
@@ -184,7 +185,8 @@ contract ConditionalSwapTest is ConditionalSwapBaseTest {
       timeLimits: toPackedU128(vm.getBlockTimestamp() - 100, vm.getBlockTimestamp() + 100),
       amountInLimits: toPackedU128(0, type(uint128).max),
       maxFees: toPackedU128(0, type(uint128).max),
-      priceLimits: toPackedU128(type(uint128).max, type(uint128).max),
+      minPrice: type(uint256).max,
+      maxPrice: type(uint256).max,
       oracle: _noOracle()
     });
 
@@ -323,7 +325,8 @@ contract ConditionalSwapTest is ConditionalSwapBaseTest {
       timeLimits: toPackedU128(vm.getBlockTimestamp(), vm.getBlockTimestamp() + 1 days),
       amountInLimits: toPackedU128(0, type(uint128).max),
       maxFees: toPackedU128(maxSrcFee, maxDstFee),
-      priceLimits: toPackedU128(0, type(uint128).max),
+      minPrice: 0,
+      maxPrice: type(uint256).max,
       oracle: _noOracle()
     });
 

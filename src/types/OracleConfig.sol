@@ -32,27 +32,32 @@ struct TokenOracle {
 /**
  * @param oracleIn First price edge.
  * @param oracleOut Second price edge.
- * @param oracleRatioLimits Derived B/A oracle ratio band in raw swap-price units.
+ * @param minRatio Min derived oracle ratio, raw swap-price units scaled by 1e36.
+ * @param maxRatio Max derived oracle ratio, raw swap-price units scaled by 1e36.
  * @param maxDeviation Max deviation below the oracle ratio, scaled by 1e18 (0 disables slippage guard).
  */
 struct OracleConfig {
   TokenOracle oracleIn;
   TokenOracle oracleOut;
-  PackedU128 oracleRatioLimits;
+  uint256 minRatio;
+  uint256 maxRatio;
   uint256 maxDeviation;
 }
 
 library OracleLib {
   error InvalidMaxDeviation();
   error OraclePriceOutOfRange(uint256 price, uint128 minPrice, uint128 maxPrice);
-  error OracleRatioOutOfRange(uint256 ratio, uint128 minRatio, uint128 maxRatio);
+  error OracleRatioOutOfRange(uint256 ratio, uint256 minRatio, uint256 maxRatio);
   error RealizedPriceBelowOracle(uint256 realizedPrice, uint256 minRealizedPrice);
 
+  /// @dev Scale of oracle edge prices and `maxDeviation`
   uint256 internal constant PRECISION = 1e18;
+  /// @dev Scale of the raw swap price and oracle ratio
+  uint256 internal constant PRICE_SCALE = 1e36;
 
   /**
    * @notice Validates oracle price bands and minimum realized swap price, reverting on failure.
-   * @param realizedPrice Raw swap price: `amountOut_raw * 1e18 / amountIn_raw`.
+   * @param realizedPrice Raw swap price: `amountOut_raw * 1e36 / amountIn_raw`.
    */
   function validate(
     OracleConfig calldata config,
@@ -64,9 +69,8 @@ library OracleLib {
     require(maxDeviation <= PRECISION, InvalidMaxDeviation());
 
     (,, uint256 ratio) = config.getPrices(tokenIn, tokenOut);
-    (uint128 minOracleRatio, uint128 maxOracleRatio) = config.oracleRatioLimits.unpack();
-    if (ratio < minOracleRatio || ratio > maxOracleRatio) {
-      revert OracleRatioOutOfRange(ratio, minOracleRatio, maxOracleRatio);
+    if (ratio < config.minRatio || ratio > config.maxRatio) {
+      revert OracleRatioOutOfRange(ratio, config.minRatio, config.maxRatio);
     }
 
     if (maxDeviation != 0 && maxDeviation < PRECISION) {
@@ -85,7 +89,10 @@ library OracleLib {
     return oracle.adapter.addressValue() == address(0);
   }
 
-  /// @notice Oracle edge prices (1e18) and the derived raw-basis ratio, reverting if any edge is out of band.
+  /**
+   * @notice Oracle edge prices (1e18) and the derived ratio in raw swap-price units scaled by 1e36,
+   *         reverting if any edge is out of band.
+   */
   function getPrices(OracleConfig calldata config, address tokenIn, address tokenOut)
     internal
     view
@@ -93,7 +100,9 @@ library OracleLib {
   {
     priceIn = config.oracleIn.getPrice();
     priceOut = config.oracleOut.getPrice();
-    ratio = _toRawRatio(Math.mulDiv(priceIn, priceOut, PRECISION), tokenIn, tokenOut);
+    ratio = _toRawRatio(
+      Math.mulDiv(priceIn * priceOut, PRICE_SCALE, PRECISION * PRECISION), tokenIn, tokenOut
+    );
   }
 
   /**
@@ -116,8 +125,8 @@ library OracleLib {
   }
 
   /**
-   * @dev Converts a whole-token tokenOut/tokenIn ratio to the hook's realized-price unit:
-   *      amountOut_raw * 1e18 / amountIn_raw.
+   * @dev Converts a whole-token tokenOut/tokenIn ratio (1e36) to the hook's realized-price unit:
+   *      amountOut_raw * 1e36 / amountIn_raw.
    */
   function _toRawRatio(uint256 price, address tokenIn, address tokenOut)
     private

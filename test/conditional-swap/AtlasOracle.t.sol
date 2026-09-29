@@ -22,8 +22,8 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
   // Per-token USD prices, USD-per-whole-token scaled by 1e18:
   uint256 internal constant USDT_USD = 1e18; // $1
   uint256 internal constant BTC_USD = 100_000e18; // $100k
-  // Derived swap ratio (amountOut_raw * 1e18 / amountIn_raw) for the mock prices: 1e15.
-  uint256 internal constant ORACLE_RATIO = 1e15;
+  // Derived swap ratio (amountOut_raw * 1e36 / amountIn_raw) for the mock prices: 1e33.
+  uint256 internal constant ORACLE_RATIO = 1e33;
   // WBTC per whole USD/USDT, scaled by 1e18.
   uint256 internal constant WBTC_PER_USD = 1e13;
   uint256 internal constant WBTC_PER_USDT = WBTC_PER_USD;
@@ -301,7 +301,8 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
       _atlasLeg(ATLAS_USDT_USD, _fullBand()),
       _atlasLeg(ATLAS_WBTC_USD, _fullBand(), true),
       0,
-      _band(ORACLE_RATIO, 100, 100)
+      (ORACLE_RATIO * 99) / 100,
+      (ORACLE_RATIO * 101) / 100
     );
     _expectAtlasSwapOk(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
@@ -312,7 +313,8 @@ contract AtlasOracleTest is ConditionalSwapBaseTest {
       _atlasLeg(ATLAS_USDT_USD, _fullBand()),
       _atlasLeg(ATLAS_WBTC_USD, _fullBand(), true),
       0,
-      toPackedU128(ORACLE_RATIO * 2, type(uint128).max)
+      ORACLE_RATIO * 2,
+      type(uint256).max
     );
     _expectAtlasSwapRevert(mode, cfg, _amountOutFor(ORACLE_RATIO));
   }
