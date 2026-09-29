@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {MASK_160_BITS} from '../libraries/BitMask.sol';
+import {MASK_160_BITS, MASK_1_BIT} from '../libraries/BitMask.sol';
 
 /**
  * @notice A packed boolean and address value.
@@ -23,7 +23,7 @@ library BoolAddressLibrary {
 
   function boolValue(BoolAddress self) internal pure returns (bool _boolValue) {
     assembly ('memory-safe') {
-      _boolValue := shr(BOOL_VALUE_OFFSET, self)
+      _boolValue := and(shr(BOOL_VALUE_OFFSET, self), MASK_1_BIT)
     }
   }
 
@@ -35,7 +35,7 @@ library BoolAddressLibrary {
 
   function unpack(BoolAddress self) internal pure returns (bool _boolValue, address _addressValue) {
     assembly ('memory-safe') {
-      _boolValue := shr(BOOL_VALUE_OFFSET, self)
+      _boolValue := and(shr(BOOL_VALUE_OFFSET, self), MASK_1_BIT)
       _addressValue := and(self, MASK_160_BITS)
     }
   }

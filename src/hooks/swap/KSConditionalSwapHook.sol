@@ -67,7 +67,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenOut;
     uint256 amountIn;
     uint256 holderBalanceBefore;
-    uint256 swapperBalanceBefore;
     uint256 srcFeeRate;
     uint256 dstFeeRate;
     address recipient;
@@ -133,7 +132,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
         holderBalanceBefore: tokenOut.balanceOf(
           _settlementHolder(swapHookData.recipient, intentDstFeeRate)
         ),
-        swapperBalanceBefore: tokenIn.balanceOf(intentData.coreData.mainAddress),
         srcFeeRate: intentSrcFeeRate,
         dstFeeRate: intentDstFeeRate,
         recipient: swapHookData.recipient
@@ -250,10 +248,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     if (price < minPrice || price > maxPrice) {
       revert InvalidSwapPrice(price, minPrice, maxPrice);
     }
-    if (
-      condition.oracle.oracleIn.source.addressValue() != address(0)
-        || condition.oracle.oracleOut.source.addressValue() != address(0)
-    ) {
+    if (condition.oracle.hasOracle()) {
       OracleLib.validate(condition.oracle, tokenIn, tokenOut, price);
     }
 
@@ -282,7 +277,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 shift = (leafIndex % 32) * 8;
     uint256 packedValue = record[slotKey];
 
-    uint8 swapCount = uint8(packedValue >> shift) + 1;
+    uint256 swapCount = uint8(packedValue >> shift) + 1;
 
     if (swapCount > limit) {
       revert SwapLimitExceeded(leafIndex, limit);

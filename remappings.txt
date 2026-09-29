@@ -1,3 +1,4 @@
 forge-std/=lib/ks-common-sc/lib/forge-std/src/
 ks-common-sc/=lib/ks-common-sc
 openzeppelin-contracts=lib/ks-common-sc/lib/openzeppelin-contracts
+pull-oracle-consumer/=lib/pull-oracle-consumer/

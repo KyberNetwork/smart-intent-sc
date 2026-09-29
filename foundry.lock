@@ -4,5 +4,8 @@
       "name": "v2.1.0",
       "rev": "37c4f85d19afd8059e9b0fa173a9f89a696d0c13"
     }
+  },
+  "lib/pull-oracle-consumer": {
+    "rev": "a8f5b14036ed05f25dcebb81546bac600e138a34"
   }
 }
