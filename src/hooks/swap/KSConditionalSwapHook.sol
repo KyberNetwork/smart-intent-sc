@@ -26,10 +26,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   error InvalidLeafIndex();
   error SwapLimitExceeded(uint256 leafIndex, uint8 swapLimit);
 
-  /// @notice Scale of the realized swap price (raw tokenOut per raw tokenIn)
-  uint256 public constant DENOMINATOR = 1e36;
   /// @notice Fee-rate denominator (1e6 = 100%)
-  uint256 public constant PRECISION = 1_000_000;
+  uint256 public constant FEE_DENOMINATOR = 1_000_000;
 
   /**
    * @notice Data structure for conditional swap
@@ -125,7 +123,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 amountIn = actionData.erc20Amounts[0];
 
     fees = new uint256[](1);
-    fees[0] = (amountIn * intentSrcFeeRate) / PRECISION;
+    fees[0] = (amountIn * intentSrcFeeRate) / FEE_DENOMINATOR;
     beforeExecutionData = abi.encode(
       SwapValidationData({
         swapCondition: condition,
@@ -171,10 +169,10 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 amountOut = tokenOut.balanceOf(
       _settlementHolder(validationData.recipient, validationData.dstFeeRate)
     ) - validationData.holderBalanceBefore;
-    uint256 dstFee = (amountOut * validationData.dstFeeRate) / PRECISION;
+    uint256 dstFee = (amountOut * validationData.dstFeeRate) / FEE_DENOMINATOR;
     uint256 netAmountOut = amountOut - dstFee;
 
-    uint256 netExecutionPrice = Math.mulDiv(netAmountOut, DENOMINATOR, amountIn);
+    uint256 netExecutionPrice = Math.mulDiv(netAmountOut, OracleLib.PRICE_SCALE, amountIn);
 
     _validateSwapCondition(
       validationData.swapCondition,

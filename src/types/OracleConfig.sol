@@ -52,6 +52,8 @@ library OracleLib {
 
   /// @dev Scale of oracle edge prices and `maxDeviation`
   uint256 internal constant PRECISION = 1e18;
+  /// @dev Scale of the raw swap price and oracle ratio
+  uint256 internal constant PRICE_SCALE = 1e36;
 
   /**
    * @notice Validates oracle price bands and minimum realized swap price, reverting on failure.
