@@ -227,7 +227,7 @@ contract ChainlinkOracleTest is ConditionalSwapBaseTest {
     MockChainlinkFeed feedEth = new MockChainlinkFeed(8, int256(2000e8));
     return _config(
       _chainlinkLeg(address(feedIn), _band(USDT_USD, 100, 100)),
-      _chainlinkLeg(address(feedEth), _band(ETH_PER_USD, 100, 100), true),
+      _chainlinkLeg(address(feedEth), _band(_inv(ETH_PER_USD), 100, 100), true),
       maxDeviation
     );
   }
