@@ -100,7 +100,9 @@ library OracleLib {
   {
     priceIn = config.oracleIn.getPrice();
     priceOut = config.oracleOut.getPrice();
-    ratio = _toRawRatio(priceIn * priceOut, tokenIn, tokenOut);
+    ratio = _toRawRatio(
+      Math.mulDiv(priceIn * priceOut, PRICE_SCALE, PRECISION * PRECISION), tokenIn, tokenOut
+    );
   }
 
   /**
