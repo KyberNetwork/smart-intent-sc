@@ -4,12 +4,7 @@ pragma solidity ^0.8.0;
 import './BaseDeploy.s.sol';
 
 contract DeployOracleAdapters is BaseDeployScript {
-  /// @dev Oracle adapter configs and deployed addresses live under script/config/oracle-adapters/
-  string constant CONFIG_DIR = 'oracle-adapters/';
-
-  constructor()
-    BaseDeployScript('260929', string.concat(CONFIG_DIR, 'oracle-adapter-configs.json'))
-  {}
+  constructor() BaseDeployScript('260929', 'oracle-adapters/', 'oracle-adapter-configs.json') {}
 
   function _getConstructorArgs(string[] memory paramSources)
     internal
@@ -29,7 +24,7 @@ contract DeployOracleAdapters is BaseDeployScript {
     ) {
       return abi.encode(
         _readAddress('router-admin'),
-        _readAddressArray(string.concat(CONFIG_DIR, 'atlas-oracle-signers'))
+        _readAddressArray(string.concat(configDir, 'atlas-oracle-signers'))
       );
     }
 

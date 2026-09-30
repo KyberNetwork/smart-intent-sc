@@ -57,16 +57,17 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     pure
     returns (OracleConfig memory)
   {
-    return _config(oracleIn, oracleOut, maxDeviation, _fullBand());
+    return _config(oracleIn, oracleOut, maxDeviation, 0, type(uint256).max);
   }
 
   function _config(
     TokenOracle memory oracleIn,
     TokenOracle memory oracleOut,
     uint256 maxDeviation,
-    PackedU128 oracleRatioLimits
+    uint256 minRatio,
+    uint256 maxRatio
   ) internal pure returns (OracleConfig memory) {
-    return OracleConfig(oracleIn, oracleOut, oracleRatioLimits, maxDeviation);
+    return OracleConfig(oracleIn, oracleOut, minRatio, maxRatio, maxDeviation);
   }
 
   function _directConfig(TokenOracle memory directOracle, uint256 maxDeviation)
@@ -150,7 +151,8 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
       timeLimits: toPackedU128(0, type(uint128).max),
       amountInLimits: toPackedU128(0, type(uint128).max),
       maxFees: toPackedU128(0, type(uint128).max),
-      priceLimits: toPackedU128(0, type(uint128).max),
+      minPrice: 0,
+      maxPrice: type(uint256).max,
       oracle: oracle
     });
   }
@@ -174,19 +176,20 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
       timeLimits: timeLimits,
       amountInLimits: toPackedU128(swapAmount, swapAmount),
       maxFees: toPackedU128(0, type(uint128).max),
-      priceLimits: toPackedU128(0, type(uint128).max),
+      minPrice: 0,
+      maxPrice: type(uint256).max,
       oracle: _noOracle()
     });
   }
 
   /// @dev amountOut that yields a realized price of `realizedPrice` for amountIn == swapAmount.
   function _amountOutFor(uint256 realizedPrice) internal view returns (uint256) {
-    return (realizedPrice * swapAmount) / 1e18;
+    return (realizedPrice * swapAmount) / 1e36;
   }
 
   function _realizedPriceFor(uint256 ratio, uint256 amountIn) internal pure returns (uint256) {
-    uint256 amountOut = (ratio * amountIn) / 1e18;
-    return (amountOut * 1e18) / amountIn;
+    uint256 amountOut = (ratio * amountIn) / 1e36;
+    return (amountOut * 1e36) / amountIn;
   }
 
   function _mockSwapAction() internal view returns (ActionData memory actionData) {
@@ -432,7 +435,8 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
         timeLimits: toPackedU128(vm.getBlockTimestamp(), vm.getBlockTimestamp() + 1 days),
         amountInLimits: toPackedU128(min, max),
         maxFees: toPackedU128(maxSrcFee, maxDstFee),
-        priceLimits: toPackedU128(0, type(uint128).max),
+        minPrice: 0,
+        maxPrice: type(uint256).max,
         oracle: _noOracle()
       });
     }

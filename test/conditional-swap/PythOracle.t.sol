@@ -23,8 +23,8 @@ contract PythOracleTest is ConditionalSwapBaseTest {
   // Per-token USD prices, USD-per-whole-token scaled by 1e18:
   uint256 internal constant USDT_USD = 1e18; // $1
   uint256 internal constant BTC_USD = 100_000e18; // $100k
-  // Derived swap ratio (amountOut_raw * 1e18 / amountIn_raw) for the mock prices: 1e15.
-  uint256 internal constant ORACLE_RATIO = 1e15;
+  // Derived swap ratio (amountOut_raw * 1e36 / amountIn_raw) for the mock prices: 1e33.
+  uint256 internal constant ORACLE_RATIO = 1e33;
   // WBTC per whole USD/USDT, scaled by 1e18.
   uint256 internal constant WBTC_PER_USD = 1e13;
   uint256 internal constant WBTC_PER_USDT = WBTC_PER_USD;
@@ -259,7 +259,7 @@ contract PythOracleTest is ConditionalSwapBaseTest {
 
     assertGt(priceOut, 0);
     assertLt(priceOut, 1e18);
-    assertEq(ratio, priceOut * 100);
+    assertEq(ratio, priceOut * 1e20);
 
     uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
     assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));
@@ -280,7 +280,7 @@ contract PythOracleTest is ConditionalSwapBaseTest {
     assertGt(priceIn, 0);
     assertGt(priceOut, 0);
     assertLt(priceOut, 1e18);
-    assertEq(ratio, ((priceIn * priceOut) / 1e18) * 100);
+    assertEq(ratio, priceIn * priceOut * 100);
 
     uint256 realizedPrice = _realizedPriceFor(ratio, amountIn);
     assertTrue(_validateOracle(cfg, tokenIn, tokenOut, realizedPrice));

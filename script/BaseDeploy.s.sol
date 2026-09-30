@@ -4,28 +4,33 @@ pragma solidity ^0.8.0;
 import 'ks-common-sc/script/Base.s.sol';
 
 /// @notice Deploys contracts by name via CREATE3, reading their config from a JSON file.
-/// @dev Children supply the salt and config file, and override `_getConstructorArgs`
+/// @dev Children supply the salt, config folder and config file, and override `_getConstructorArgs`
 /// if any of their contracts take constructor arguments.
 abstract contract BaseDeployScript is BaseScript {
+  /// @param constructorParams The sources the child script resolves into constructor arguments
+  /// @param exported The address file name, relative to the config file's folder
   struct DeployConfig {
     string[] constructorParams;
     string exported;
   }
 
   string salt;
+  /// @dev Folder under script/config/ holding the config file and deployed addresses, e.g. 'hooks/'
+  string configDir;
   string configFile;
 
-  constructor(string memory _salt, string memory _configFile) {
+  constructor(string memory _salt, string memory _configDir, string memory _configFile) {
     if (bytes(_salt).length == 0) {
       revert('salt is required');
     }
     salt = _salt;
+    configDir = _configDir;
     configFile = _configFile;
   }
 
   function run(string[] memory contractNames) external {
     // Read deploy configurations from JSON
-    string memory json = vm.readFile(string.concat(path, configFile));
+    string memory json = vm.readFile(string.concat(path, configDir, configFile));
 
     vm.startBroadcast();
 
@@ -38,7 +43,7 @@ abstract contract BaseDeployScript is BaseScript {
 
       address deployed = _deployContract(contractName, config);
 
-      _writeAddress(config.exported, deployed);
+      _writeAddress(string.concat(configDir, config.exported), deployed);
       console.log('Deployed %s at %s', contractName, deployed);
     }
 
