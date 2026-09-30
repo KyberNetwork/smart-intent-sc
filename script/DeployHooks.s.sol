@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './BaseDeploy.s.sol';
 
 contract DeployHooks is BaseDeployScript {
-  constructor() BaseDeployScript('260205', 'hook-configs.json') {}
+  constructor() BaseDeployScript('260205', 'hooks/', 'hook-configs.json') {}
 
   function _getConstructorArgs(string[] memory paramSources)
     internal

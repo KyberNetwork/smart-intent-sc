@@ -6,5 +6,12 @@
   "PythOracleAdapter": {
     "constructorParams": [],
     "exported": "pyth-oracle-adapter"
+  },
+  "AtlasOracleAdapter": {
+    "constructorParams": [
+      "admin",
+      "atlas-signers"
+    ],
+    "exported": "atlas-oracle-adapter"
   }
 }
