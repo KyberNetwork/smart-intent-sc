@@ -1,9 +1,11 @@
 [submodule "lib/ks-common-sc"]
 	path = lib/ks-common-sc
 	url = https://github.com/KyberNetwork/ks-common-sc
+	tag = v2.1.0
 [submodule "lib/pull-oracle-consumer"]
 	path = lib/pull-oracle-consumer
 	url = https://github.com/oracle-atlas/pull-oracle-consumer
 [submodule "lib/ks-common-sc-script"]
 	path = lib/ks-common-sc-script
 	url = https://github.com/KyberNetwork/ks-common-sc
+	tag = v2.8.0
