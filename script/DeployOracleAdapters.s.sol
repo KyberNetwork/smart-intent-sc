@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import './BaseDeploy.s.sol';
 
 contract DeployOracleAdapters is BaseDeployScript {
-  constructor() BaseDeployScript('260929', 'oracle-adapters/', 'oracle-adapter-configs.json') {}
+  constructor() BaseDeployScript('261001', 'oracle-adapters/', 'oracle-adapter-configs.json') {}
 
   function _getConstructorArgs(string[] memory paramSources)
     internal
