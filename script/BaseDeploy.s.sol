@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import 'ks-common-sc/script/Base.s.sol';
+import 'ks-common-sc-script/script/Base.s.sol';
 
-/// @notice Deploys contracts by name via CREATE3, reading their config from a JSON file.
+/// @notice Deploys contracts by name via CREATE3 on one or more chains, reading their config from a
+/// JSON file.
 /// @dev Children supply the salt, config folder and config file, and override `_getConstructorArgs`
-/// if any of their contracts take constructor arguments.
+/// if any of their contracts take constructor arguments. Each chain's RPC URL comes from the
+/// `RPC_<chainId>` env var (or a foundry.toml `rpc_endpoints` alias).
 abstract contract BaseDeployScript is BaseScript {
   /// @param constructorParams The sources the child script resolves into constructor arguments
   /// @param exported The address file name, relative to the config file's folder
@@ -28,11 +30,19 @@ abstract contract BaseDeployScript is BaseScript {
     configFile = _configFile;
   }
 
-  function run(string[] memory contractNames) external {
+  /**
+   * @notice Deploys `contractNames` on every chain in `chainIds`
+   * @dev Usage:
+   *   forge script script/DeployHooks.s.sol --sig "run(string[],string[])" \
+   *     "[56,8453]" "[KSConditionalSwapHook]" --account <deployer> --broadcast
+   *   A contract already deployed at its CREATE3 address is skipped and its address re-recorded.
+   */
+  function run(string[] memory chainIds, string[] memory contractNames)
+    external
+    multiChain(chainIds)
+  {
     // Read deploy configurations from JSON
     string memory json = vm.readFile(string.concat(path, configDir, configFile));
-
-    vm.startBroadcast();
 
     for (uint256 i = 0; i < contractNames.length; i++) {
       string memory contractName = contractNames[i];
@@ -41,25 +51,27 @@ abstract contract BaseDeployScript is BaseScript {
       DeployConfig memory config =
         abi.decode(vm.parseJson(json, string.concat('.', contractName)), (DeployConfig));
 
-      address deployed = _deployContract(contractName, config);
+      (address deployed, bool success) = _deployContract(contractName, config);
 
       _writeAddress(string.concat(configDir, config.exported), deployed);
-      console.log('Deployed %s at %s', contractName, deployed);
+      if (success) {
+        console.log('Deployed %s at %s on chain %s', contractName, deployed, block.chainid);
+      } else {
+        console.log('Skipped %s, already at %s on chain %s', contractName, deployed, block.chainid);
+      }
     }
-
-    vm.stopBroadcast();
   }
 
   function _deployContract(string memory contractName, DeployConfig memory config)
     internal
-    returns (address)
+    returns (address deployed, bool success)
   {
     bytes memory creationCode = abi.encodePacked(
       vm.getCode(contractName), _getConstructorArgs(config.constructorParams)
     );
     string memory contractSalt = string.concat(contractName, '_', salt);
 
-    return _create3Deploy(keccak256(abi.encodePacked(contractSalt)), creationCode);
+    return _createXDeploy(keccak256(abi.encodePacked(contractSalt)), creationCode);
   }
 
   /// @dev Resolves constructor arguments from their config sources. Defaults to no arguments.
