@@ -23,8 +23,8 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     uint256 srcFeePercent, uint256 dstFeePercent, uint128 maxSrcFee, uint128 maxDstFee
   );
   error InvalidSwapPrice(uint256 price, uint256 minPrice, uint256 maxPrice);
-  error InvalidLeafIndex();
-  error SwapLimitExceeded(uint256 leafIndex, uint8 swapLimit);
+  error InvalidConditionId();
+  error SwapLimitExceeded(uint256 conditionId, uint8 swapLimit);
 
   /// @notice Fee-rate denominator (1e6 = 100%)
   uint256 public constant FEE_DENOMINATOR = 1_000_000;
@@ -32,7 +32,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   /**
    * @notice Data structure for conditional swap
    * @param root The merkle root committing to the allowed swap leaves, where each leaf is
-   *        keccak256(abi.encode(leafIndex, tokenIn, tokenOut, condition))
+   *        keccak256(abi.encode(conditionId, tokenIn, tokenOut, condition))
    * @param recipient The recipient of the destination token
    */
   struct SwapHookData {
@@ -65,7 +65,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   struct SwapValidationData {
     SwapCondition swapCondition;
     bytes32 intentHash;
-    uint256 leafIndex;
+    uint256 conditionId;
     address tokenIn;
     address tokenOut;
     uint256 amountIn;
@@ -77,11 +77,11 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
   /**
    * @notice Tracks swap execution counts for each condition to enforce swap limits
-   * @dev Maps intentHash -> packedLeafIndexes -> packedCounts
-   *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by leafIndex / 32
-   *      Individual counts are extracted using bit shifts based on leafIndex % 32
+   * @dev Maps intentHash -> packedConditionIds -> packedCounts
+   *      Each uint256 stores up to 32 uint8 swap counts (8 bits each), indexed by conditionId / 32
+   *      Individual counts are extracted using bit shifts based on conditionId % 32
    */
-  mapping(bytes32 intentHash => mapping(uint256 packedLeafIndexes => uint256 swapCount)) public
+  mapping(bytes32 intentHash => mapping(uint256 packedConditionIds => uint256 swapCount)) public
     swapRecord;
 
   constructor(address[] memory initialRouters) BaseStatefulHook(initialRouters) {}
@@ -109,7 +109,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     (
       bytes32[] calldata proof,
       SwapCondition calldata condition,
-      uint256 leafIndex,
+      uint256 conditionId,
       address tokenOut,
       uint256 intentSrcFeeRate,
       uint256 intentDstFeeRate
@@ -117,7 +117,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
 
     address tokenIn = intentData.tokenData.erc20Data[actionData.erc20Ids[0]].token;
 
-    bytes32 leaf = keccak256(abi.encode(leafIndex, tokenIn, tokenOut, condition));
+    bytes32 leaf = keccak256(abi.encode(conditionId, tokenIn, tokenOut, condition));
     require(MerkleProof.verifyCalldata(proof, swapHookData.root, leaf), InvalidProof());
 
     uint256 amountIn = actionData.erc20Amounts[0];
@@ -128,7 +128,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       SwapValidationData({
         swapCondition: condition,
         intentHash: intentHash,
-        leafIndex: leafIndex,
+        conditionId: conditionId,
         tokenIn: tokenIn,
         tokenOut: tokenOut,
         amountIn: amountIn,
@@ -177,7 +177,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     _validateSwapCondition(
       validationData.swapCondition,
       swapRecord[validationData.intentHash],
-      validationData.leafIndex,
+      validationData.conditionId,
       netExecutionPrice,
       amountIn,
       validationData.srcFeeRate,
@@ -207,24 +207,24 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   /**
    * @notice Gets the number of times a specific swap condition has been executed
    * @param intentHash The hash of the intent
-   * @param leafIndex The merkle leaf index of the swap condition to check
+   * @param conditionId The id of the swap condition to check
    * @return The number of times this condition has been executed
    */
-  function getSwapExecutionCount(bytes32 intentHash, uint256 leafIndex)
+  function getSwapExecutionCount(bytes32 intentHash, uint256 conditionId)
     public
     view
     returns (uint256)
   {
-    uint256 packedValue = swapRecord[intentHash][leafIndex / 32];
-    uint256 bytePosition = leafIndex % 32;
+    uint256 packedValue = swapRecord[intentHash][conditionId / 32];
+    uint256 bytePosition = conditionId % 32;
 
     return uint8(packedValue >> (bytePosition * 8));
   }
 
   function _validateSwapCondition(
     SwapCondition calldata condition,
-    mapping(uint256 packedLeafIndexes => uint256 swapCounts) storage record,
-    uint256 leafIndex,
+    mapping(uint256 packedConditionIds => uint256 swapCounts) storage record,
+    uint256 conditionId,
     uint256 price,
     uint256 amountIn,
     uint256 srcFeePercent,
@@ -255,34 +255,34 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
 
     if (condition.swapLimit != 0) {
-      _increaseByOne(record, leafIndex, condition.swapLimit);
+      _increaseByOne(record, conditionId, condition.swapLimit);
     }
   }
 
   /**
    * @notice Increments swap count for a specific condition
    * @dev Uses bit manipulation to efficiently store counts in packed format.
-   *      Each uint256 slot holds 32 uint8 counters; the slot is selected by leafIndex/32
-   *      and the byte position within that slot by leafIndex%32.
+   *      Each uint256 slot holds 32 uint8 counters; the slot is selected by conditionId/32
+   *      and the byte position within that slot by conditionId%32.
    * @param record Storage mapping containing packed swap counts
-   * @param leafIndex The merkle leaf index corresponding to the condition whose count is incremented
+   * @param conditionId The id of the condition whose count is incremented
    * @param limit Maximum allowed swaps for this condition. Callers must skip this function when the
    *        limit is zero (unlimited), otherwise the first execution reverts SwapLimitExceeded.
    */
   function _increaseByOne(
-    mapping(uint256 packedLeafIndexes => uint256 packedValues) storage record,
-    uint256 leafIndex,
+    mapping(uint256 packedConditionIds => uint256 packedValues) storage record,
+    uint256 conditionId,
     uint8 limit
   ) internal {
-    require(leafIndex <= type(uint8).max, InvalidLeafIndex());
-    uint256 slotKey = leafIndex / 32;
-    uint256 shift = (leafIndex % 32) * 8;
+    require(conditionId <= type(uint8).max, InvalidConditionId());
+    uint256 slotKey = conditionId / 32;
+    uint256 shift = (conditionId % 32) * 8;
     uint256 packedValue = record[slotKey];
 
     uint256 swapCount = uint8(packedValue >> shift) + 1;
 
     if (swapCount > limit) {
-      revert SwapLimitExceeded(leafIndex, limit);
+      revert SwapLimitExceeded(conditionId, limit);
     }
 
     record[slotKey] = packedValue + (1 << shift);
@@ -312,7 +312,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     returns (
       bytes32[] calldata proof,
       SwapCondition calldata condition,
-      uint256 leafIndex,
+      uint256 conditionId,
       address tokenOut,
       uint256 intentSrcFee,
       uint256 intentDstFee
@@ -320,7 +320,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
   {
     PackedU128 packedFees;
     assembly ('memory-safe') {
-      leafIndex := calldataload(add(data.offset, 0x20))
+      conditionId := calldataload(add(data.offset, 0x20))
       tokenOut := calldataload(add(data.offset, 0x40))
       packedFees := calldataload(add(data.offset, 0x60))
       condition := add(data.offset, calldataload(add(data.offset, 0x80)))

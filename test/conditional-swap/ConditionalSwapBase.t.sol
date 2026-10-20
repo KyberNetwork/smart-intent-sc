@@ -342,23 +342,23 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     internal
     returns (bytes32[] memory, bytes32)
   {
-    uint256[] memory leafIndexes = new uint256[](conditions.length);
+    uint256[] memory conditionIds = new uint256[](conditions.length);
     for (uint256 i = 0; i < conditions.length; i++) {
-      leafIndexes[i] = i;
+      conditionIds[i] = i;
     }
-    return _setUpLeaves(leafIndexes, conditions);
+    return _setUpLeaves(conditionIds, conditions);
   }
 
-  /// @dev As above, but with leaf indexes that need not match the position in the tree.
+  /// @dev As above, but with condition ids that need not match the position in the tree.
   function _setUpLeaves(
-    uint256[] memory leafIndexes,
+    uint256[] memory conditionIds,
     KSConditionalSwapHook.SwapCondition[] memory conditions
   ) internal returns (bytes32[] memory, bytes32) {
     leaves = new bytes32[](conditions.length);
     delete leafConditions;
 
     for (uint256 i = 0; i < conditions.length; i++) {
-      leaves[i] = keccak256(abi.encode(leafIndexes[i], tokenIn, tokenOut, conditions[i]));
+      leaves[i] = keccak256(abi.encode(conditionIds[i], tokenIn, tokenOut, conditions[i]));
       leafConditions.push(conditions[i]);
     }
 
@@ -367,23 +367,24 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     return (leaves, root);
   }
 
-  /// @dev hookActionData proving `leafIndex` against the current root, with the current fee rates.
-  function _hookActionData(uint256 leafIndex) internal view returns (bytes memory) {
-    return _hookActionData(leafIndex, feeBefore, feeAfter);
+  /// @dev hookActionData proving `conditionId` against the current root, with the current fee rates.
+  ///      Assumes ids equal tree positions, as committed by `_setUpLeaves(conditions)`.
+  function _hookActionData(uint256 conditionId) internal view returns (bytes memory) {
+    return _hookActionData(conditionId, feeBefore, feeAfter);
   }
 
-  function _hookActionData(uint256 leafIndex, uint256 srcFee, uint256 dstFee)
+  function _hookActionData(uint256 conditionId, uint256 srcFee, uint256 dstFee)
     internal
     view
     returns (bytes memory)
   {
     bytes32[] memory memLeaves = leaves;
     return abi.encode(
-      MerkleUtils.getProof(memLeaves, leafIndex),
-      leafIndex,
+      MerkleUtils.getProof(memLeaves, conditionId),
+      conditionId,
       tokenOut,
       toPackedU128(srcFee, dstFee),
-      leafConditions[leafIndex]
+      leafConditions[conditionId]
     );
   }
 
