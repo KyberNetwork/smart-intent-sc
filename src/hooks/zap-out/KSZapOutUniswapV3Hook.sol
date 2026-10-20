@@ -30,6 +30,8 @@ contract KSZapOutUniswapV3Hook is BaseHook {
 
   error BelowMinRate(uint256 liquidity, uint256 minRate, uint256 outputAmount);
 
+  error BelowMinRemovedLiquidity(uint256 liquidity, uint256 minRemovedLiquidity);
+
   uint256 public constant RATE_DENOMINATOR = 1e18;
 
   struct ZapOutUniswapV3HookData {
@@ -41,6 +43,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint160[] sqrtPLowers;
     uint160[] sqrtPUppers;
     uint256[] minRates;
+    uint256[] minRemovedLiquidities;
     address recipient;
   }
 
@@ -94,6 +97,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
       tokenBalanceBefore,
       uint128(zapOutHookData.offsets[index]),
       zapOutHookData.minRates[index],
+      zapOutHookData.minRemovedLiquidities[index],
       zapOutHookData.recipient
     );
   }
@@ -106,6 +110,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     bytes calldata
   ) external view override returns (address[] memory, uint256[] memory, uint256[] memory, address) {
     uint256 minRate;
+    uint256 minRemovedLiquidity;
     uint256 liquidity;
     uint256 outputAmount;
 
@@ -126,11 +131,12 @@ contract KSZapOutUniswapV3Hook is BaseHook {
         tokenBalanceBefore,
         liquidityOffset,
         minRate,
+        minRemovedLiquidity,
         recipient
       ) =
         abi.decode(
           beforeExecutionData,
-          (address, uint256, address, uint256, uint256, uint256, uint256, address)
+          (address, uint256, address, uint256, uint256, uint256, uint256, uint256, address)
         );
 
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
@@ -142,6 +148,10 @@ contract KSZapOutUniswapV3Hook is BaseHook {
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken.balanceOf(recipient) - tokenBalanceBefore;
+    }
+
+    if (liquidity < minRemovedLiquidity) {
+      revert BelowMinRemovedLiquidity(liquidity, minRemovedLiquidity);
     }
 
     if (outputAmount * RATE_DENOMINATOR < minRate * liquidity) {
