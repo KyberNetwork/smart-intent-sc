@@ -39,7 +39,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint256[] nftIds;
     address[] pools;
     address[] outputTokens;
-    uint256[] offsets;
+    uint256[] wordIndexes;
     uint160[] sqrtPLowers;
     uint160[] sqrtPUppers;
     uint256[] minRates;
@@ -71,7 +71,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     require(erc721Data.tokenId == zapOutHookData.nftIds[index], InvalidTokenData());
 
     uint160 sqrtPriceX96 =
-      _getSqrtPriceX96(zapOutHookData.pools[index], zapOutHookData.offsets[index] >> 128);
+      _getSqrtPriceX96(zapOutHookData.pools[index], zapOutHookData.wordIndexes[index] >> 128);
     require(
       sqrtPriceX96 >= zapOutHookData.sqrtPLowers[index]
         && sqrtPriceX96 <= zapOutHookData.sqrtPUppers[index],
@@ -83,7 +83,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint256 liquidityBefore = _getPositionLiquidity(
       zapOutHookData.nftAddresses[index],
       zapOutHookData.nftIds[index],
-      uint128(zapOutHookData.offsets[index])
+      uint128(zapOutHookData.wordIndexes[index])
     );
     uint256 tokenBalanceBefore =
       zapOutHookData.outputTokens[index].balanceOf(zapOutHookData.recipient);
@@ -95,7 +95,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
       zapOutHookData.outputTokens[index],
       liquidityBefore,
       tokenBalanceBefore,
-      uint128(zapOutHookData.offsets[index]),
+      uint128(zapOutHookData.wordIndexes[index]),
       zapOutHookData.minRates[index],
       zapOutHookData.minRemovedLiquidities[index],
       zapOutHookData.recipient
@@ -120,7 +120,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
       address outputToken;
       uint256 liquidityBefore;
       uint256 tokenBalanceBefore;
-      uint256 liquidityOffset;
+      uint256 liquidityWordIndex;
       address recipient;
 
       (
@@ -129,7 +129,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
         outputToken,
         liquidityBefore,
         tokenBalanceBefore,
-        liquidityOffset,
+        liquidityWordIndex,
         minRate,
         minRemovedLiquidity,
         recipient
@@ -139,7 +139,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
           (address, uint256, address, uint256, uint256, uint256, uint256, uint256, address)
         );
 
-      uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityOffset);
+      uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityWordIndex);
       require(
         liquidityAfter == 0
           || IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress,
@@ -159,29 +159,29 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     }
   }
 
-  function _getPositionLiquidity(address nftAddress, uint256 nftId, uint256 liquidityOffset)
+  function _getPositionLiquidity(address nftAddress, uint256 nftId, uint256 liquidityWordIndex)
     internal
     view
     returns (uint256 liquidity)
   {
     (bool success, bytes memory result) =
       address(nftAddress).staticcall(abi.encodeWithSelector(IUniswapV3PM.positions.selector, nftId));
-    require(success, GetPositionLiquidityFailed());
+    require(success && result.length >= (liquidityWordIndex + 1) * 32, GetPositionLiquidityFailed());
     assembly {
-      liquidity := mload(add(result, liquidityOffset))
+      liquidity := mload(add(add(result, 0x20), mul(liquidityWordIndex, 0x20)))
     }
   }
 
-  function _getSqrtPriceX96(address pool, uint256 priceOffset)
+  function _getSqrtPriceX96(address pool, uint256 priceWordIndex)
     internal
     view
     returns (uint160 sqrtPriceX96)
   {
     (bool success, bytes memory result) =
       address(pool).staticcall(abi.encodeWithSelector(IUniswapV3Pool.slot0.selector));
-    require(success, GetSqrtPriceX96Failed());
+    require(success && result.length >= (priceWordIndex + 1) * 32, GetSqrtPriceX96Failed());
     assembly {
-      sqrtPriceX96 := mload(add(result, priceOffset))
+      sqrtPriceX96 := mload(add(add(result, 0x20), mul(priceWordIndex, 0x20)))
     }
   }
 }
