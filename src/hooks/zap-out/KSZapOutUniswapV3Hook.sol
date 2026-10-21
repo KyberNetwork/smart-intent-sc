@@ -140,11 +140,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
         );
 
       uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityWordOffset);
-      require(
-        liquidityAfter == 0
-          || IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress,
-        InvalidOwner()
-      );
+      require(IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress, InvalidOwner());
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken.balanceOf(recipient) - tokenBalanceBefore;

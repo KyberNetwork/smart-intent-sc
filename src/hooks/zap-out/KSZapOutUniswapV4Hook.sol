@@ -141,10 +141,7 @@ contract KSZapOutUniswapV4Hook is BaseHook {
         );
 
       uint256 liquidityAfter = positionManager.getPositionLiquidity(tokenId);
-      require(
-        liquidityAfter == 0 || positionManager.ownerOf(tokenId) == intentData.coreData.mainAddress,
-        InvalidOwner()
-      );
+      require(positionManager.ownerOf(tokenId) == intentData.coreData.mainAddress, InvalidOwner());
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken.balanceOf(recipient) - tokenBalanceBefore;
