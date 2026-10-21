@@ -69,7 +69,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenIn;
     address tokenOut;
     uint256 amountIn;
-    uint256 holderBalanceBefore;
+    uint256 routerBalanceBefore;
     uint256 srcFeeRate;
     uint256 dstFeeRate;
     address recipient;
@@ -132,9 +132,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
         tokenIn: tokenIn,
         tokenOut: tokenOut,
         amountIn: amountIn,
-        holderBalanceBefore: tokenOut.balanceOf(
-          _settlementHolder(swapHookData.recipient, intentDstFeeRate)
-        ),
+        routerBalanceBefore: tokenOut.balanceOf(msg.sender),
         srcFeeRate: intentSrcFeeRate,
         dstFeeRate: intentDstFeeRate,
         recipient: swapHookData.recipient
@@ -166,9 +164,7 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     address tokenOut = validationData.tokenOut;
     uint256 amountIn = validationData.amountIn;
 
-    uint256 amountOut = tokenOut.balanceOf(
-      _settlementHolder(validationData.recipient, validationData.dstFeeRate)
-    ) - validationData.holderBalanceBefore;
+    uint256 amountOut = tokenOut.balanceOf(msg.sender) - validationData.routerBalanceBefore;
     uint256 dstFee = (amountOut * validationData.dstFeeRate) / FEE_DENOMINATOR;
     uint256 netAmountOut = amountOut - dstFee;
 
@@ -185,10 +181,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
       tokenIn,
       tokenOut
     );
-
-    if (validationData.dstFeeRate == 0) {
-      return (tokens, fees, amounts, recipient);
-    }
 
     tokens = new address[](1);
     tokens[0] = tokenOut;
@@ -286,10 +278,6 @@ contract KSConditionalSwapHook is BaseStatefulHook {
     }
 
     record[slotKey] = packedValue + (1 << shift);
-  }
-
-  function _settlementHolder(address recipient, uint256 feeRate) internal view returns (address) {
-    return feeRate != 0 ? msg.sender : recipient;
   }
 
   // @dev: equivalent to abi.decode(data, (SwapHookData)), SwapHookData is a static struct

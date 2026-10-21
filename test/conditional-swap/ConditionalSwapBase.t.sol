@@ -197,16 +197,7 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     tokenData.erc20Data = new ERC20Data[](1);
     tokenData.erc20Data[0] = ERC20Data({token: tokenIn, amount: swapAmount, permitData: ''});
     actionData = _getActionData(
-      tokenData,
-      abi.encode(
-        tokenIn,
-        tokenOut,
-        swapAmount,
-        1000,
-        feeAfter == 0 ? mainAddress : address(router),
-        mainAddress
-      ),
-      true
+      tokenData, abi.encode(tokenIn, tokenOut, swapAmount, 1000, address(router), mainAddress), true
     );
   }
 
@@ -242,7 +233,7 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
 
     actionData = _getActionData(
       tokenData,
-      abi.encode(tokenIn, tokenOut, swapAmount, amountOut, mainAddress, mainAddress),
+      abi.encode(tokenIn, tokenOut, swapAmount, amountOut, address(router), mainAddress),
       true
     );
     actionData.hookActionData = _hookActionData(0, 0, 0);
@@ -410,14 +401,7 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
     actionData.approvalFlags = (1 << (tokenData.erc20Data.length + tokenData.erc721Data.length)) - 1;
     actionData.actionSelectorId = swapViaMock ? 0 : 1;
     if (swapViaMock && actionCalldata.length == 0) {
-      actionCalldata = abi.encode(
-        tokenIn,
-        tokenOut,
-        swapAmount,
-        1000,
-        feeAfter == 0 ? mainAddress : address(router),
-        mainAddress
-      );
+      actionCalldata = abi.encode(tokenIn, tokenOut, swapAmount, 1000, address(router), mainAddress);
     }
     actionData.actionCalldata = actionCalldata;
     actionData.hookActionData = _hookActionData(0);
@@ -475,14 +459,5 @@ abstract contract ConditionalSwapBaseTest is BaseTest {
       router.delegate(intentData);
     }
     vm.stopPrank();
-  }
-
-  function _adjustRecipient(bytes memory data) internal view returns (bytes memory) {
-    IKSSwapRouterV2.SwapExecutionParams memory params =
-      abi.decode(data, (IKSSwapRouterV2.SwapExecutionParams));
-
-    params.desc.dstReceiver = feeAfter == 0 ? mainAddress : address(router);
-
-    return abi.encode(params);
   }
 }
