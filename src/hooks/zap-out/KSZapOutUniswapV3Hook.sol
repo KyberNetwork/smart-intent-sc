@@ -39,7 +39,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint256[] nftIds;
     address[] pools;
     address[] outputTokens;
-    uint256[] wordIndexes;
+    uint256[] wordOffsets;
     uint160[] sqrtPLowers;
     uint160[] sqrtPUppers;
     uint256[] minRates;
@@ -71,7 +71,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     require(erc721Data.tokenId == zapOutHookData.nftIds[index], InvalidTokenData());
 
     uint160 sqrtPriceX96 =
-      _getSqrtPriceX96(zapOutHookData.pools[index], zapOutHookData.wordIndexes[index] >> 128);
+      _getSqrtPriceX96(zapOutHookData.pools[index], zapOutHookData.wordOffsets[index] >> 128);
     require(
       sqrtPriceX96 >= zapOutHookData.sqrtPLowers[index]
         && sqrtPriceX96 <= zapOutHookData.sqrtPUppers[index],
@@ -83,7 +83,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     uint256 liquidityBefore = _getPositionLiquidity(
       zapOutHookData.nftAddresses[index],
       zapOutHookData.nftIds[index],
-      uint128(zapOutHookData.wordIndexes[index])
+      uint128(zapOutHookData.wordOffsets[index])
     );
     uint256 tokenBalanceBefore =
       zapOutHookData.outputTokens[index].balanceOf(zapOutHookData.recipient);
@@ -95,7 +95,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
       zapOutHookData.outputTokens[index],
       liquidityBefore,
       tokenBalanceBefore,
-      uint128(zapOutHookData.wordIndexes[index]),
+      uint128(zapOutHookData.wordOffsets[index]),
       zapOutHookData.minRates[index],
       zapOutHookData.minRemovedLiquidities[index],
       zapOutHookData.recipient
@@ -120,7 +120,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
       address outputToken;
       uint256 liquidityBefore;
       uint256 tokenBalanceBefore;
-      uint256 liquidityWordIndex;
+      uint256 liquidityWordOffset;
       address recipient;
 
       (
@@ -129,7 +129,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
         outputToken,
         liquidityBefore,
         tokenBalanceBefore,
-        liquidityWordIndex,
+        liquidityWordOffset,
         minRate,
         minRemovedLiquidity,
         recipient
@@ -139,7 +139,7 @@ contract KSZapOutUniswapV3Hook is BaseHook {
           (address, uint256, address, uint256, uint256, uint256, uint256, uint256, address)
         );
 
-      uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityWordIndex);
+      uint256 liquidityAfter = _getPositionLiquidity(nftAddress, nftId, liquidityWordOffset);
       require(
         liquidityAfter == 0
           || IERC721(nftAddress).ownerOf(nftId) == intentData.coreData.mainAddress,
@@ -159,29 +159,31 @@ contract KSZapOutUniswapV3Hook is BaseHook {
     }
   }
 
-  function _getPositionLiquidity(address nftAddress, uint256 nftId, uint256 liquidityWordIndex)
+  function _getPositionLiquidity(address nftAddress, uint256 nftId, uint256 liquidityWordOffset)
     internal
     view
     returns (uint256 liquidity)
   {
     (bool success, bytes memory result) =
       address(nftAddress).staticcall(abi.encodeWithSelector(IUniswapV3PM.positions.selector, nftId));
-    require(success && result.length >= (liquidityWordIndex + 1) * 32, GetPositionLiquidityFailed());
+    require(
+      success && result.length >= (liquidityWordOffset + 1) * 32, GetPositionLiquidityFailed()
+    );
     assembly {
-      liquidity := mload(add(add(result, 0x20), mul(liquidityWordIndex, 0x20)))
+      liquidity := mload(add(add(result, 0x20), mul(liquidityWordOffset, 0x20)))
     }
   }
 
-  function _getSqrtPriceX96(address pool, uint256 priceWordIndex)
+  function _getSqrtPriceX96(address pool, uint256 priceWordOffset)
     internal
     view
     returns (uint160 sqrtPriceX96)
   {
     (bool success, bytes memory result) =
       address(pool).staticcall(abi.encodeWithSelector(IUniswapV3Pool.slot0.selector));
-    require(success && result.length >= (priceWordIndex + 1) * 32, GetSqrtPriceX96Failed());
+    require(success && result.length >= (priceWordOffset + 1) * 32, GetSqrtPriceX96Failed());
     assembly {
-      sqrtPriceX96 := mload(add(add(result, 0x20), mul(priceWordIndex, 0x20)))
+      sqrtPriceX96 := mload(add(add(result, 0x20), mul(priceWordOffset, 0x20)))
     }
   }
 }

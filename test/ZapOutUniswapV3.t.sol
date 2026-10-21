@@ -150,9 +150,9 @@ contract ZapOutUniswapV3Test is BaseTest {
     hookData.pools[0] = address(pool);
     hookData.outputTokens = new address[](1);
     hookData.outputTokens[0] = outputToken;
-    hookData.wordIndexes = new uint256[](1);
-    hookData.wordIndexes[0] = 7; // 7 is the liquidity word index
-    hookData.wordIndexes[0] |= (uint256(0) << 128); // 0 is the sqrtPriceX96 word index
+    hookData.wordOffsets = new uint256[](1);
+    hookData.wordOffsets[0] = 7; // 7 is the liquidity word offset
+    hookData.wordOffsets[0] |= (uint256(0) << 128); // 0 is the sqrtPriceX96 word offset
     hookData.sqrtPLowers = new uint160[](1);
     hookData.sqrtPLowers[0] = sqrtPLower;
     hookData.sqrtPUppers = new uint160[](1);
