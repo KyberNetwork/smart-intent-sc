@@ -93,6 +93,7 @@ contract KSRemoveLiquidityPancakeV4CLHook is BaseTickBasedRemoveLiquidityHook {
     if (removeLiqParams.wrapOrUnwrap) {
       outputParams.tokens = _adjustTokens(outputParams.tokens);
     }
+    require(outputParams.tokens[0] != outputParams.tokens[1], InvalidTokenData());
 
     (outputParams.balancesBefore[0], outputParams.balancesBefore[1]) =
       _recordRouterBalances(msg.sender, outputParams.tokens);
