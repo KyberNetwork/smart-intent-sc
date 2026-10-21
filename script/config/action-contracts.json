@@ -19,6 +19,10 @@
         {
             "name": "KyberSwapMetaAggregationRouterV2",
             "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "8453": [
@@ -41,6 +45,10 @@
         {
             "name": "KyberSwapMetaAggregationRouterV2",
             "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "1": [
@@ -63,6 +71,10 @@
         {
             "name": "KyberSwapMetaAggregationRouterV2",
             "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "42161": [
