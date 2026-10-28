@@ -15,6 +15,14 @@
         {
             "name": "PancakeV3PositionManager",
             "address": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364"
+        },
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "8453": [
@@ -33,6 +41,14 @@
         {
             "name": "PancakeV3PositionManager",
             "address": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364"
+        },
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "1": [
@@ -51,6 +67,14 @@
         {
             "name": "SushiSwapV3PositionManager",
             "address": "0x2214A42d8e2A1d20635c2cb0664422c528B6A432"
+        },
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "42161": [
@@ -69,12 +93,28 @@
         {
             "name": "SushiSwapV3PositionManager",
             "address": "0xF0cBce1942A68BEB3d1b73F0dd86C8DCc363eF49"
+        },
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "10": [
         {
             "name": "UniswapV3PositionManager",
             "address": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"
+        },
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ],
     "143": [
@@ -103,6 +143,44 @@
         {
             "name": "PancakeV3PositionManager",
             "address": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364"
+        },
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
+        }
+    ],
+    "137": [
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
+        }
+    ],
+    "43114": [
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
+        }
+    ],
+    "999": [
+        {
+            "name": "KyberSwapMetaAggregationRouterV2",
+            "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        },
+        {
+            "name": "KSAggregationRouterV3",
+            "address": "0x6868D319c8c9A78F7d39DC3602C5c917315132D7"
         }
     ]
 }
