@@ -31,6 +31,8 @@ contract KSZapOutUniswapV4Hook is BaseHook {
 
   error BelowMinRate(uint256 liquidity, uint256 minRate, uint256 outputAmount);
 
+  error BelowMinRemovedLiquidity(uint256 liquidity, uint256 minRemovedLiquidity);
+
   uint256 public constant RATE_DENOMINATOR = 1e18;
 
   struct ZapOutUniswapV4HookData {
@@ -41,6 +43,7 @@ contract KSZapOutUniswapV4Hook is BaseHook {
     uint160[] sqrtPLowers;
     uint160[] sqrtPUppers;
     uint256[] minRates;
+    uint256[] minRemovedLiquidities;
     address recipient;
   }
 
@@ -97,6 +100,7 @@ contract KSZapOutUniswapV4Hook is BaseHook {
       liquidityBefore,
       tokenBalanceBefore,
       zapOutHookData.minRates[index],
+      zapOutHookData.minRemovedLiquidities[index],
       zapOutHookData.recipient
     );
   }
@@ -109,6 +113,7 @@ contract KSZapOutUniswapV4Hook is BaseHook {
     bytes calldata
   ) external view override returns (address[] memory, uint256[] memory, uint256[] memory, address) {
     uint256 minRate;
+    uint256 minRemovedLiquidity;
     uint256 liquidity;
     uint256 outputAmount;
 
@@ -127,21 +132,23 @@ contract KSZapOutUniswapV4Hook is BaseHook {
         liquidityBefore,
         tokenBalanceBefore,
         minRate,
+        minRemovedLiquidity,
         recipient
       ) =
         abi.decode(
           beforeExecutionData,
-          (IPositionManager, uint256, address, uint256, uint256, uint256, address)
+          (IPositionManager, uint256, address, uint256, uint256, uint256, uint256, address)
         );
 
       uint256 liquidityAfter = positionManager.getPositionLiquidity(tokenId);
-      require(
-        liquidityAfter == 0 || positionManager.ownerOf(tokenId) == intentData.coreData.mainAddress,
-        InvalidOwner()
-      );
+      require(positionManager.ownerOf(tokenId) == intentData.coreData.mainAddress, InvalidOwner());
       liquidity = liquidityBefore - liquidityAfter;
 
       outputAmount = outputToken.balanceOf(recipient) - tokenBalanceBefore;
+    }
+
+    if (liquidity < minRemovedLiquidity) {
+      revert BelowMinRemovedLiquidity(liquidity, minRemovedLiquidity);
     }
 
     if (outputAmount * RATE_DENOMINATOR < minRate * liquidity) {
