@@ -87,6 +87,7 @@ contract KSRemoveLiquidityUniswapV4Hook is BaseTickBasedRemoveLiquidityHook {
       outputParams.tokens =
         [_adjustToken(outputParams.tokens[0]), _adjustToken(outputParams.tokens[1])];
     }
+    require(outputParams.tokens[0] != outputParams.tokens[1], InvalidTokenData());
 
     (outputParams.balancesBefore[0], outputParams.balancesBefore[1]) =
       _recordRouterBalances(msg.sender, outputParams.tokens);
